@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { fetchAPI } from '@/lib/api'
+import { API_BASE_URL } from '@/lib/api'
 
 export default function SQLConsolePage() {
   const [sql, setSql] = useState("SELECT * FROM users LIMIT 10;")
@@ -15,8 +15,11 @@ export default function SQLConsolePage() {
     setResult(null)
 
     try {
-      const data = await fetchAPI<any>('/api/v1/query', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/query`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           database_id: 'db-demo-id',
           sql: sql,
