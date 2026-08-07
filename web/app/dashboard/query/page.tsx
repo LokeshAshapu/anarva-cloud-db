@@ -15,16 +15,19 @@ export default function SQLConsolePage() {
     setResult(null)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/query`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/query`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           database_id: 'db-demo-id',
           sql: sql,
         }),
       })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Query execution failed')
+      }
 
       setResult(data)
     } catch (err: any) {
