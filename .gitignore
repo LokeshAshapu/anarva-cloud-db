@@ -1,0 +1,33 @@
+# Binaries & Executables
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Node / Next.js
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+web/.vercel/
+web/npm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*
+
+# Environment & Local Storage Data
+.env
+.env.local
+.env.development.local
+.env.production.local
+storage_data/
+backups_data/
+*.log
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

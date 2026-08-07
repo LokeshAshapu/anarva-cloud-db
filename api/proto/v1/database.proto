@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package v1;
+
+option go_package = "github.com/anarva-cloud/anarva-cloud-db/api/proto/v1;databasev1";
+
+service DatabaseService {
+  rpc CreateDatabase (CreateDatabaseRequest) returns (CreateDatabaseResponse);
+  rpc GetDatabase (GetDatabaseRequest) returns (GetDatabaseResponse);
+  rpc ListDatabases (ListDatabasesRequest) returns (ListDatabasesResponse);
+  rpc StartDatabase (StartDatabaseRequest) returns (StartDatabaseResponse);
+  rpc StopDatabase (StopDatabaseRequest) returns (StopDatabaseResponse);
+  rpc DeleteDatabase (DeleteDatabaseRequest) returns (DeleteDatabaseResponse);
+  rpc GetConnectionString (GetConnectionStringRequest) returns (GetConnectionStringResponse);
+}
+
+message CreateDatabaseRequest {
+  string project_id = 1;
+  string name = 2;
+  string engine = 3; // postgres, mysql, etc.
+  int32 storage_size_gb = 4;
+  double cpu_cores = 5;
+  int32 memory_mb = 6;
+}
+
+message CreateDatabaseResponse {
+  DatabaseInstance instance = 1;
+  string connection_string = 2;
+}
+
+message GetDatabaseRequest {
+  string database_id = 1;
+}
+
+message GetDatabaseResponse {
+  DatabaseInstance instance = 1;
+}
+
+message ListDatabasesRequest {
+  string project_id = 1;
+}
+
+message ListDatabasesResponse {
+  repeated DatabaseInstance instances = 1;
+}
+
+message StartDatabaseRequest {
+  string database_id = 1;
+}
+
+message StartDatabaseResponse {
+  bool success = 1;
+}
+
+message StopDatabaseRequest {
+  string database_id = 1;
+}
+
+message StopDatabaseResponse {
+  bool success = 1;
+}
+
+message DeleteDatabaseRequest {
+  string database_id = 1;
+}
+
+message DeleteDatabaseResponse {
+  bool success = 1;
+}
+
+message GetConnectionStringRequest {
+  string database_id = 1;
+}
+
+message GetConnectionStringResponse {
+  string connection_string = 1;
+}
+
+message DatabaseInstance {
+  string id = 1;
+  string project_id = 2;
+  string name = 3;
+  string engine = 4;
+  string status = 5;
+  string host = 6;
+  int32 port = 7;
+  string db_name = 8;
+  string username = 9;
+  int32 storage_size_gb = 10;
+  double cpu_cores = 11;
+  int32 memory_mb = 12;
+  string created_at = 13;
+}

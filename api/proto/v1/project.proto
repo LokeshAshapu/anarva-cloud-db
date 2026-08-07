@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package v1;
+
+option go_package = "github.com/anarva-cloud/anarva-cloud-db/api/proto/v1;projectv1";
+
+service ProjectService {
+  rpc CreateOrganization (CreateOrganizationRequest) returns (CreateOrganizationResponse);
+  rpc GetOrganization (GetOrganizationRequest) returns (GetOrganizationResponse);
+  
+  rpc CreateProject (CreateProjectRequest) returns (CreateProjectResponse);
+  rpc GetProject (GetProjectRequest) returns (GetProjectResponse);
+  rpc ListProjects (ListProjectsRequest) returns (ListProjectsResponse);
+  rpc DeleteProject (DeleteProjectRequest) returns (DeleteProjectResponse);
+  
+  rpc InviteMember (InviteMemberRequest) returns (InviteMemberResponse);
+  rpc AcceptInvitation (AcceptInvitationRequest) returns (AcceptInvitationResponse);
+  rpc ListMembers (ListMembersRequest) returns (ListMembersResponse);
+  rpc RemoveMember (RemoveMemberRequest) returns (RemoveMemberResponse);
+}
+
+message CreateOrganizationRequest {
+  string owner_id = 1;
+  string name = 2;
+  string slug = 3;
+}
+
+message CreateOrganizationResponse {
+  Organization organization = 1;
+}
+
+message GetOrganizationRequest {
+  string org_id = 1;
+}
+
+message GetOrganizationResponse {
+  Organization organization = 1;
+}
+
+message CreateProjectRequest {
+  string org_id = 1;
+  string name = 2;
+  string slug = 3;
+  string region = 4;
+}
+
+message CreateProjectResponse {
+  Project project = 1;
+}
+
+message GetProjectRequest {
+  string project_id = 1;
+}
+
+message GetProjectResponse {
+  Project project = 1;
+}
+
+message ListProjectsRequest {
+  string org_id = 1;
+}
+
+message ListProjectsResponse {
+  repeated Project projects = 1;
+}
+
+message DeleteProjectRequest {
+  string project_id = 1;
+  string user_id = 2;
+}
+
+message DeleteProjectResponse {
+  bool success = 1;
+}
+
+message InviteMemberRequest {
+  string org_id = 1;
+  string email = 2;
+  string role = 3;
+  string invited_by = 4;
+}
+
+message InviteMemberResponse {
+  string invitation_token = 1;
+}
+
+message AcceptInvitationRequest {
+  string token = 1;
+  string user_id = 2;
+}
+
+message AcceptInvitationResponse {
+  bool success = 1;
+}
+
+message ListMembersRequest {
+  string org_id = 1;
+}
+
+message Member {
+  string id = 1;
+  string user_id = 2;
+  string role = 3;
+  string joined_at = 4;
+}
+
+message ListMembersResponse {
+  repeated Member members = 1;
+}
+
+message RemoveMemberRequest {
+  string org_id = 1;
+  string user_id = 2;
+  string target_user_id = 3;
+}
+
+message RemoveMemberResponse {
+  bool success = 1;
+}
+
+message Organization {
+  string id = 1;
+  string owner_id = 2;
+  string name = 3;
+  string slug = 4;
+  string created_at = 5;
+}
+
+message Project {
+  string id = 1;
+  string org_id = 2;
+  string name = 3;
+  string slug = 4;
+  string region = 5;
+  int32 max_databases = 6;
+  int64 max_storage_bytes = 7;
+  string created_at = 8;
+}

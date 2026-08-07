@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package v1;
+
+option go_package = "github.com/anarva-cloud/anarva-cloud-db/api/proto/v1;queryv1";
+
+service QueryService {
+  rpc ExecuteQuery (ExecuteQueryRequest) returns (ExecuteQueryResponse);
+}
+
+message ExecuteQueryRequest {
+  string database_id = 1;
+  string sql = 2;
+  repeated string parameters = 3;
+}
+
+message ColumnInfo {
+  string name = 1;
+  string type = 2;
+}
+
+message RowData {
+  repeated string values = 1;
+}
+
+message ExecuteQueryResponse {
+  repeated ColumnInfo columns = 1;
+  repeated RowData rows = 2;
+  int64 rows_affected = 3;
+  double execution_time_ms = 4;
+  string error_message = 5;
+}

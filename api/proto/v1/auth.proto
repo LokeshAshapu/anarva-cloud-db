@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package v1;
+
+option go_package = "github.com/anarva-cloud/anarva-cloud-db/api/proto/v1;authv1";
+
+service AuthService {
+  rpc SignUp (SignUpRequest) returns (SignUpResponse);
+  rpc VerifyEmail (VerifyEmailRequest) returns (VerifyEmailResponse);
+  rpc Login (LoginRequest) returns (LoginResponse);
+  rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse);
+  rpc CreateAPIKey (CreateAPIKeyRequest) returns (CreateAPIKeyResponse);
+  rpc ListAPIKeys (ListAPIKeysRequest) returns (ListAPIKeysResponse);
+  rpc RevokeAPIKey (RevokeAPIKeyRequest) returns (RevokeAPIKeyResponse);
+  rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
+}
+
+message SignUpRequest {
+  string email = 1;
+  string password = 2;
+  string full_name = 3;
+}
+
+message SignUpResponse {
+  string user_id = 1;
+  string email = 2;
+  string message = 3;
+}
+
+message VerifyEmailRequest {
+  string token = 1;
+}
+
+message VerifyEmailResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  int64 expires_in = 3;
+  User user = 4;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  int64 expires_in = 3;
+}
+
+message CreateAPIKeyRequest {
+  string user_id = 1;
+  string name = 2;
+  int64 expires_in_days = 3;
+}
+
+message CreateAPIKeyResponse {
+  string id = 1;
+  string name = 2;
+  string raw_key = 3;
+  string created_at = 4;
+}
+
+message ListAPIKeysRequest {
+  string user_id = 1;
+}
+
+message APIKeyMetaData {
+  string id = 1;
+  string name = 2;
+  string prefix = 3;
+  string created_at = 4;
+  string last_used_at = 5;
+  bool is_revoked = 6;
+}
+
+message ListAPIKeysResponse {
+  repeated APIKeyMetaData api_keys = 1;
+}
+
+message RevokeAPIKeyRequest {
+  string user_id = 1;
+  string key_id = 2;
+}
+
+message RevokeAPIKeyResponse {
+  bool success = 1;
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  string user_id = 2;
+  string email = 3;
+  string role = 4;
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string full_name = 3;
+  string role = 4;
+  string status = 5;
+  string created_at = 6;
+}
