@@ -5,25 +5,23 @@ import React, { useState, useEffect } from 'react'
 const STORAGE_KEY = 'anarva_unstructured_blobs'
 
 export default function UnstructuredStoragePage() {
-  const [buckets, setBuckets] = useState<string[]>(['media-assets', 'user-uploads', 'audio-vault'])
-  const [activeBucket, setActiveBucket] = useState<string>('media-assets')
+  const [buckets, setBuckets] = useState<string[]>(['Images', 'Videos', 'Audio', 'Documents'])
+  const [activeBucket, setActiveBucket] = useState<string>('Images')
 
   const [files, setFiles] = useState<any[]>([])
   const [newBucketName, setNewBucketName] = useState('')
   const [showBucketModal, setShowBucketModal] = useState(false)
-
-  const [uploadName, setUploadName] = useState('')
-  const [fileType, setFileType] = useState<'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT'>('IMAGE')
-  const [fileUrl, setFileUrl] = useState('')
   const [showUploadModal, setShowUploadModal] = useState(false)
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  // Initial demo data
+  // Default initial demo objects
   const defaultFiles = [
     {
       id: 'blob-101',
-      name: 'hero_banner.png',
-      bucket: 'media-assets',
+      name: 'architecture_diagram.png',
+      bucket: 'Images',
       type: 'IMAGE',
       size: '1.2 MB',
       mime: 'image/png',
@@ -32,8 +30,8 @@ export default function UnstructuredStoragePage() {
     },
     {
       id: 'blob-102',
-      name: 'product_demo.mp4',
-      bucket: 'media-assets',
+      name: 'platform_demo.mp4',
+      bucket: 'Videos',
       type: 'VIDEO',
       size: '14.5 MB',
       mime: 'video/mp4',
@@ -43,7 +41,7 @@ export default function UnstructuredStoragePage() {
     {
       id: 'blob-103',
       name: 'podcast_track.mp3',
-      bucket: 'audio-vault',
+      bucket: 'Audio',
       type: 'AUDIO',
       size: '4.8 MB',
       mime: 'audio/mp3',
@@ -76,6 +74,55 @@ export default function UnstructuredStoragePage() {
     }
   }
 
+  // Automatic bucket classification based on file extension
+  const categorizeFile = (fileName: string): { bucket: string; type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' } => {
+    const ext = fileName.split('.').pop()?.toLowerCase() || ''
+
+    if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'bmp', 'ico'].includes(ext)) {
+      return { bucket: 'Images', type: 'IMAGE' }
+    } else if (['mp4', 'webm', 'mov', 'avi', 'mkv', 'flv'].includes(ext)) {
+      return { bucket: 'Videos', type: 'VIDEO' }
+    } else if (['mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a'].includes(ext)) {
+      return { bucket: 'Audio', type: 'AUDIO' }
+    } else {
+      return { bucket: 'Documents', type: 'DOCUMENT' }
+    }
+  }
+
+  const handleLocalFileUpload = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedFile) return
+
+    const { bucket, type } = categorizeFile(selectedFile.name)
+    const localUrl = URL.createObjectURL(selectedFile)
+
+    // Ensure bucket exists in tabs
+    if (!buckets.includes(bucket)) {
+      setBuckets([...buckets, bucket])
+    }
+
+    const fileSizeFormatted =
+      selectedFile.size > 1024 * 1024
+        ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`
+        : `${(selectedFile.size / 1024).toFixed(0)} KB`
+
+    const newFileObj = {
+      id: `blob-${Date.now()}`,
+      name: selectedFile.name,
+      bucket: bucket,
+      type: type,
+      size: fileSizeFormatted,
+      mime: selectedFile.type || 'application/octet-stream',
+      url: localUrl,
+      created_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
+    }
+
+    updateFiles([newFileObj, ...files])
+    setActiveBucket(bucket) // Auto-switch tab to relevant bucket!
+    setSelectedFile(null)
+    setShowUploadModal(false)
+  }
+
   const handleCreateBucket = (e: React.FormEvent) => {
     e.preventDefault()
     if (newBucketName && !buckets.includes(newBucketName)) {
@@ -84,25 +131,6 @@ export default function UnstructuredStoragePage() {
     }
     setNewBucketName('')
     setShowBucketModal(false)
-  }
-
-  const handleUploadFile = (e: React.FormEvent) => {
-    e.preventDefault()
-    const newFile = {
-      id: `blob-${Date.now()}`,
-      name: uploadName || 'unstructured_object',
-      bucket: activeBucket,
-      type: fileType,
-      size: fileType === 'VIDEO' ? '12.4 MB' : fileType === 'AUDIO' ? '3.5 MB' : '850 KB',
-      mime: fileType === 'IMAGE' ? 'image/png' : fileType === 'VIDEO' ? 'video/mp4' : fileType === 'AUDIO' ? 'audio/mp3' : 'application/pdf',
-      url: fileUrl || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=600&q=80',
-      created_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
-    }
-
-    updateFiles([newFile, ...files])
-    setUploadName('')
-    setFileUrl('')
-    setShowUploadModal(false)
   }
 
   const handleDeleteFile = (id: string) => {
@@ -125,7 +153,7 @@ export default function UnstructuredStoragePage() {
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Unstructured Media Storage</h1>
           <p className="text-slate-400 mt-1">
-            Store and serve unstructured binary objects: Images, Videos, Audio, and Documents.
+            Store, categorize, and serve unstructured binary objects: Images, Videos, Audio, and Documents.
           </p>
         </div>
 
@@ -134,32 +162,38 @@ export default function UnstructuredStoragePage() {
             onClick={() => setShowBucketModal(true)}
             className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg transition border border-slate-700 text-sm"
           >
-            + New Bucket
+            + Custom Bucket
           </button>
           <button
             onClick={() => setShowUploadModal(true)}
             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition shadow-lg shadow-blue-600/25 text-sm"
           >
-            + Upload Object
+            + Upload File from Computer
           </button>
         </div>
       </div>
 
       {/* Bucket Selector Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-800 pb-3">
-        {buckets.map((b) => (
-          <button
-            key={b}
-            onClick={() => setActiveBucket(b)}
-            className={`px-4 py-2 text-sm font-semibold rounded-xl transition ${
-              activeBucket === b
-                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
-            }`}
-          >
-            📁 {b}
-          </button>
-        ))}
+        {buckets.map((b) => {
+          const count = files.filter((f) => f.bucket === b).length
+          return (
+            <button
+              key={b}
+              onClick={() => setActiveBucket(b)}
+              className={`px-4 py-2 text-sm font-semibold rounded-xl transition flex items-center gap-2 ${
+                activeBucket === b
+                  ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                  : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+              }`}
+            >
+              <span>📁 {b}</span>
+              <span className="px-2 py-0.5 text-xs bg-slate-800 text-slate-300 rounded-full font-mono">
+                {count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Media Objects Grid */}
@@ -170,13 +204,13 @@ export default function UnstructuredStoragePage() {
           </div>
           <h3 className="text-xl font-bold text-white">No Objects in Bucket '{activeBucket}'</h3>
           <p className="text-slate-400 text-sm max-w-md mx-auto">
-            Upload images, videos, audio tracks, or documents to store unstructured data in this bucket.
+            Upload files directly from your computer. Based on the file extension, objects are automatically categorized into their relevant bucket!
           </p>
           <button
             onClick={() => setShowUploadModal(true)}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/25"
           >
-            Upload Media Object
+            Upload File from Computer
           </button>
         </div>
       ) : (
@@ -201,9 +235,10 @@ export default function UnstructuredStoragePage() {
                 )}
 
                 {file.type === 'DOCUMENT' && (
-                  <div className="text-center space-y-2">
+                  <div className="text-center space-y-2 p-4">
                     <div className="text-4xl">📄</div>
-                    <div className="text-xs text-slate-400">{file.mime}</div>
+                    <div className="text-xs text-slate-300 font-mono truncate max-w-xs">{file.name}</div>
+                    <div className="text-xs text-slate-500">{file.mime}</div>
                   </div>
                 )}
 
@@ -215,8 +250,12 @@ export default function UnstructuredStoragePage() {
               {/* Object Details & Actions */}
               <div className="p-5 space-y-3">
                 <div>
-                  <h3 className="font-bold text-white text-base truncate">{file.name}</h3>
-                  <div className="text-xs text-slate-400 font-mono mt-0.5">{file.id} • {file.size}</div>
+                  <h3 className="font-bold text-white text-base truncate" title={file.name}>
+                    {file.name}
+                  </h3>
+                  <div className="text-xs text-slate-400 font-mono mt-0.5">
+                    {file.id} • {file.size}
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-2 border-t border-slate-800">
@@ -239,6 +278,69 @@ export default function UnstructuredStoragePage() {
         </div>
       )}
 
+      {/* Upload Computer File Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold text-white">Upload File from Computer</h2>
+            <p className="text-xs text-slate-400">
+              Files are automatically categorized into <span className="text-blue-400 font-semibold">Images</span>, <span className="text-blue-400 font-semibold">Videos</span>, <span className="text-blue-400 font-semibold">Audio</span>, or <span className="text-blue-400 font-semibold">Documents</span> based on extension.
+            </p>
+
+            <form onSubmit={handleLocalFileUpload} className="space-y-4">
+              <div className="border-2 border-dashed border-slate-800 rounded-2xl p-6 text-center hover:border-blue-500/50 transition">
+                <input
+                  type="file"
+                  required
+                  id="file-input"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setSelectedFile(e.target.files[0])
+                    }
+                  }}
+                  className="hidden"
+                />
+                <label htmlFor="file-input" className="cursor-pointer space-y-2 block">
+                  <div className="text-4xl">📁</div>
+                  <div className="text-sm font-semibold text-blue-400 hover:underline">
+                    {selectedFile ? selectedFile.name : 'Choose file from your computer'}
+                  </div>
+                  {selectedFile && (
+                    <div className="text-xs text-emerald-400 font-mono">
+                      Auto-categorized into bucket:{' '}
+                      <span className="font-bold uppercase">{categorizeFile(selectedFile.name).bucket}</span>
+                    </div>
+                  )}
+                  <div className="text-xs text-slate-500">
+                    Supports PNG, JPG, MP4, MP3, PDF, DOCX, ZIP & more
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedFile(null)
+                    setShowUploadModal(false)
+                  }}
+                  className="flex-1 py-2 bg-slate-800 text-slate-300 text-sm font-semibold rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!selectedFile}
+                  className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-blue-600/25 disabled:opacity-50"
+                >
+                  Upload & Categorize
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Create Bucket Modal */}
       {showBucketModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
@@ -252,7 +354,7 @@ export default function UnstructuredStoragePage() {
                   required
                   value={newBucketName}
                   onChange={(e) => setNewBucketName(e.target.value)}
-                  placeholder="e.g. video-uploads"
+                  placeholder="e.g. Archive-Vault"
                   className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -270,69 +372,6 @@ export default function UnstructuredStoragePage() {
                   className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-blue-600/25"
                 >
                   Create Bucket
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Upload Object Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold text-white">Upload Unstructured Media Object</h2>
-            <form onSubmit={handleUploadFile} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Object Name</label>
-                <input
-                  type="text"
-                  required
-                  value={uploadName}
-                  onChange={(e) => setUploadName(e.target.value)}
-                  placeholder="e.g. promotional_video.mp4"
-                  className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Media Type</label>
-                <select
-                  value={fileType}
-                  onChange={(e) => setFileType(e.target.value as any)}
-                  className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500"
-                >
-                  <option value="IMAGE">Image (PNG, JPG, WEBP)</option>
-                  <option value="VIDEO">Video (MP4, WEBM)</option>
-                  <option value="AUDIO">Audio (MP3, WAV)</option>
-                  <option value="DOCUMENT">Document (PDF, DOCX)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Media File URL / CDN Link</label>
-                <input
-                  type="text"
-                  value={fileUrl}
-                  onChange={(e) => setFileUrl(e.target.value)}
-                  placeholder="e.g. https://... or leave blank for sample player"
-                  className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500 text-xs font-mono"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowUploadModal(false)}
-                  className="flex-1 py-2 bg-slate-800 text-slate-300 text-sm font-semibold rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-blue-600/25"
-                >
-                  Upload to Bucket
                 </button>
               </div>
             </form>
