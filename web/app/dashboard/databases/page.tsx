@@ -11,10 +11,17 @@ export default function DatabasesPage() {
   const [name, setName] = useState('')
   const [engine, setEngine] = useState('postgres')
   const [showModal, setShowModal] = useState(false)
-  const [activeConnStr, setActiveConnStr] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
 
-  // Save databases to local state and localStorage
+  const [activeConnStr, setActiveConnStr] = useState<string | null>(null)
+  const [copiedConn, setCopiedConn] = useState(false)
+
+  // Export & Share modal state
+  const [shareDb, setShareDb] = useState<any | null>(null)
+  const [exportFormat, setExportFormat] = useState('CSV')
+  const [accessLevel, setAccessLevel] = useState('ANYONE_WITH_LINK')
+  const [generatedShareUrl, setGeneratedShareUrl] = useState<string | null>(null)
+  const [copiedShareLink, setCopiedShareLink] = useState(false)
+
   const updateDatabasesState = (newDatabases: any[]) => {
     setDatabases(newDatabases)
     if (typeof window !== 'undefined') {
@@ -22,7 +29,6 @@ export default function DatabasesPage() {
     }
   }
 
-  // Fetch dynamic database instances on load
   const fetchDatabases = async () => {
     let localItems: any[] = []
     if (typeof window !== 'undefined') {
@@ -39,7 +45,6 @@ export default function DatabasesPage() {
       if (res.ok) {
         const remoteData = await res.json()
         if (Array.isArray(remoteData) && remoteData.length > 0) {
-          // Merge local and remote
           const merged = [...remoteData]
           localItems.forEach((local) => {
             if (!merged.some((m) => m.id === local.id)) {
@@ -62,7 +67,6 @@ export default function DatabasesPage() {
     fetchDatabases()
   }, [])
 
-  // Provision new database via backend API & persist in localStorage
   const handleProvision = async (e: React.FormEvent) => {
     e.preventDefault()
     const port = 15000 + Math.floor(Math.random() * 5000)
@@ -104,7 +108,6 @@ export default function DatabasesPage() {
     }
   }
 
-  // Toggle Stop / Start
   const handleToggleStatus = async (db: any) => {
     const isRunning = db.status === 'RUNNING'
     const action = isRunning ? 'stop' : 'start'
@@ -119,7 +122,6 @@ export default function DatabasesPage() {
     } catch {}
   }
 
-  // Delete Database Instance
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this database instance? All data will be permanently purged.')) {
       return
@@ -133,18 +135,40 @@ export default function DatabasesPage() {
     } catch {}
   }
 
-  // Show Connection String
   const handleShowConnStr = (db: any) => {
     const connStr = `${db.engine || 'postgres'}://anarva_admin:eX938#kL9@${db.host || 'localhost'}:${db.port || 15432}/${db.db_name || 'app_db'}`
     setActiveConnStr(connStr)
-    setCopied(false)
+    setCopiedConn(false)
   }
 
-  const copyToClipboard = () => {
+  const copyConnToClipboard = () => {
     if (activeConnStr) {
       navigator.clipboard.writeText(activeConnStr)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setCopiedConn(true)
+      setTimeout(() => setCopiedConn(false), 2000)
+    }
+  }
+
+  // Generate Export & Share Link
+  const handleOpenExportShare = (db: any) => {
+    setShareDb(db)
+    setGeneratedShareUrl(null)
+    setCopiedShareLink(false)
+  }
+
+  const handleGenerateShareLink = (e: React.FormEvent) => {
+    e.preventDefault()
+    const token = `export-${Math.random().toString(36).substring(2, 10)}`
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://anarva-cloud-db.vercel.app'
+    const url = `${origin}/share/${token}`
+    setGeneratedShareUrl(url)
+  }
+
+  const copyShareLinkToClipboard = () => {
+    if (generatedShareUrl) {
+      navigator.clipboard.writeText(generatedShareUrl)
+      setCopiedShareLink(true)
+      setTimeout(() => setCopiedShareLink(false), 2000)
     }
   }
 
@@ -153,7 +177,7 @@ export default function DatabasesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Managed Databases</h1>
-          <p className="text-slate-400 mt-1">Provision, scale, and manage serverless database instances.</p>
+          <p className="text-slate-400 mt-1">Provision, scale, export tables, and share access links.</p>
         </div>
 
         <button
@@ -222,6 +246,13 @@ export default function DatabasesPage() {
                   className="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition"
                 >
                   Connection String
+                </button>
+
+                <button
+                  onClick={() => handleOpenExportShare(db)}
+                  className="flex-1 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 text-xs font-medium rounded-lg transition"
+                >
+                  Export & Share
                 </button>
 
                 <button
@@ -311,10 +342,10 @@ export default function DatabasesPage() {
 
             <div className="flex gap-2 pt-2">
               <button
-                onClick={copyToClipboard}
+                onClick={copyConnToClipboard}
                 className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition"
               >
-                {copied ? '✔ Copied to Clipboard!' : 'Copy Connection String'}
+                {copiedConn ? '✔ Copied to Clipboard!' : 'Copy Connection String'}
               </button>
               <button
                 onClick={() => setActiveConnStr(null)}
@@ -323,6 +354,87 @@ export default function DatabasesPage() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export & Share Modal (Google Drive Style) */}
+      {shareDb && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-4">
+            <h2 className="text-xl font-bold text-white">Export & Share Database Table</h2>
+            <p className="text-xs text-slate-400">
+              Generate a Google Drive style shareable access link for database: <span className="text-white font-semibold">{shareDb.name}</span>.
+            </p>
+
+            <form onSubmit={handleGenerateShareLink} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Export Format</label>
+                <select
+                  value={exportFormat}
+                  onChange={(e) => setExportFormat(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="CSV">CSV (Spreadsheet Compatible)</option>
+                  <option value="JSON">JSON (REST Payload Format)</option>
+                  <option value="SQL">SQL Dump (Full Schema & Data Insert)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Access Control (Google Drive Style)</label>
+                <select
+                  value={accessLevel}
+                  onChange={(e) => setAccessLevel(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="ANYONE_WITH_LINK">Anyone with the link can view & download</option>
+                  <option value="RESTRICTED">Restricted - Only authorized organization members</option>
+                </select>
+              </div>
+
+              {!generatedShareUrl ? (
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShareDb(null)}
+                    className="flex-1 py-2.5 bg-slate-800 text-slate-300 text-sm font-semibold rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-blue-600/25"
+                  >
+                    Create Share Link
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs text-emerald-400 font-semibold">✔ Shareable Link Generated:</div>
+                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg font-mono text-xs text-white break-all select-all">
+                    {generatedShareUrl}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={copyShareLinkToClipboard}
+                      className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition"
+                    >
+                      {copiedShareLink ? '✔ Link Copied!' : 'Copy Share Link'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShareDb(null)}
+                      className="px-4 py-2.5 bg-slate-800 text-slate-300 text-sm font-semibold rounded-lg"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
+            </form>
           </div>
         </div>
       )}
