@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from 'react'
 import { API_BASE_URL } from '@/lib/api'
 
+const STORAGE_KEY = 'anarva_user_databases'
+
 export default function DatabasesPage() {
   const [databases, setDatabases] = useState<any[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -12,31 +14,70 @@ export default function DatabasesPage() {
   const [activeConnStr, setActiveConnStr] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
+  // Save databases to local state and localStorage
+  const updateDatabasesState = (newDatabases: any[]) => {
+    setDatabases(newDatabases)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newDatabases))
+    }
+  }
+
   // Fetch dynamic database instances on load
   const fetchDatabases = async () => {
+    let localItems: any[] = []
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored) {
+        try {
+          localItems = JSON.parse(stored)
+        } catch {}
+      }
+    }
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/projects/proj-default/databases`)
       if (res.ok) {
-        const data = await res.json()
-        setDatabases(Array.isArray(data) ? data : [])
-      } else {
-        setDatabases([])
+        const remoteData = await res.json()
+        if (Array.isArray(remoteData) && remoteData.length > 0) {
+          // Merge local and remote
+          const merged = [...remoteData]
+          localItems.forEach((local) => {
+            if (!merged.some((m) => m.id === local.id)) {
+              merged.push(local)
+            }
+          })
+          updateDatabasesState(merged)
+          return
+        }
       }
     } catch (err) {
-      console.error('Failed to fetch databases', err)
-      setDatabases([])
-    } finally {
-      setLoading(false)
+      console.error('Failed to fetch remote databases', err)
     }
+
+    setDatabases(localItems)
+    setLoading(false)
   }
 
   useEffect(() => {
     fetchDatabases()
   }, [])
 
-  // Provision new database via backend API
+  // Provision new database via backend API & persist in localStorage
   const handleProvision = async (e: React.FormEvent) => {
     e.preventDefault()
+    const port = 15000 + Math.floor(Math.random() * 5000)
+    const newDb = {
+      id: `db-uuid-${Date.now()}`,
+      name: name || 'New Managed Instance',
+      engine: engine,
+      status: 'RUNNING',
+      host: 'localhost',
+      port: port,
+      db_name: `db_${Math.random().toString(36).substring(7)}`,
+      username: 'anarva_admin',
+      storage_size_gb: 10,
+    }
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/databases`, {
         method: 'POST',
@@ -50,26 +91,13 @@ export default function DatabasesPage() {
       })
 
       if (res.ok) {
-        const newDb = await res.json()
-        setDatabases((prev) => [newDb, ...prev])
+        const remoteDb = await res.json()
+        updateDatabasesState([remoteDb, ...databases])
       } else {
-        // Fallback for standalone state UI update
-        const port = 15000 + Math.floor(Math.random() * 5000)
-        const mockDb = {
-          id: `db-uuid-${Date.now()}`,
-          name: name || 'New Managed Instance',
-          engine: engine,
-          status: 'RUNNING',
-          host: 'localhost',
-          port: port,
-          db_name: `db_${Math.random().toString(36).substring(7)}`,
-          username: 'anarva_admin',
-          storage_size_gb: 10,
-        }
-        setDatabases((prev) => [mockDb, ...prev])
+        updateDatabasesState([newDb, ...databases])
       }
     } catch (err) {
-      console.error('Provision failed', err)
+      updateDatabasesState([newDb, ...databases])
     } finally {
       setName('')
       setShowModal(false)
@@ -80,16 +108,15 @@ export default function DatabasesPage() {
   const handleToggleStatus = async (db: any) => {
     const isRunning = db.status === 'RUNNING'
     const action = isRunning ? 'stop' : 'start'
-    
+
+    const updated = databases.map((item) =>
+      item.id === db.id ? { ...item, status: isRunning ? 'STOPPED' : 'RUNNING' } : item
+    )
+    updateDatabasesState(updated)
+
     try {
       await fetch(`${API_BASE_URL}/api/v1/databases/${db.id}/${action}`, { method: 'POST' }).catch(() => null)
-    } finally {
-      setDatabases((prev) =>
-        prev.map((item) =>
-          item.id === db.id ? { ...item, status: isRunning ? 'STOPPED' : 'RUNNING' } : item
-        )
-      )
-    }
+    } catch {}
   }
 
   // Delete Database Instance
@@ -98,16 +125,17 @@ export default function DatabasesPage() {
       return
     }
 
+    const updated = databases.filter((item) => item.id !== id)
+    updateDatabasesState(updated)
+
     try {
       await fetch(`${API_BASE_URL}/api/v1/databases/${id}`, { method: 'DELETE' }).catch(() => null)
-    } finally {
-      setDatabases((prev) => prev.filter((item) => item.id !== id))
-    }
+    } catch {}
   }
 
   // Show Connection String
   const handleShowConnStr = (db: any) => {
-    const connStr = `${db.engine}://anarva_admin:eX938#kL9@${db.host || 'localhost'}:${db.port || 15432}/${db.db_name || 'app_db'}`
+    const connStr = `${db.engine || 'postgres'}://anarva_admin:eX938#kL9@${db.host || 'localhost'}:${db.port || 15432}/${db.db_name || 'app_db'}`
     setActiveConnStr(connStr)
     setCopied(false)
   }

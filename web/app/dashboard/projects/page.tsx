@@ -3,6 +3,9 @@
 import React, { useEffect, useState } from 'react'
 import { API_BASE_URL } from '@/lib/api'
 
+const ORGS_KEY = 'anarva_user_orgs'
+const PROJS_KEY = 'anarva_user_projects'
+
 export default function ProjectsPage() {
   const [organizations, setOrganizations] = useState<any[]>([])
   const [projects, setProjects] = useState<any[]>([])
@@ -15,28 +18,60 @@ export default function ProjectsPage() {
   const [projName, setProjName] = useState('')
   const [region, setRegion] = useState('us-east-1')
 
+  const updateOrgsState = (newOrgs: any[]) => {
+    setOrganizations(newOrgs)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ORGS_KEY, JSON.stringify(newOrgs))
+    }
+  }
+
+  const updateProjsState = (newProjs: any[]) => {
+    setProjects(newProjs)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PROJS_KEY, JSON.stringify(newProjs))
+    }
+  }
+
   const fetchData = async () => {
+    let localOrgs: any[] = []
+    let localProjs: any[] = []
+
+    if (typeof window !== 'undefined') {
+      try {
+        localOrgs = JSON.parse(localStorage.getItem(ORGS_KEY) || '[]')
+        localProjs = JSON.parse(localStorage.getItem(PROJS_KEY) || '[]')
+      } catch {}
+    }
+
+    if (localOrgs.length === 0) {
+      localOrgs = [{ id: 'org-default', name: 'My Cloud Organization', slug: 'my-cloud-org', role: 'OWNER' }]
+    }
+
+    if (localProjs.length === 0) {
+      localProjs = [
+        { id: 'proj-default', name: 'Main Production Environment', slug: 'main-prod', region: 'us-east-1', dbCount: 0, maxDbs: 5 },
+      ]
+    }
+
     try {
       const orgRes = await fetch(`${API_BASE_URL}/api/v1/organizations/org-default`).catch(() => null)
       if (orgRes && orgRes.ok) {
         const oData = await orgRes.json()
-        setOrganizations([oData])
-      } else {
-        setOrganizations([{ id: 'org-default', name: 'My Cloud Organization', slug: 'my-cloud-org', role: 'OWNER' }])
+        localOrgs = [oData, ...localOrgs.filter((o) => o.id !== oData.id)]
       }
 
       const projRes = await fetch(`${API_BASE_URL}/api/v1/organizations/org-default/projects`).catch(() => null)
       if (projRes && projRes.ok) {
         const pData = await projRes.json()
-        setProjects(Array.isArray(pData) ? pData : [])
-      } else {
-        setProjects([
-          { id: 'proj-default', name: 'Main Production Environment', slug: 'main-prod', region: 'us-east-1', dbCount: 0, maxDbs: 5 },
-        ])
+        if (Array.isArray(pData) && pData.length > 0) {
+          localProjs = pData
+        }
       }
     } catch (err) {
       console.error('Failed to load project data', err)
     } finally {
+      updateOrgsState(localOrgs)
+      updateProjsState(localProjs)
       setLoading(false)
     }
   }
@@ -53,7 +88,7 @@ export default function ProjectsPage() {
       slug: (orgName || 'new-org').toLowerCase().replace(/\s+/g, '-'),
       role: 'OWNER',
     }
-    setOrganizations([newOrg, ...organizations])
+    updateOrgsState([newOrg, ...organizations])
     setOrgName('')
     setShowOrgModal(false)
   }
@@ -68,7 +103,7 @@ export default function ProjectsPage() {
       dbCount: 0,
       maxDbs: 5,
     }
-    setProjects([...projects, newProj])
+    updateProjsState([...projects, newProj])
     setProjName('')
     setShowProjModal(false)
   }
