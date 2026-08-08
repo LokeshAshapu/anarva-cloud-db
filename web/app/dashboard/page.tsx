@@ -31,9 +31,12 @@ export default function DashboardOverview() {
               setStorageUsed(`${totalStorage.toFixed(1)} GB`)
             }
           } else {
-            setDbCount(2)
-            setStorageUsed('2.0 GB')
+            setDbCount(0)
+            setStorageUsed('0.0 GB')
           }
+        } else {
+          setDbCount(0)
+          setStorageUsed('0.0 GB')
         }
       } catch (err) {
         console.error('Failed to load telemetry', err)
