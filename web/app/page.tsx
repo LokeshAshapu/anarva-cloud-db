@@ -33,7 +33,7 @@ export default function HomePage() {
       {/* Header Navigation */}
       <header className="max-w-7xl mx-auto w-full flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <AnarvaLogo className="h-9 w-9" />
+          <AnarvaLogo className="h-14 w-14" />
           <span className="text-2xl font-bold tracking-tight text-white">
             Anarva <span className="text-blue-500">Cloud DB</span>
           </span>
