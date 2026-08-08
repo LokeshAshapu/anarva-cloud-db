@@ -2,24 +2,62 @@
 
 import React, { useState, useEffect } from 'react'
 
-const STORAGE_KEY = 'anarva_unstructured_blobs'
+const PERSON_STORAGE_KEY = 'anarva_person_profiles'
+const BLOB_STORAGE_KEY = 'anarva_person_blobs'
+
+interface Person {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
+interface PersonBlob {
+  id: string
+  person_id: string
+  name: string
+  bucket: 'Images' | 'Videos' | 'Audio' | 'Documents' | 'Links'
+  type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' | 'LINK'
+  size: string
+  mime: string
+  url: string
+  created_at: string
+}
 
 export default function UnstructuredStoragePage() {
-  const [buckets, setBuckets] = useState<string[]>(['Images', 'Videos', 'Audio', 'Documents'])
+  // Person profiles state
+  const [persons, setPersons] = useState<Person[]>([
+    { id: 'usr-87a1', name: 'Lokesh Ashapu', email: 'lokesh@anarva.io', role: 'Database Admin' },
+    { id: 'usr-92c4', name: 'Enterprise Client', email: 'enterprise@acme.com', role: 'Org Member' },
+    { id: 'usr-11f8', name: 'Dev Team Lead', email: 'devlead@anarva.io', role: 'Engineer' },
+  ])
+  const [activePersonId, setActivePersonId] = useState<string>('usr-87a1')
+
+  // Buckets state
+  const [buckets, setBuckets] = useState<string[]>(['Images', 'Videos', 'Audio', 'Documents', 'Links'])
   const [activeBucket, setActiveBucket] = useState<string>('Images')
 
-  const [files, setFiles] = useState<any[]>([])
-  const [newBucketName, setNewBucketName] = useState('')
-  const [showBucketModal, setShowBucketModal] = useState(false)
-  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [files, setFiles] = useState<PersonBlob[]>([])
 
+  // Modal states
+  const [showPersonModal, setShowPersonModal] = useState(false)
+  const [newPersonName, setNewPersonName] = useState('')
+  const [newPersonEmail, setNewPersonEmail] = useState('')
+  const [newPersonRole, setNewPersonRole] = useState('Member')
+
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [uploadMode, setUploadMode] = useState<'FILE' | 'LINK'>('FILE')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [linkTitle, setLinkTitle] = useState('')
+  const [linkUrl, setLinkUrl] = useState('')
+
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  // Default initial demo objects
-  const defaultFiles = [
+  // Default initial demo objects linked to persons
+  const defaultBlobs: PersonBlob[] = [
     {
       id: 'blob-101',
+      person_id: 'usr-87a1',
       name: 'architecture_diagram.png',
       bucket: 'Images',
       type: 'IMAGE',
@@ -30,6 +68,7 @@ export default function UnstructuredStoragePage() {
     },
     {
       id: 'blob-102',
+      person_id: 'usr-87a1',
       name: 'platform_demo.mp4',
       bucket: 'Videos',
       type: 'VIDEO',
@@ -40,7 +79,8 @@ export default function UnstructuredStoragePage() {
     },
     {
       id: 'blob-103',
-      name: 'podcast_track.mp3',
+      person_id: 'usr-87a1',
+      name: 'voice_memo_instructions.mp3',
       bucket: 'Audio',
       type: 'AUDIO',
       size: '4.8 MB',
@@ -48,34 +88,70 @@ export default function UnstructuredStoragePage() {
       url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
       created_at: '2026-08-08 07:20',
     },
+    {
+      id: 'blob-104',
+      person_id: 'usr-87a1',
+      name: 'GitHub Repository Codebase',
+      bucket: 'Links',
+      type: 'LINK',
+      size: 'URL Link',
+      mime: 'text/html',
+      url: 'https://github.com/LokeshAshapu/anarva-cloud-db',
+      created_at: '2026-08-08 07:30',
+    },
+    {
+      id: 'blob-105',
+      person_id: 'usr-92c4',
+      name: 'enterprise_contract.pdf',
+      bucket: 'Documents',
+      type: 'DOCUMENT',
+      size: '2.4 MB',
+      mime: 'application/pdf',
+      url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      created_at: '2026-08-08 07:35',
+    },
   ]
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored) {
+      const storedPersons = localStorage.getItem(PERSON_STORAGE_KEY)
+      if (storedPersons) {
         try {
-          setFiles(JSON.parse(stored))
+          setPersons(JSON.parse(storedPersons))
+        } catch {}
+      }
+
+      const storedBlobs = localStorage.getItem(BLOB_STORAGE_KEY)
+      if (storedBlobs) {
+        try {
+          setFiles(JSON.parse(storedBlobs))
         } catch {
-          setFiles(defaultFiles)
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultFiles))
+          setFiles(defaultBlobs)
+          localStorage.setItem(BLOB_STORAGE_KEY, JSON.stringify(defaultBlobs))
         }
       } else {
-        setFiles(defaultFiles)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultFiles))
+        setFiles(defaultBlobs)
+        localStorage.setItem(BLOB_STORAGE_KEY, JSON.stringify(defaultBlobs))
       }
     }
   }, [])
 
-  const updateFiles = (newFiles: any[]) => {
+  const updateFiles = (newFiles: PersonBlob[]) => {
     setFiles(newFiles)
     if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newFiles))
+      localStorage.setItem(BLOB_STORAGE_KEY, JSON.stringify(newFiles))
+    }
+  }
+
+  const updatePersons = (newPersons: Person[]) => {
+    setPersons(newPersons)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PERSON_STORAGE_KEY, JSON.stringify(newPersons))
     }
   }
 
   // Automatic bucket classification based on file extension
-  const categorizeFile = (fileName: string): { bucket: string; type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' } => {
+  const categorizeFile = (fileName: string): { bucket: 'Images' | 'Videos' | 'Audio' | 'Documents' | 'Links'; type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' | 'LINK' } => {
     const ext = fileName.split('.').pop()?.toLowerCase() || ''
 
     if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'bmp', 'ico'].includes(ext)) {
@@ -89,52 +165,72 @@ export default function UnstructuredStoragePage() {
     }
   }
 
-  const handleLocalFileUpload = (e: React.FormEvent) => {
+  const handleAddPerson = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedFile) return
+    const newPerson: Person = {
+      id: `usr-${Math.random().toString(36).substring(2, 6)}`,
+      name: newPersonName || 'New User Profile',
+      email: newPersonEmail || 'user@anarva.io',
+      role: newPersonRole,
+    }
+    updatePersons([...persons, newPerson])
+    setActivePersonId(newPerson.id)
+    setNewPersonName('')
+    setNewPersonEmail('')
+    setShowPersonModal(false)
+  }
 
-    const { bucket, type } = categorizeFile(selectedFile.name)
-    const localUrl = URL.createObjectURL(selectedFile)
+  const handleUploadFileOrLink = (e: React.FormEvent) => {
+    e.preventDefault()
 
-    // Ensure bucket exists in tabs
-    if (!buckets.includes(bucket)) {
-      setBuckets([...buckets, bucket])
+    if (uploadMode === 'FILE' && selectedFile) {
+      const { bucket, type } = categorizeFile(selectedFile.name)
+      const localUrl = URL.createObjectURL(selectedFile)
+
+      const fileSizeFormatted =
+        selectedFile.size > 1024 * 1024
+          ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`
+          : `${(selectedFile.size / 1024).toFixed(0)} KB`
+
+      const newBlob: PersonBlob = {
+        id: `blob-${Date.now()}`,
+        person_id: activePersonId,
+        name: selectedFile.name,
+        bucket: bucket,
+        type: type,
+        size: fileSizeFormatted,
+        mime: selectedFile.type || 'application/octet-stream',
+        url: localUrl,
+        created_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      }
+
+      updateFiles([newBlob, ...files])
+      setActiveBucket(bucket)
+      setSelectedFile(null)
+    } else if (uploadMode === 'LINK' && linkUrl) {
+      const newBlob: PersonBlob = {
+        id: `blob-${Date.now()}`,
+        person_id: activePersonId,
+        name: linkTitle || linkUrl,
+        bucket: 'Links',
+        type: 'LINK',
+        size: 'URL Link',
+        mime: 'text/html',
+        url: linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`,
+        created_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      }
+
+      updateFiles([newBlob, ...files])
+      setActiveBucket('Links')
+      setLinkTitle('')
+      setLinkUrl('')
     }
 
-    const fileSizeFormatted =
-      selectedFile.size > 1024 * 1024
-        ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`
-        : `${(selectedFile.size / 1024).toFixed(0)} KB`
-
-    const newFileObj = {
-      id: `blob-${Date.now()}`,
-      name: selectedFile.name,
-      bucket: bucket,
-      type: type,
-      size: fileSizeFormatted,
-      mime: selectedFile.type || 'application/octet-stream',
-      url: localUrl,
-      created_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
-    }
-
-    updateFiles([newFileObj, ...files])
-    setActiveBucket(bucket) // Auto-switch tab to relevant bucket!
-    setSelectedFile(null)
     setShowUploadModal(false)
   }
 
-  const handleCreateBucket = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (newBucketName && !buckets.includes(newBucketName)) {
-      setBuckets([...buckets, newBucketName])
-      setActiveBucket(newBucketName)
-    }
-    setNewBucketName('')
-    setShowBucketModal(false)
-  }
-
   const handleDeleteFile = (id: string) => {
-    if (confirm('Delete this unstructured media object?')) {
+    if (confirm('Delete this media object/link from this person record?')) {
       updateFiles(files.filter((f) => f.id !== id))
     }
   }
@@ -145,38 +241,85 @@ export default function UnstructuredStoragePage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const filteredFiles = files.filter((f) => f.bucket === activeBucket)
+  const activePerson = persons.find((p) => p.id === activePersonId) || persons[0]
+  const personFiles = files.filter((f) => f.person_id === activePersonId)
+  const filteredFiles = personFiles.filter((f) => f.bucket === activeBucket)
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Unstructured Media Storage</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Person-Centric Database & Storage</h1>
           <p className="text-slate-400 mt-1">
-            Store, categorize, and serve unstructured binary objects: Images, Videos, Audio, and Documents.
+            Unified entity database: Every person record holds all their structured profile data, files, and links.
           </p>
         </div>
 
         <div className="flex gap-3">
           <button
-            onClick={() => setShowBucketModal(true)}
+            onClick={() => setShowPersonModal(true)}
             className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg transition border border-slate-700 text-sm"
           >
-            + Custom Bucket
+            + Create Person Profile
           </button>
           <button
             onClick={() => setShowUploadModal(true)}
             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition shadow-lg shadow-blue-600/25 text-sm"
           >
-            + Upload File from Computer
+            + Push File / Link to Person
           </button>
         </div>
       </div>
 
-      {/* Bucket Selector Tabs */}
+      {/* Person Selector Bar */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Select Person Record</div>
+          <span className="text-xs text-blue-400 font-mono">Person ID: {activePerson.id}</span>
+        </div>
+
+        <div className="flex items-center gap-3 overflow-x-auto">
+          {persons.map((p) => {
+            const pFileCount = files.filter((f) => f.person_id === p.id).length
+            const isSelected = p.id === activePersonId
+            return (
+              <button
+                key={p.id}
+                onClick={() => setActivePersonId(p.id)}
+                className={`px-4 py-3 rounded-xl border text-left transition min-w-[200px] flex items-center justify-between ${
+                  isSelected
+                    ? 'bg-blue-600/10 border-blue-500/40 text-white shadow-lg shadow-blue-600/10'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div>
+                  <div className="font-bold text-sm">{p.name}</div>
+                  <div className="text-xs text-slate-400 truncate max-w-[140px]">{p.email}</div>
+                </div>
+                <span className="px-2 py-0.5 text-xs bg-slate-800 text-slate-300 rounded-full font-mono font-semibold">
+                  {pFileCount}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Person Container Info */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between text-xs text-slate-300 font-mono">
+        <div>
+          Active Container: <span className="text-white font-bold">{activePerson.name}</span> ({activePerson.email}) • Role: <span className="text-blue-400">{activePerson.role}</span>
+        </div>
+        <div>
+          Total Attached Media & Links: <span className="text-emerald-400 font-bold">{personFiles.length} items</span>
+        </div>
+      </div>
+
+      {/* Bucket Category Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-800 pb-3">
         {buckets.map((b) => {
-          const count = files.filter((f) => f.bucket === b).length
+          const count = personFiles.filter((f) => f.bucket === b).length
           return (
             <button
               key={b}
@@ -187,7 +330,7 @@ export default function UnstructuredStoragePage() {
                   : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
               }`}
             >
-              <span>📁 {b}</span>
+              <span>{b === 'Links' ? '🔗' : '📁'} {b}</span>
               <span className="px-2 py-0.5 text-xs bg-slate-800 text-slate-300 rounded-full font-mono">
                 {count}
               </span>
@@ -196,28 +339,30 @@ export default function UnstructuredStoragePage() {
         })}
       </div>
 
-      {/* Media Objects Grid */}
+      {/* Media & Links Grid */}
       {filteredFiles.length === 0 ? (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center space-y-4">
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-blue-600/10 text-blue-400 text-3xl font-bold border border-blue-500/20">
-            📦
+            {activeBucket === 'Links' ? '🔗' : '📦'}
           </div>
-          <h3 className="text-xl font-bold text-white">No Objects in Bucket '{activeBucket}'</h3>
+          <h3 className="text-xl font-bold text-white">
+            No {activeBucket} Pushed for {activePerson.name}
+          </h3>
           <p className="text-slate-400 text-sm max-w-md mx-auto">
-            Upload files directly from your computer. Based on the file extension, objects are automatically categorized into their relevant bucket!
+            Push computer files or external URLs/links directly into this person's record container!
           </p>
           <button
             onClick={() => setShowUploadModal(true)}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/25"
           >
-            Upload File from Computer
+            Push File / Link to {activePerson.name}
           </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredFiles.map((file) => (
             <div key={file.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between">
-              {/* Media Preview Player */}
+              {/* Preview Box */}
               <div className="h-48 bg-slate-950 flex items-center justify-center overflow-hidden relative">
                 {file.type === 'IMAGE' && (
                   <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
@@ -242,29 +387,49 @@ export default function UnstructuredStoragePage() {
                   </div>
                 )}
 
+                {file.type === 'LINK' && (
+                  <div className="text-center space-y-2 p-4">
+                    <div className="text-5xl">🔗</div>
+                    <div className="text-sm font-bold text-blue-400 truncate max-w-xs">{file.name}</div>
+                    <div className="text-xs text-slate-400 font-mono truncate max-w-xs">{file.url}</div>
+                  </div>
+                )}
+
                 <span className="absolute top-3 right-3 px-2.5 py-1 text-xs font-bold bg-slate-950/80 backdrop-blur text-slate-200 border border-slate-800 rounded-full">
                   {file.type}
                 </span>
               </div>
 
-              {/* Object Details & Actions */}
+              {/* Details & Actions */}
               <div className="p-5 space-y-3">
                 <div>
                   <h3 className="font-bold text-white text-base truncate" title={file.name}>
                     {file.name}
                   </h3>
                   <div className="text-xs text-slate-400 font-mono mt-0.5">
-                    {file.id} • {file.size}
+                    Owner: <span className="text-blue-400">{activePerson.name}</span> • {file.size}
                   </div>
                 </div>
 
                 <div className="flex gap-2 pt-2 border-t border-slate-800">
-                  <button
-                    onClick={() => handleCopyUrl(file.url, file.id)}
-                    className="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition"
-                  >
-                    {copiedId === file.id ? '✔ Copied URL!' : 'Copy Object URL'}
-                  </button>
+                  {file.type === 'LINK' ? (
+                    <a
+                      href={file.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition text-center"
+                    >
+                      Open Link ↗
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => handleCopyUrl(file.url, file.id)}
+                      className="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition"
+                    >
+                      {copiedId === file.id ? '✔ Copied URL!' : 'Copy Object URL'}
+                    </button>
+                  )}
+
                   <button
                     onClick={() => handleDeleteFile(file.id)}
                     className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold rounded-lg transition border border-red-500/20"
@@ -278,62 +443,104 @@ export default function UnstructuredStoragePage() {
         </div>
       )}
 
-      {/* Upload Computer File Modal */}
+      {/* Push File or Link Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold text-white">Upload File from Computer</h2>
-            <p className="text-xs text-slate-400">
-              Files are automatically categorized into <span className="text-blue-400 font-semibold">Images</span>, <span className="text-blue-400 font-semibold">Videos</span>, <span className="text-blue-400 font-semibold">Audio</span>, or <span className="text-blue-400 font-semibold">Documents</span> based on extension.
-            </p>
+            <h2 className="text-xl font-bold text-white">Push to {activePerson.name}'s Database Container</h2>
 
-            <form onSubmit={handleLocalFileUpload} className="space-y-4">
-              <div className="border-2 border-dashed border-slate-800 rounded-2xl p-6 text-center hover:border-blue-500/50 transition">
-                <input
-                  type="file"
-                  required
-                  id="file-input"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setSelectedFile(e.target.files[0])
-                    }
-                  }}
-                  className="hidden"
-                />
-                <label htmlFor="file-input" className="cursor-pointer space-y-2 block">
-                  <div className="text-4xl">📁</div>
-                  <div className="text-sm font-semibold text-blue-400 hover:underline">
-                    {selectedFile ? selectedFile.name : 'Choose file from your computer'}
-                  </div>
-                  {selectedFile && (
-                    <div className="text-xs text-emerald-400 font-mono">
-                      Auto-categorized into bucket:{' '}
-                      <span className="font-bold uppercase">{categorizeFile(selectedFile.name).bucket}</span>
+            {/* Mode Switcher */}
+            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setUploadMode('FILE')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
+                  uploadMode === 'FILE' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                📁 Upload Computer File
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadMode('LINK')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
+                  uploadMode === 'LINK' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                🔗 Add Web / App Link
+              </button>
+            </div>
+
+            <form onSubmit={handleUploadFileOrLink} className="space-y-4">
+              {uploadMode === 'FILE' ? (
+                <div className="border-2 border-dashed border-slate-800 rounded-2xl p-6 text-center hover:border-blue-500/50 transition">
+                  <input
+                    type="file"
+                    required
+                    id="file-input"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setSelectedFile(e.target.files[0])
+                      }
+                    }}
+                    className="hidden"
+                  />
+                  <label htmlFor="file-input" className="cursor-pointer space-y-2 block">
+                    <div className="text-4xl">📁</div>
+                    <div className="text-sm font-semibold text-blue-400 hover:underline">
+                      {selectedFile ? selectedFile.name : 'Choose file from your computer'}
                     </div>
-                  )}
-                  <div className="text-xs text-slate-500">
-                    Supports PNG, JPG, MP4, MP3, PDF, DOCX, ZIP & more
+                    {selectedFile && (
+                      <div className="text-xs text-emerald-400 font-mono">
+                        Auto-categorized into:{' '}
+                        <span className="font-bold uppercase">{categorizeFile(selectedFile.name).bucket}</span>
+                      </div>
+                    )}
+                    <div className="text-xs text-slate-500">Supports PNG, JPG, MP4, MP3, PDF & more</div>
+                  </label>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Link Title / Label</label>
+                    <input
+                      type="text"
+                      required
+                      value={linkTitle}
+                      onChange={(e) => setLinkTitle(e.target.value)}
+                      placeholder="e.g. YouTube Video / Drive File Link"
+                      className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500"
+                    />
                   </div>
-                </label>
-              </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">URL Address</label>
+                    <input
+                      type="text"
+                      required
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      placeholder="e.g. https://youtube.com/watch?v=..."
+                      className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedFile(null)
-                    setShowUploadModal(false)
-                  }}
+                  onClick={() => setShowUploadModal(false)}
                   className="flex-1 py-2 bg-slate-800 text-slate-300 text-sm font-semibold rounded-lg"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={!selectedFile}
+                  disabled={uploadMode === 'FILE' ? !selectedFile : !linkUrl}
                   className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-blue-600/25 disabled:opacity-50"
                 >
-                  Upload & Categorize
+                  Push to {activePerson.name}
                 </button>
               </div>
             </form>
@@ -341,20 +548,43 @@ export default function UnstructuredStoragePage() {
         </div>
       )}
 
-      {/* Create Bucket Modal */}
-      {showBucketModal && (
+      {/* Create Person Profile Modal */}
+      {showPersonModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold text-white">Create Storage Bucket</h2>
-            <form onSubmit={handleCreateBucket} className="space-y-4">
+            <h2 className="text-xl font-bold text-white">Create Person Profile Container</h2>
+            <form onSubmit={handleAddPerson} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Bucket Name</label>
+                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Full Name</label>
                 <input
                   type="text"
                   required
-                  value={newBucketName}
-                  onChange={(e) => setNewBucketName(e.target.value)}
-                  placeholder="e.g. Archive-Vault"
+                  value={newPersonName}
+                  onChange={(e) => setNewPersonName(e.target.value)}
+                  placeholder="e.g. Sarah Jenkins"
+                  className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={newPersonEmail}
+                  onChange={(e) => setNewPersonEmail(e.target.value)}
+                  placeholder="sarah@acme.com"
+                  className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Role / Category</label>
+                <input
+                  type="text"
+                  value={newPersonRole}
+                  onChange={(e) => setNewPersonRole(e.target.value)}
+                  placeholder="Member / Admin / Customer"
                   className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -362,7 +592,7 @@ export default function UnstructuredStoragePage() {
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowBucketModal(false)}
+                  onClick={() => setShowPersonModal(false)}
                   className="flex-1 py-2 bg-slate-800 text-slate-300 text-sm font-semibold rounded-lg"
                 >
                   Cancel
@@ -371,7 +601,7 @@ export default function UnstructuredStoragePage() {
                   type="submit"
                   className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-blue-600/25"
                 >
-                  Create Bucket
+                  Create Person Container
                 </button>
               </div>
             </form>
