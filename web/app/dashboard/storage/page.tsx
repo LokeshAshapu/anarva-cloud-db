@@ -25,6 +25,15 @@ interface PersonBlob {
 }
 
 export default function UnstructuredStoragePage() {
+  // Current user auth session state
+  const [currentUser, setCurrentUser] = useState<Person>({
+    id: 'usr-87a1',
+    name: 'Lokesh Ashapu',
+    email: 'lokesh@anarva.io',
+    role: 'Database Admin',
+  })
+  const [isAdmin, setIsAdmin] = useState<boolean>(true)
+
   // Person profiles state
   const [persons, setPersons] = useState<Person[]>([
     { id: 'usr-87a1', name: 'Lokesh Ashapu', email: 'lokesh@anarva.io', role: 'Database Admin' },
@@ -114,6 +123,31 @@ export default function UnstructuredStoragePage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Check logged in user session
+      let userList: any[] = []
+      try {
+        userList = JSON.parse(localStorage.getItem('anarva_registered_users') || '[]')
+      } catch {}
+
+      if (userList.length > 0) {
+        const lastUser = userList[userList.length - 1]
+        const userRole: string = lastUser.email.includes('admin') || lastUser.email.includes('owner') ? 'Database Admin' : 'Member'
+        const userObj: Person = {
+          id: `usr-${lastUser.email.substring(0, 4)}`,
+          name: lastUser.fullName || lastUser.email.split('@')[0],
+          email: lastUser.email,
+          role: userRole,
+        }
+
+        setCurrentUser(userObj)
+        const isUserAdmin = userRole === 'Database Admin' || userRole === 'OWNER' || userRole === 'ADMIN'
+        setIsAdmin(isUserAdmin)
+
+        if (!isUserAdmin) {
+          setActivePersonId(userObj.id)
+        }
+      }
+
       const storedPersons = localStorage.getItem(PERSON_STORAGE_KEY)
       if (storedPersons) {
         try {
@@ -150,7 +184,6 @@ export default function UnstructuredStoragePage() {
     }
   }
 
-  // Automatic bucket classification based on file extension
   const categorizeFile = (fileName: string): { bucket: 'Images' | 'Videos' | 'Audio' | 'Documents' | 'Links'; type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' | 'LINK' } => {
     const ext = fileName.split('.').pop()?.toLowerCase() || ''
 
@@ -167,6 +200,7 @@ export default function UnstructuredStoragePage() {
 
   const handleAddPerson = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isAdmin) return
     const newPerson: Person = {
       id: `usr-${Math.random().toString(36).substring(2, 6)}`,
       name: newPersonName || 'New User Profile',
@@ -182,6 +216,7 @@ export default function UnstructuredStoragePage() {
 
   const handleUploadFileOrLink = (e: React.FormEvent) => {
     e.preventDefault()
+    const targetPersonId = isAdmin ? activePersonId : currentUser.id
 
     if (uploadMode === 'FILE' && selectedFile) {
       const { bucket, type } = categorizeFile(selectedFile.name)
@@ -194,7 +229,7 @@ export default function UnstructuredStoragePage() {
 
       const newBlob: PersonBlob = {
         id: `blob-${Date.now()}`,
-        person_id: activePersonId,
+        person_id: targetPersonId,
         name: selectedFile.name,
         bucket: bucket,
         type: type,
@@ -210,7 +245,7 @@ export default function UnstructuredStoragePage() {
     } else if (uploadMode === 'LINK' && linkUrl) {
       const newBlob: PersonBlob = {
         id: `blob-${Date.now()}`,
-        person_id: activePersonId,
+        person_id: targetPersonId,
         name: linkTitle || linkUrl,
         bucket: 'Links',
         type: 'LINK',
@@ -241,8 +276,13 @@ export default function UnstructuredStoragePage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const activePerson = persons.find((p) => p.id === activePersonId) || persons[0]
-  const personFiles = files.filter((f) => f.person_id === activePersonId)
+  // Active Person container selection logic
+  const effectiveActivePersonId = isAdmin ? activePersonId : currentUser.id
+  const activePerson = isAdmin
+    ? persons.find((p) => p.id === effectiveActivePersonId) || currentUser
+    : currentUser
+
+  const personFiles = files.filter((f) => f.person_id === effectiveActivePersonId)
   const filteredFiles = personFiles.filter((f) => f.bucket === activeBucket)
 
   return (
@@ -257,54 +297,65 @@ export default function UnstructuredStoragePage() {
         </div>
 
         <div className="flex gap-3">
-          <button
-            onClick={() => setShowPersonModal(true)}
-            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg transition border border-slate-700 text-sm"
-          >
-            + Create Person Profile
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setShowPersonModal(true)}
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg transition border border-slate-700 text-sm"
+            >
+              + Create Person Profile
+            </button>
+          )}
           <button
             onClick={() => setShowUploadModal(true)}
             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition shadow-lg shadow-blue-600/25 text-sm"
           >
-            + Push File / Link to Person
+            + Push File / Link to Container
           </button>
         </div>
       </div>
 
-      {/* Person Selector Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Select Person Record</div>
-          <span className="text-xs text-blue-400 font-mono">Person ID: {activePerson.id}</span>
-        </div>
+      {/* Person Selector Bar (Only Visible for Admins / Owners) */}
+      {isAdmin ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Select Person Record (Admin Multi-Tenant View)
+            </div>
+            <span className="text-xs text-blue-400 font-mono">Person ID: {activePerson.id}</span>
+          </div>
 
-        <div className="flex items-center gap-3 overflow-x-auto">
-          {persons.map((p) => {
-            const pFileCount = files.filter((f) => f.person_id === p.id).length
-            const isSelected = p.id === activePersonId
-            return (
-              <button
-                key={p.id}
-                onClick={() => setActivePersonId(p.id)}
-                className={`px-4 py-3 rounded-xl border text-left transition min-w-[200px] flex items-center justify-between ${
-                  isSelected
-                    ? 'bg-blue-600/10 border-blue-500/40 text-white shadow-lg shadow-blue-600/10'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
-              >
-                <div>
-                  <div className="font-bold text-sm">{p.name}</div>
-                  <div className="text-xs text-slate-400 truncate max-w-[140px]">{p.email}</div>
-                </div>
-                <span className="px-2 py-0.5 text-xs bg-slate-800 text-slate-300 rounded-full font-mono font-semibold">
-                  {pFileCount}
-                </span>
-              </button>
-            )
-          })}
+          <div className="flex items-center gap-3 overflow-x-auto">
+            {persons.map((p) => {
+              const pFileCount = files.filter((f) => f.person_id === p.id).length
+              const isSelected = p.id === activePersonId
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setActivePersonId(p.id)}
+                  className={`px-4 py-3 rounded-xl border text-left transition min-w-[200px] flex items-center justify-between ${
+                    isSelected
+                      ? 'bg-blue-600/10 border-blue-500/40 text-white shadow-lg shadow-blue-600/10'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <div>
+                    <div className="font-bold text-sm">{p.name}</div>
+                    <div className="text-xs text-slate-400 truncate max-w-[140px]">{p.email}</div>
+                  </div>
+                  <span className="px-2 py-0.5 text-xs bg-slate-800 text-slate-300 rounded-full font-mono font-semibold">
+                    {pFileCount}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold rounded-xl flex items-center gap-2">
+          <span>🔒</span>
+          <span>Zero-Trust Access Isolation Enabled: You are logged in as standard user <strong className="text-white">{currentUser.name}</strong> ({currentUser.email}). Other users' databases and content are restricted.</span>
+        </div>
+      )}
 
       {/* Person Container Info */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between text-xs text-slate-300 font-mono">
@@ -349,13 +400,13 @@ export default function UnstructuredStoragePage() {
             No {activeBucket} Pushed for {activePerson.name}
           </h3>
           <p className="text-slate-400 text-sm max-w-md mx-auto">
-            Push computer files or external URLs/links directly into this person's record container!
+            Push computer files or external URLs/links directly into your personal record container!
           </p>
           <button
             onClick={() => setShowUploadModal(true)}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/25"
           >
-            Push File / Link to {activePerson.name}
+            Push File / Link to Container
           </button>
         </div>
       ) : (
@@ -447,7 +498,7 @@ export default function UnstructuredStoragePage() {
       {showUploadModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold text-white">Push to {activePerson.name}'s Database Container</h2>
+            <h2 className="text-xl font-bold text-white">Push to {activePerson.name}'s Container</h2>
 
             {/* Mode Switcher */}
             <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
@@ -540,7 +591,7 @@ export default function UnstructuredStoragePage() {
                   disabled={uploadMode === 'FILE' ? !selectedFile : !linkUrl}
                   className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-blue-600/25 disabled:opacity-50"
                 >
-                  Push to {activePerson.name}
+                  Push to Container
                 </button>
               </div>
             </form>
