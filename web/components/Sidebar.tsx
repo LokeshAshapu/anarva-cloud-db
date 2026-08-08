@@ -11,6 +11,7 @@ export function Sidebar() {
     { name: 'Overview', href: '/dashboard' },
     { name: 'Projects & Orgs', href: '/dashboard/projects' },
     { name: 'Managed Databases', href: '/dashboard/databases' },
+    { name: 'Unstructured Storage', href: '/dashboard/storage' },
     { name: 'SQL Query Console', href: '/dashboard/query' },
     { name: 'Backups & PITR', href: '/dashboard/backups' },
     { name: 'API Keys & Security', href: '/dashboard/apikeys' },
