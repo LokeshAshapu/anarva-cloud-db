@@ -1,6 +1,32 @@
+'use client'
+
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export default function HomePage() {
+  const router = useRouter()
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('access_token')
+      setIsLoggedIn(!!token)
+    }
+  }, [])
+
+  const handleLaunchConsole = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('access_token')
+      if (token) {
+        router.push('/dashboard')
+      } else {
+        router.push('/login')
+      }
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-6 md:p-12">
       {/* Header Navigation */}
@@ -19,14 +45,14 @@ export default function HomePage() {
             href="/login"
             className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition"
           >
-            Sign In
+            {isLoggedIn ? 'Dashboard' : 'Sign In'}
           </Link>
-          <Link
-            href="/dashboard"
+          <button
+            onClick={handleLaunchConsole}
             className="px-5 py-2.5 text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition shadow-lg shadow-blue-600/25"
           >
             Open Dashboard
-          </Link>
+          </button>
         </div>
       </header>
 
@@ -50,18 +76,18 @@ export default function HomePage() {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-          <Link
-            href="/dashboard"
-            className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition shadow-xl shadow-blue-600/25 text-lg"
+          <button
+            onClick={handleLaunchConsole}
+            className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition shadow-xl shadow-blue-600/25 text-lg cursor-pointer"
           >
             Launch Console →
-          </Link>
-          <Link
-            href="/dashboard/query"
-            className="w-full sm:w-auto px-8 py-4 bg-slate-900 hover:bg-slate-800 text-slate-200 font-bold rounded-xl transition border border-slate-800 text-lg"
+          </button>
+          <button
+            onClick={handleLaunchConsole}
+            className="w-full sm:w-auto px-8 py-4 bg-slate-900 hover:bg-slate-800 text-slate-200 font-bold rounded-xl transition border border-slate-800 text-lg cursor-pointer"
           >
             Try SQL Console
-          </Link>
+          </button>
         </div>
 
         {/* Platform Highlights */}

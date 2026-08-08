@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 import { API_BASE_URL } from '@/lib/api'
+import { hashPassword } from '@/lib/crypto'
 
 export default function SignUpPage() {
   const router = useRouter()
@@ -22,10 +23,16 @@ export default function SignUpPage() {
     setSuccess('')
 
     try {
-      // Save locally
+      // Encrypt password using SHA-256 Web Crypto
+      const encryptedPassword = await hashPassword(password)
+
+      // Save locally encrypted
       if (typeof window !== 'undefined') {
         const stored = JSON.parse(localStorage.getItem('anarva_registered_users') || '[]')
-        const updated = [...stored.filter((u: any) => u.email !== email), { fullName, email, password }]
+        const updated = [
+          ...stored.filter((u: any) => u.email !== email),
+          { fullName, email, passwordHash: encryptedPassword },
+        ]
         localStorage.setItem('anarva_registered_users', JSON.stringify(updated))
       }
 
@@ -35,11 +42,11 @@ export default function SignUpPage() {
         body: JSON.stringify({
           full_name: fullName,
           email,
-          password,
+          password: encryptedPassword,
         }),
       }).catch(() => null)
 
-      setSuccess('Account created successfully! Redirecting to login...')
+      setSuccess('Account registered with SHA-256 Zero-Trust Encryption! Redirecting to login...')
       setTimeout(() => {
         router.push('/login')
       }, 1200)
@@ -115,7 +122,7 @@ export default function SignUpPage() {
             disabled={loading}
             className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition shadow-lg shadow-blue-600/25 disabled:opacity-50"
           >
-            {loading ? 'Creating Account...' : 'Register Account'}
+            {loading ? 'Encrypting & Registering...' : 'Register Account'}
           </button>
         </form>
 

@@ -2,8 +2,18 @@
 
 import React from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export function Navbar() {
+  const router = useRouter()
+
+  const handleSignOut = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('access_token')
+    }
+    router.push('/login')
+  }
+
   return (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -26,12 +36,12 @@ export function Navbar() {
           >
             SQL Console
           </Link>
-          <Link
-            href="/login"
-            className="px-3.5 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition shadow-md shadow-blue-600/20"
+          <button
+            onClick={handleSignOut}
+            className="px-3.5 py-1.5 text-sm font-medium bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/20 rounded-lg transition"
           >
             Sign Out
-          </Link>
+          </button>
         </div>
       </div>
     </header>
