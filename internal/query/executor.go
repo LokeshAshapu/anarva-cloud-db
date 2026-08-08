@@ -165,11 +165,29 @@ func (e *mockExecutor) Execute(ctx context.Context, connectionString string, par
 		}
 	} else {
 		if parsedQuery.StatementType == StatementSelect {
-			columns = []ColumnInfo{
-				{Name: "result", Type: "VARCHAR"},
-			}
-			rows = []map[string]interface{}{
-				{"result": "Success"},
+			if strings.Contains(sqlLower, "customer_orders") || strings.Contains(sqlLower, "orders") {
+				columns = []ColumnInfo{
+					{Name: "id", Type: "INT4"},
+					{Name: "customer_name", Type: "VARCHAR"},
+					{Name: "amount", Type: "NUMERIC"},
+					{Name: "status", Type: "VARCHAR"},
+					{Name: "created_at", Type: "TIMESTAMP"},
+				}
+				rows = []map[string]interface{}{
+					{"id": 1, "customer_name": "Lokesh Ashapu", "amount": "299.99", "status": "COMPLETED", "created_at": time.Now().Format("2006-01-02 15:04:05")},
+					{"id": 2, "customer_name": "Enterprise Client", "amount": "1499.00", "status": "PROCESSING", "created_at": time.Now().Format("2006-01-02 15:04:05")},
+					{"id": 3, "customer_name": "Acme Corp", "amount": "850.50", "status": "PAID", "created_at": time.Now().Format("2006-01-02 15:04:05")},
+				}
+			} else {
+				columns = []ColumnInfo{
+					{Name: "id", Type: "INT4"},
+					{Name: "query_status", Type: "VARCHAR"},
+					{Name: "executed_sql", Type: "VARCHAR"},
+					{Name: "timestamp", Type: "TIMESTAMP"},
+				}
+				rows = []map[string]interface{}{
+					{"id": 1, "query_status": "EXECUTED_SUCCESSFULLY", "executed_sql": parsedQuery.RawSQL, "timestamp": time.Now().Format("2006-01-02 15:04:05")},
+				}
 			}
 		}
 	}
