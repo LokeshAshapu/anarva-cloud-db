@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 
 import { API_BASE_URL } from '@/lib/api'
 import { hashPassword } from '@/lib/crypto'
+import { AnarvaLogo } from '@/components/AnarvaLogo'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -92,8 +93,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-slate-950">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl space-y-6">
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-blue-600/10 text-blue-500 font-bold text-2xl border border-blue-500/20">
-            A
+          <div className="inline-flex items-center justify-center p-2 rounded-xl bg-blue-600/10 border border-blue-500/20">
+            <AnarvaLogo className="h-10 w-10" />
           </div>
           <h1 className="text-2xl font-bold text-white">Sign in to Anarva</h1>
           <p className="text-sm text-slate-400">Zero-Trust Encrypted Cloud Console Access</p>

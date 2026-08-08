@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { AnarvaLogo } from '@/components/AnarvaLogo'
 
 export default function ShareViewPage({ params }: { params: { token: string } }) {
   const [copied, setCopied] = useState(false)
@@ -59,9 +60,7 @@ export default function ShareViewPage({ params }: { params: { token: string } })
         {/* Header */}
         <header className="flex items-center justify-between border-b border-slate-800 pb-6">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-bold text-white shadow-lg text-xl">
-              A
-            </div>
+            <AnarvaLogo className="h-9 w-9" />
             <div>
               <h1 className="text-xl font-bold text-white">Anarva Shared Database Snapshot</h1>
               <p className="text-xs text-slate-400 font-mono">Token: {shareToken}</p>

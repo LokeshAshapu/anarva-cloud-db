@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { AnarvaLogo } from '@/components/AnarvaLogo'
 
 export default function HomePage() {
   const router = useRouter()
@@ -32,9 +33,7 @@ export default function HomePage() {
       {/* Header Navigation */}
       <header className="max-w-7xl mx-auto w-full flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20 text-xl">
-            A
-          </div>
+          <AnarvaLogo className="h-9 w-9" />
           <span className="text-2xl font-bold tracking-tight text-white">
             Anarva <span className="text-blue-500">Cloud DB</span>
           </span>
@@ -60,18 +59,18 @@ export default function HomePage() {
       <main className="max-w-5xl mx-auto w-full text-center space-y-8 my-auto py-12">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs font-semibold text-blue-400">
           <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse"></span>
-          Enterprise Managed Cloud Database Engine
+          Anarva Enterprise Managed Cloud Database Engine
         </div>
 
         <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight leading-tight">
           Next-Generation Managed <br />
           <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent">
-            Database Infrastructure
+            Anarva Database Infrastructure
           </span>
         </h1>
 
         <p className="text-lg md:text-xl text-slate-400 max-w-3xl mx-auto leading-relaxed">
-          Provision PostgreSQL & MySQL instances in seconds with automated WAL backups, 
+          Provision Anarva Serverless PostgreSQL & MySQL instances in seconds with automated WAL backups, 
           real-time query parsing telemetry, zero-trust security, and global multi-tenancy.
         </p>
 
@@ -93,7 +92,7 @@ export default function HomePage() {
         {/* Platform Highlights */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-16 text-left">
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-2">
-            <div className="text-blue-400 font-bold text-lg">⚡ Instant Provisioning</div>
+            <div className="text-blue-400 font-bold text-lg">⚡ Anarva Auto-Provisioning</div>
             <p className="text-xs text-slate-400">Deploy isolated database instances with automatic port assignment & credentials encryption.</p>
           </div>
 

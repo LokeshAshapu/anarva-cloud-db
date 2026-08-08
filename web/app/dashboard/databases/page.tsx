@@ -79,7 +79,7 @@ export default function DatabasesPage() {
     const port = 15000 + Math.floor(Math.random() * 5000)
     const newDb = {
       id: `db-uuid-${Date.now()}`,
-      name: name || 'New AWS-Grade Instance',
+      name: name || 'New Anarva Instance',
       engine: engine,
       status: 'RUNNING',
       host: 'localhost',
@@ -100,7 +100,7 @@ export default function DatabasesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           project_id: 'proj-default',
-          name: name || 'New AWS-Grade Instance',
+          name: name || 'New Anarva Instance',
           engine: engine,
           storage_size_gb: 20,
         }),
@@ -125,7 +125,7 @@ export default function DatabasesPage() {
       item.id === db.id ? { ...item, replicas: (item.replicas || 0) + 1 } : item
     )
     updateDatabasesState(updated)
-    alert(`✔ AWS Read Replica provisioned for ${db.name} in region eu-central-1 (Frankfurt)!`)
+    alert(`✔ Anarva Read Replica provisioned for ${db.name} in region eu-central-1 (Frankfurt)!`)
   }
 
   const handleToggleStatus = async (db: any) => {
@@ -196,9 +196,9 @@ export default function DatabasesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">AWS-Grade Managed Databases</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Anarva Enterprise Managed Databases</h1>
           <p className="text-slate-400 mt-1">
-            Serverless Aurora v2 auto-scaling ACUs, Multi-AZ High Availability, Read Replicas, & CloudWatch metrics.
+            Serverless Anarva Engine v2 auto-scaling ACUs, Multi-AZ High Availability, Read Replicas, & Real-time metrics.
           </p>
         </div>
 
@@ -206,7 +206,7 @@ export default function DatabasesPage() {
           onClick={() => setShowModal(true)}
           className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition shadow-lg shadow-blue-600/25"
         >
-          + Provision AWS Cluster
+          + Provision Anarva Cluster
         </button>
       </div>
 
@@ -217,15 +217,15 @@ export default function DatabasesPage() {
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-blue-600/10 text-blue-400 text-3xl font-bold border border-blue-500/20">
             ⚡
           </div>
-          <h3 className="text-xl font-bold text-white">No Cloud Database Clusters Deployed</h3>
+          <h3 className="text-xl font-bold text-white">No Anarva Database Clusters Deployed</h3>
           <p className="text-slate-400 text-sm max-w-md mx-auto">
-            Deploy your first AWS Aurora Serverless v2 PostgreSQL or MySQL Multi-AZ cluster with auto-scaling ACUs and read replicas!
+            Deploy your first Anarva Serverless v2 PostgreSQL or MySQL Multi-AZ cluster with auto-scaling ACUs and read replicas!
           </p>
           <button
             onClick={() => setShowModal(true)}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/25"
           >
-            Provision AWS Aurora Cluster
+            Provision Anarva Cluster
           </button>
         </div>
       ) : (
@@ -333,11 +333,11 @@ export default function DatabasesPage() {
         </div>
       )}
 
-      {/* Provisioning AWS Cluster Modal */}
+      {/* Provisioning Anarva Cluster Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-4">
-            <h2 className="text-xl font-bold text-white">Provision AWS Aurora Serverless Cluster</h2>
+            <h2 className="text-xl font-bold text-white">Provision Anarva Serverless Cluster</h2>
             <p className="text-xs text-slate-400">Configure Multi-AZ High Availability and auto-scaling Anarva Compute Units (ACUs).</p>
 
             <form onSubmit={handleProvision} className="space-y-4">
@@ -348,7 +348,7 @@ export default function DatabasesPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. production-aurora-cluster"
+                  placeholder="e.g. production-anarva-cluster"
                   className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500 text-sm"
                 />
               </div>
@@ -360,8 +360,8 @@ export default function DatabasesPage() {
                   onChange={(e) => setEngine(e.target.value)}
                   className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500 text-sm"
                 >
-                  <option value="postgres">Aurora PostgreSQL 16 Compatible</option>
-                  <option value="mysql">Aurora MySQL 8.0 Compatible</option>
+                  <option value="postgres">Anarva PostgreSQL 16 Compatible</option>
+                  <option value="mysql">Anarva MySQL 8.0 Compatible</option>
                 </select>
               </div>
 
@@ -382,7 +382,7 @@ export default function DatabasesPage() {
               {/* ACU Compute Range */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-semibold text-slate-300 uppercase">
-                  <span>Serverless v2 Auto-Scaling ACUs</span>
+                  <span>Anarva Engine v2 Auto-Scaling ACUs</span>
                   <span className="text-purple-400">{acuMin} - {acuMax} ACU</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -424,7 +424,7 @@ export default function DatabasesPage() {
                   type="submit"
                   className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-blue-600/25"
                 >
-                  Deploy AWS Cluster
+                  Deploy Anarva Cluster
                 </button>
               </div>
             </form>
@@ -432,12 +432,12 @@ export default function DatabasesPage() {
         </div>
       )}
 
-      {/* CloudWatch Telemetry Metrics Modal */}
+      {/* Anarva Telemetry Metrics Modal */}
       {metricsDb && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">AWS CloudWatch Metrics</h2>
+              <h2 className="text-xl font-bold text-white">Anarva Real-Time Metrics</h2>
               <span className="text-xs text-emerald-400 font-mono flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span> Live Stream
               </span>
