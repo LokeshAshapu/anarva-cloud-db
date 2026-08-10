@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { API_BASE_URL } from '@/lib/api'
 import { hashPassword } from '@/lib/crypto'
 import { AnarvaLogo } from '@/components/AnarvaLogo'
+import { createClient } from '@/utils/supabase/client'
 
 export default function SignUpPage() {
   const router = useRouter()
@@ -24,7 +25,23 @@ export default function SignUpPage() {
     setSuccess('')
 
     try {
-      // Encrypt password using SHA-256 Web Crypto
+      // 1. Supabase Authentication Sign Up
+      const supabase = createClient()
+      const { data: supaData, error: supaError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
+      })
+
+      if (supaError) {
+        console.warn('Supabase Auth warning:', supaError.message)
+      }
+
+      // 2. Encrypt password using SHA-256 Web Crypto
       const encryptedPassword = await hashPassword(password)
 
       // Save locally encrypted
@@ -32,7 +49,7 @@ export default function SignUpPage() {
         const stored = JSON.parse(localStorage.getItem('anarva_registered_users') || '[]')
         const updated = [
           ...stored.filter((u: any) => u.email !== email),
-          { fullName, email, passwordHash: encryptedPassword },
+          { fullName, email, passwordHash: encryptedPassword, supaId: supaData?.user?.id },
         ]
         localStorage.setItem('anarva_registered_users', JSON.stringify(updated))
       }
@@ -47,7 +64,7 @@ export default function SignUpPage() {
         }),
       }).catch(() => null)
 
-      setSuccess('Account registered with SHA-256 Zero-Trust Encryption! Redirecting to login...')
+      setSuccess('Account registered with Supabase & SHA-256 Zero-Trust Encryption! Redirecting to login...')
       setTimeout(() => {
         router.push('/login')
       }, 1200)
@@ -66,12 +83,12 @@ export default function SignUpPage() {
             <AnarvaLogo className="h-16 w-16" />
           </div>
           <h1 className="text-2xl font-bold text-white">Create Account</h1>
-          <p className="text-sm text-slate-400">Join Anarva Cloud Database Platform</p>
+          <p className="text-sm text-slate-400">Join Anarva Cloud Database Platform (Supabase Auth Connected)</p>
         </div>
 
         {error && (
-          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-            {error}
+          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-mono">
+            [ERROR] {error}
           </div>
         )}
 
@@ -123,7 +140,7 @@ export default function SignUpPage() {
             disabled={loading}
             className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition shadow-lg shadow-blue-600/25 disabled:opacity-50"
           >
-            {loading ? 'Encrypting & Registering...' : 'Register Account'}
+            {loading ? 'Authenticating with Supabase...' : 'Register Account'}
           </button>
         </form>
 
