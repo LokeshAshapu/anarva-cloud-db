@@ -12,6 +12,8 @@ export default function APIKeysPage() {
 
   const [generatedKey, setGeneratedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null)
+  const [revealedKeyIds, setRevealedKeyIds] = useState<Record<string, boolean>>({})
 
   const defaultKeys = [
     {
@@ -94,6 +96,19 @@ export default function APIKeysPage() {
     }
   }
 
+  const handleCopySingleKey = (token: string, id: string) => {
+    navigator.clipboard.writeText(token)
+    setCopiedKeyId(id)
+    setTimeout(() => setCopiedKeyId(null), 2000)
+  }
+
+  const toggleRevealKey = (id: string) => {
+    setRevealedKeyIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }))
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -120,27 +135,49 @@ export default function APIKeysPage() {
           </div>
         ) : (
           <div className="divide-y divide-slate-800 border border-slate-800 rounded-lg overflow-hidden font-mono text-xs">
-            {apiKeys.map((k) => (
-              <div key={k.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-950">
-                <div>
-                  <div className="font-bold text-white text-sm font-sans">{k.name}</div>
-                  <div className="text-slate-400 mt-0.5">Prefix: <span className="text-blue-400">{k.prefix}_***</span></div>
-                </div>
+            {apiKeys.map((k) => {
+              const isRevealed = !!revealedKeyIds[k.id]
+              return (
+                <div key={k.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-950">
+                  <div>
+                    <div className="font-bold text-white text-sm font-sans">{k.name}</div>
+                    <div className="text-slate-400 mt-0.5 flex items-center gap-2">
+                      <span>Token:</span>
+                      <span className="text-emerald-400 font-mono select-all">
+                        {isRevealed ? k.token : `${k.prefix}_********************`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleRevealKey(k.id)}
+                        className="text-xs text-blue-400 hover:underline ml-1"
+                      >
+                        {isRevealed ? 'Hide' : 'Reveal'}
+                      </button>
+                    </div>
+                  </div>
 
-                <div className="flex items-center gap-3">
-                  <span className="px-2.5 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-md font-semibold">
-                    {k.scope || 'ADMIN_FULL_ACCESS'}
-                  </span>
-                  <span className="text-slate-500">Created {k.created_at}</span>
-                  <button
-                    onClick={() => handleRevokeKey(k.id)}
-                    className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold rounded-lg transition border border-red-500/20"
-                  >
-                    Revoke Key
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <span className="px-2.5 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-md font-semibold">
+                      {k.scope || 'ADMIN_FULL_ACCESS'}
+                    </span>
+
+                    <button
+                      onClick={() => handleCopySingleKey(k.token, k.id)}
+                      className="px-3 py-1 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-xs font-semibold rounded-lg transition border border-blue-500/20"
+                    >
+                      {copiedKeyId === k.id ? '✔ Copied!' : 'Copy Key'}
+                    </button>
+
+                    <button
+                      onClick={() => handleRevokeKey(k.id)}
+                      className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold rounded-lg transition border border-red-500/20"
+                    >
+                      Revoke Key
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
@@ -229,7 +266,7 @@ export default function APIKeysPage() {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-4">
             <h2 className="text-xl font-bold text-white">API Key Generated Successfully</h2>
             <p className="text-xs text-amber-400">
-              ⚠️ Please copy your secret API key now. For security, it will not be shown again.
+              ⚠️ Please copy your secret API key now. You can also view or copy it from your API Keys list anytime.
             </p>
 
             <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg font-mono text-xs text-emerald-400 break-all select-all">
