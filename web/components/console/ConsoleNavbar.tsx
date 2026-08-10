@@ -8,9 +8,10 @@ import { createClient } from '@/utils/supabase/client'
 
 interface ConsoleNavbarProps {
   onOpenCommandPalette: () => void
+  onToggleMobileMenu: () => void
 }
 
-export function ConsoleNavbar({ onOpenCommandPalette }: ConsoleNavbarProps) {
+export function ConsoleNavbar({ onOpenCommandPalette, onToggleMobileMenu }: ConsoleNavbarProps) {
   const router = useRouter()
   const [selectedRegion, setSelectedRegion] = useState('us-east-1')
   const [showNotifications, setShowNotifications] = useState(false)
@@ -26,7 +27,6 @@ export function ConsoleNavbar({ onOpenCommandPalette }: ConsoleNavbarProps) {
         if (storedEmail) setUserEmail(storedEmail)
         if (storedName) setUserName(storedName)
 
-        // Try getting real Supabase Auth user
         try {
           const supabase = createClient()
           const { data } = await supabase.auth.getUser()
@@ -75,33 +75,44 @@ export function ConsoleNavbar({ onOpenCommandPalette }: ConsoleNavbarProps) {
     .toUpperCase() || 'LA'
 
   return (
-    <header className="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-40 h-14 flex items-center justify-between px-4">
-      {/* Left Brand & Global Search */}
-      <div className="flex items-center gap-4">
+    <header className="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-40 h-14 flex items-center justify-between px-3 sm:px-4">
+      {/* Left Brand & Mobile Drawer Trigger */}
+      <div className="flex items-center gap-2 sm:gap-4">
+        {/* Mobile Hamburger Toggle Button */}
+        <button
+          onClick={onToggleMobileMenu}
+          className="p-1.5 text-slate-400 hover:text-white rounded-lg lg:hidden hover:bg-slate-900 transition"
+          aria-label="Open mobile menu"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+
         <Link href="/console" className="flex items-center gap-2">
-          <AnarvaLogo className="h-8 w-8" />
-          <span className="text-base font-bold text-white tracking-tight flex items-center gap-1.5">
-            ANARVA <span className="text-blue-500 font-extrabold uppercase text-xs tracking-widest bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">CLOUD</span>
+          <AnarvaLogo className="h-7 w-7 sm:h-8 sm:w-8" />
+          <span className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5">
+            ANARVA <span className="text-blue-500 font-extrabold uppercase text-[10px] sm:text-xs tracking-widest bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">CLOUD</span>
           </span>
         </Link>
 
-        {/* Global Search Bar (Trigger for Command Palette) */}
+        {/* Global Search Bar Trigger */}
         <button
           onClick={onOpenCommandPalette}
-          className="hidden sm:flex items-center gap-3 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-400 text-xs rounded-lg transition w-64 justify-between"
+          className="hidden sm:flex items-center gap-3 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-400 text-xs rounded-lg transition w-48 md:w-64 justify-between"
         >
           <span className="flex items-center gap-2">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <span>Search resources, services...</span>
+            <span className="truncate">Search cloud...</span>
           </span>
           <kbd className="px-1.5 py-0.5 bg-slate-950 border border-slate-800 rounded text-[10px] text-slate-500 font-mono">⌘K</kbd>
         </button>
       </div>
 
       {/* Right Tools & Profile */}
-      <div className="flex items-center gap-3 text-xs">
+      <div className="flex items-center gap-2 sm:gap-3 text-xs">
         {/* Region Selector */}
         <div className="relative hidden md:block">
           <select
@@ -131,7 +142,7 @@ export function ConsoleNavbar({ onOpenCommandPalette }: ConsoleNavbarProps) {
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-4 space-y-3 z-50 animate-in fade-in">
+            <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-4 space-y-3 z-50 animate-in fade-in">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span className="font-bold text-white text-xs">System Notifications</span>
                 <span className="text-[10px] text-blue-400 font-mono">0 Alerts</span>
@@ -143,19 +154,11 @@ export function ConsoleNavbar({ onOpenCommandPalette }: ConsoleNavbarProps) {
           )}
         </div>
 
-        {/* Documentation Link */}
-        <Link
-          href="/console/devtools"
-          className="hidden sm:inline-block text-slate-400 hover:text-slate-200 transition font-medium"
-        >
-          Docs
-        </Link>
-
         {/* User Profile Menu */}
         <div className="relative">
           <button
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-2 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 transition"
+            className="flex items-center gap-2 px-2 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 transition"
           >
             <span className="h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center font-bold text-[10px] text-white">
               {initials}
@@ -164,7 +167,7 @@ export function ConsoleNavbar({ onOpenCommandPalette }: ConsoleNavbarProps) {
           </button>
 
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2 space-y-1 z-50 animate-in fade-in">
+            <div className="absolute right-0 mt-2 w-52 sm:w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2 space-y-1 z-50 animate-in fade-in">
               <div className="px-3 py-2 border-b border-slate-800 text-[11px]">
                 <div className="font-bold text-white truncate">{userName}</div>
                 <div className="text-slate-400 font-mono text-[10px] truncate">{userEmail}</div>
