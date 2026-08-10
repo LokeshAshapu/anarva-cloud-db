@@ -8,7 +8,7 @@ import { createClient } from '@/utils/supabase/client'
 
 interface ConsoleNavbarProps {
   onOpenCommandPalette: () => void
-  onToggleMobileMenu: () => void
+  onToggleMobileMenu?: () => void
 }
 
 export function ConsoleNavbar({ onOpenCommandPalette, onToggleMobileMenu }: ConsoleNavbarProps) {
@@ -80,7 +80,7 @@ export function ConsoleNavbar({ onOpenCommandPalette, onToggleMobileMenu }: Cons
       <div className="flex items-center gap-2 sm:gap-4">
         {/* Mobile Hamburger Toggle Button */}
         <button
-          onClick={onToggleMobileMenu}
+          onClick={() => onToggleMobileMenu && onToggleMobileMenu()}
           className="p-1.5 text-slate-400 hover:text-white rounded-lg lg:hidden hover:bg-slate-900 transition"
           aria-label="Open mobile menu"
         >
