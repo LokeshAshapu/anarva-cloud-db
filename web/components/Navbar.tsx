@@ -49,7 +49,7 @@ export function Navbar() {
             href="/dashboard/query"
             className="px-3.5 py-1.5 text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition border border-slate-700"
           >
-            SQL Console ⚡
+            SQL Console
           </Link>
           <button
             onClick={handleSignOut}

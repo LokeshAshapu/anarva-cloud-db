@@ -214,8 +214,10 @@ export default function DatabasesPage() {
         <div className="p-8 text-center text-slate-400">Loading Cloud Infrastructure...</div>
       ) : databases.length === 0 ? (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center space-y-4">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-blue-600/10 text-blue-400 text-3xl font-bold border border-blue-500/20">
-            ⚡
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-blue-600/10 text-blue-400 border border-blue-500/20">
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+            </svg>
           </div>
           <h3 className="text-xl font-bold text-white">No Anarva Database Clusters Deployed</h3>
           <p className="text-slate-400 text-sm max-w-md mx-auto">
@@ -305,7 +307,7 @@ export default function DatabasesPage() {
                   onClick={() => setMetricsDb(db)}
                   className="py-2 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 text-xs font-semibold rounded-lg transition"
                 >
-                  Metrics 📊
+                  Metrics
                 </button>
               </div>
 

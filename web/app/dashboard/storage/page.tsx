@@ -367,7 +367,7 @@ export default function UnstructuredStoragePage() {
         </div>
       </div>
 
-      {/* Bucket Category Tabs */}
+      {/* Category Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-800 pb-3">
         {buckets.map((b) => {
           const count = personFiles.filter((f) => f.bucket === b).length
@@ -375,13 +375,13 @@ export default function UnstructuredStoragePage() {
             <button
               key={b}
               onClick={() => setActiveBucket(b)}
-              className={`px-4 py-2 text-sm font-semibold rounded-xl transition flex items-center gap-2 ${
+              className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 ${
                 activeBucket === b
                   ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
                   : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
               }`}
             >
-              <span>{b === 'Links' ? '🔗' : '📁'} {b}</span>
+              <span>{b}</span>
               <span className="px-2 py-0.5 text-xs bg-slate-800 text-slate-300 rounded-full font-mono">
                 {count}
               </span>
@@ -425,14 +425,13 @@ export default function UnstructuredStoragePage() {
 
                 {file.type === 'AUDIO' && (
                   <div className="w-full px-4 space-y-2 text-center">
-                    <div className="text-3xl">🎵</div>
+                    <div className="text-xs text-slate-400 font-mono">Audio Track</div>
                     <audio src={file.url} controls className="w-full" />
                   </div>
                 )}
 
                 {file.type === 'DOCUMENT' && (
                   <div className="text-center space-y-2 p-4">
-                    <div className="text-4xl">📄</div>
                     <div className="text-xs text-slate-300 font-mono truncate max-w-xs">{file.name}</div>
                     <div className="text-xs text-slate-500">{file.mime}</div>
                   </div>
@@ -440,7 +439,6 @@ export default function UnstructuredStoragePage() {
 
                 {file.type === 'LINK' && (
                   <div className="text-center space-y-2 p-4">
-                    <div className="text-5xl">🔗</div>
                     <div className="text-sm font-bold text-blue-400 truncate max-w-xs">{file.name}</div>
                     <div className="text-xs text-slate-400 font-mono truncate max-w-xs">{file.url}</div>
                   </div>

@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Navbar } from '@/components/Navbar'
 import { Sidebar } from '@/components/Sidebar'
+import { getEncryptedPath } from '@/lib/routeCrypto'
 
 export default function DashboardLayout({
   children,
@@ -20,14 +21,10 @@ export default function DashboardLayout({
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('access_token')
       if (!token) {
-        // Tampered or unauthenticated routing attempt intercepted
         setAuthorized(false)
         router.push('/login')
       } else {
-        // Generate encrypted route signature
-        const hash = `enc-${Math.abs(
-          token.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)
-        ).toString(16)}`
+        const hash = getEncryptedPath(pathname)
         setSessionHash(hash)
         setAuthorized(true)
       }
@@ -46,25 +43,65 @@ export default function DashboardLayout({
   }
 
   const bottomNavItems = [
-    { name: 'Overview', href: '/dashboard', icon: '📊' },
-    { name: 'Databases', href: '/dashboard/databases', icon: '⚡' },
-    { name: 'Storage', href: '/dashboard/storage', icon: '📦' },
-    { name: 'Console', href: '/dashboard/query', icon: '💻' },
-    { name: 'Backups', href: '/dashboard/backups', icon: '💾' },
+    {
+      name: 'Overview',
+      href: '/dashboard',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 00-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Databases',
+      href: '/dashboard/databases',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Storage',
+      href: '/dashboard/storage',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Console',
+      href: '/dashboard/query',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Backups',
+      href: '/dashboard/backups',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+        </svg>
+      ),
+    },
   ]
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col antialiased">
       <Navbar />
 
-      {/* Encrypted Route Security Bar */}
+      {/* Encrypted Route Security Banner */}
       <div className="bg-slate-900/60 border-b border-slate-800/80 px-4 py-1.5 flex items-center justify-between text-[11px] font-mono text-slate-400">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
-          <span>🛡️ Encrypted Route Protection Active: <strong className="text-emerald-400">{pathname}</strong></span>
+          <span>Encrypted Route Signature: <strong className="text-emerald-400">{sessionHash}</strong></span>
         </div>
         <div className="hidden sm:block text-slate-500">
-          Token Signature: <span className="text-blue-400">{sessionHash}</span>
+          Zero-Trust Integrity Verified
         </div>
       </div>
 
@@ -83,11 +120,11 @@ export default function DashboardLayout({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs font-medium transition ${
+              className={`flex flex-col items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition ${
                 isActive ? 'text-blue-400 font-bold' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <span className="text-base">{item.icon}</span>
+              <span>{item.icon}</span>
               <span>{item.name}</span>
             </Link>
           )
