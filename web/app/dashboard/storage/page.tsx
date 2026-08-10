@@ -497,7 +497,7 @@ export default function UnstructuredStoragePage() {
       {/* Push File or Link Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto space-y-4">
             <h2 className="text-xl font-bold text-white">Push to {activePerson.name}'s Container</h2>
 
             {/* Mode Switcher */}
@@ -602,7 +602,7 @@ export default function UnstructuredStoragePage() {
       {/* Create Person Profile Modal */}
       {showPersonModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto space-y-4">
             <h2 className="text-xl font-bold text-white">Create Person Profile Container</h2>
             <form onSubmit={handleAddPerson} className="space-y-4">
               <div>
