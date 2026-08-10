@@ -27,6 +27,7 @@ export default function DashboardLayout({
         const hash = getEncryptedPath(pathname)
         setSessionHash(hash)
         setAuthorized(true)
+        router.replace(`/console/${hash}`)
       }
     }
   }, [router, pathname])

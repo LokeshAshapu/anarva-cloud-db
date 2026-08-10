@@ -18,13 +18,13 @@ export function Navbar() {
   }
 
   const navLinks = [
-    { name: 'Overview', href: '/dashboard' },
-    { name: 'Databases', href: '/dashboard/databases' },
-    { name: 'Unstructured Storage', href: '/dashboard/storage' },
-    { name: 'Backups', href: '/dashboard/backups' },
-    { name: 'Projects', href: '/dashboard/projects' },
-    { name: 'SQL Console', href: '/dashboard/query' },
-    { name: 'API Keys', href: '/dashboard/apikeys' },
+    { name: 'Overview', href: '/console/enc-0a1b9c' },
+    { name: 'Databases', href: '/console/enc-8f3a92' },
+    { name: 'Unstructured Storage', href: '/console/enc-7d4e11' },
+    { name: 'Backups', href: '/console/enc-1d3a7e' },
+    { name: 'Projects', href: '/console/enc-2c6b4d' },
+    { name: 'SQL Console', href: '/console/enc-5f9e8a' },
+    { name: 'API Keys', href: '/console/enc-9b2c4f' },
   ]
 
   return (
@@ -32,7 +32,7 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand & Logo */}
         <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
+          <Link href="/console/enc-0a1b9c" className="flex items-center gap-2.5">
             <AnarvaLogo className="h-9 w-9 sm:h-11 sm:w-11" />
             <span className="text-lg sm:text-xl font-bold text-white tracking-tight">
               Anarva <span className="text-blue-500">Cloud DB</span>
@@ -46,7 +46,7 @@ export function Navbar() {
         {/* Desktop Navigation & Actions */}
         <div className="hidden md:flex items-center gap-4">
           <Link
-            href="/dashboard/query"
+            href="/console/enc-5f9e8a"
             className="px-3.5 py-1.5 text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition border border-slate-700"
           >
             SQL Console
@@ -101,11 +101,11 @@ export function Navbar() {
 
           <div className="pt-2 border-t border-slate-800 flex gap-2">
             <Link
-              href="/dashboard/query"
+              href="/console/enc-5f9e8a"
               onClick={() => setMobileMenuOpen(false)}
               className="flex-1 py-2 text-center text-xs font-semibold bg-slate-800 text-slate-200 rounded-lg border border-slate-700"
             >
-              SQL Console ⚡
+              SQL Console
             </Link>
             <button
               onClick={handleSignOut}
