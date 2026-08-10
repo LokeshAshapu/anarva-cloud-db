@@ -198,9 +198,7 @@ SELECT * FROM users;`)
         setQueryResults({
           columns: ['id', 'full_name', 'email', 'role', 'status', 'created_at'],
           rows: [
-            ['usr-87a1', 'Lokesh Ashapu', 'lokesh@anarva.io', 'OWNER', 'ACTIVE', '2026-08-10 21:00:00'],
-            ['usr-92b4', 'Enterprise Client', 'enterprise@acme.com', 'ADMIN', 'ACTIVE', '2026-08-10 20:45:00'],
-            ['usr-11c3', 'Dev Team Lead', 'devlead@anarva.io', 'DEVELOPER', 'ACTIVE', '2026-08-10 19:30:00'],
+            ['usr-87a1', 'Lokesh Ashapu', 'lokeshashapu@gmail.com', 'OWNER', 'ACTIVE', '2026-08-10 21:00:00'],
           ],
           rows_affected: 3,
         })

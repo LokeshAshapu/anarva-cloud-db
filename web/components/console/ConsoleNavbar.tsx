@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnarvaLogo } from '../AnarvaLogo'
+import { createClient } from '@/utils/supabase/client'
 
 interface ConsoleNavbarProps {
   onOpenCommandPalette: () => void
@@ -14,6 +15,37 @@ export function ConsoleNavbar({ onOpenCommandPalette }: ConsoleNavbarProps) {
   const [selectedRegion, setSelectedRegion] = useState('us-east-1')
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
+  const [userName, setUserName] = useState('Lokesh Ashapu')
+
+  useEffect(() => {
+    async function loadUser() {
+      if (typeof window !== 'undefined') {
+        const storedEmail = localStorage.getItem('anarva_user_email')
+        const storedName = localStorage.getItem('anarva_user_name')
+        if (storedEmail) setUserEmail(storedEmail)
+        if (storedName) setUserName(storedName)
+
+        // Try getting real Supabase Auth user
+        try {
+          const supabase = createClient()
+          const { data } = await supabase.auth.getUser()
+          if (data?.user?.email) {
+            setUserEmail(data.user.email)
+            localStorage.setItem('anarva_user_email', data.user.email)
+            const metaName = data.user.user_metadata?.full_name
+            if (metaName) {
+              setUserName(metaName)
+              localStorage.setItem('anarva_user_name', metaName)
+            }
+          }
+        } catch (e) {
+          console.log('Supabase user check notice:', e)
+        }
+      }
+    }
+    loadUser()
+  }, [])
 
   const regions = [
     { id: 'us-east-1', name: 'US East (N. Virginia)' },
@@ -23,12 +55,24 @@ export function ConsoleNavbar({ onOpenCommandPalette }: ConsoleNavbarProps) {
     { id: 'ap-southeast-1', name: 'Asia Pacific (Singapore)' },
   ]
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('access_token')
+      localStorage.removeItem('anarva_user_email')
+      localStorage.removeItem('anarva_user_name')
     }
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch {}
     router.push('/login')
   }
+
+  const initials = userName
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase() || 'LA'
 
   return (
     <header className="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-40 h-14 flex items-center justify-between px-4">
@@ -113,15 +157,17 @@ export function ConsoleNavbar({ onOpenCommandPalette }: ConsoleNavbarProps) {
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             className="flex items-center gap-2 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 transition"
           >
-            <span className="h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center font-bold text-[10px] text-white">LA</span>
-            <span className="hidden md:inline font-semibold">Lokesh Ashapu</span>
+            <span className="h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center font-bold text-[10px] text-white">
+              {initials}
+            </span>
+            <span className="hidden md:inline font-semibold">{userName}</span>
           </button>
 
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2 space-y-1 z-50 animate-in fade-in">
+            <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2 space-y-1 z-50 animate-in fade-in">
               <div className="px-3 py-2 border-b border-slate-800 text-[11px]">
-                <div className="font-bold text-white">Lokesh Ashapu</div>
-                <div className="text-slate-400 font-mono text-[10px]">devlead@anarva.io</div>
+                <div className="font-bold text-white truncate">{userName}</div>
+                <div className="text-slate-400 font-mono text-[10px] truncate">{userEmail}</div>
               </div>
               <Link href="/console/iam" className="block px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 rounded-lg">
                 IAM & Account Settings
@@ -131,7 +177,7 @@ export function ConsoleNavbar({ onOpenCommandPalette }: ConsoleNavbarProps) {
               </Link>
               <button
                 onClick={handleSignOut}
-                className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 rounded-lg"
+                className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 rounded-lg font-semibold"
               >
                 Sign Out
               </button>

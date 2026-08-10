@@ -21,7 +21,7 @@ func newMemUserRepo() authDomain.UserRepository {
 	repo := &memUserRepo{users: make(map[string]*authDomain.User)}
 	defaultUser := &authDomain.User{
 		ID:        "usr-default",
-		Email:     "admin@anarva.io",
+		Email:     "lokeshashapu@gmail.com",
 		FullName:  "Lokesh Ashapu",
 		Role:      authDomain.RoleAdmin,
 		Status:    authDomain.UserStatusActive,
