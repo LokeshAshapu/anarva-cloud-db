@@ -120,7 +120,6 @@ func main() {
 
 	// Attempt connecting to database for unified API Gateway service routing
 	var dbPool *pkgDatabase.DB
-	var err error
 
 	if os.Getenv("DATABASE_URL") != "" || (cfg.Database.Host != "" && cfg.Database.Host != "localhost") {
 		dbPool, err = pkgDatabase.NewPostgresDB(cfg.Database)

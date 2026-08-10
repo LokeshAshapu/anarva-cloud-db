@@ -25,7 +25,7 @@ func newMemUserRepo() authDomain.UserRepository {
 		Email:     "admin@anarva.io",
 		FullName:  "Lokesh Ashapu",
 		Role:      authDomain.RoleAdmin,
-		IsActive:  true,
+		Status:    authDomain.UserStatusActive,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -48,13 +48,12 @@ func (m *memUserRepo) GetByID(ctx context.Context, id string) (*authDomain.User,
 	if u, ok := m.users[id]; ok {
 		return u, nil
 	}
-	// Fallback for default user queries
 	return &authDomain.User{
 		ID:       id,
 		Email:    "admin@anarva.io",
 		FullName: "Lokesh Ashapu",
 		Role:     authDomain.RoleAdmin,
-		IsActive: true,
+		Status:   authDomain.UserStatusActive,
 	}, nil
 }
 
@@ -69,7 +68,7 @@ func (m *memUserRepo) GetByEmail(ctx context.Context, email string) (*authDomain
 		Email:    email,
 		FullName: "Lokesh Ashapu",
 		Role:     authDomain.RoleAdmin,
-		IsActive: true,
+		Status:   authDomain.UserStatusActive,
 	}, nil
 }
 
@@ -273,7 +272,7 @@ func (m *memAuditRepo) ListByUserID(ctx context.Context, userID string, limit, o
 	return list, nil
 }
 
-// Mock Project Repositories (Pre-seeded with org-default and proj-default)
+// Mock Project Repositories
 type memOrgRepo struct {
 	mu   sync.RWMutex
 	orgs map[string]*projDomain.Organization
@@ -364,7 +363,7 @@ func newMemProjRepo() projDomain.ProjectRepository {
 		Name:         "Default Project",
 		Slug:         "proj-default",
 		Region:       "us-east-1",
-		MaxInstances: 10,
+		MaxDatabases: 5,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -392,7 +391,7 @@ func (m *memProjRepo) GetByID(ctx context.Context, id string) (*projDomain.Proje
 		Name:         "Default Project",
 		Slug:         id,
 		Region:       "us-east-1",
-		MaxInstances: 10,
+		MaxDatabases: 5,
 	}, nil
 }
 
@@ -410,7 +409,7 @@ func (m *memProjRepo) GetBySlug(ctx context.Context, slug string) (*projDomain.P
 		Name:         "Default Project",
 		Slug:         slug,
 		Region:       "us-east-1",
-		MaxInstances: 10,
+		MaxDatabases: 5,
 	}, nil
 }
 
@@ -430,7 +429,7 @@ func (m *memProjRepo) ListByOrgID(ctx context.Context, orgID string) ([]*projDom
 			Name:         "Default Project",
 			Slug:         "proj-default",
 			Region:       "us-east-1",
-			MaxInstances: 10,
+			MaxDatabases: 5,
 		}
 		list = append(list, defaultProj)
 	}
@@ -478,7 +477,7 @@ func (m *memMemberRepo) GetByOrgAndUser(ctx context.Context, orgID, userID strin
 	return &projDomain.OrganizationMember{
 		OrgID:  orgID,
 		UserID: userID,
-		Role:   projDomain.RoleOwner,
+		Role:   "OWNER",
 	}, nil
 }
 
@@ -538,7 +537,7 @@ func (m *memInvRepo) Delete(ctx context.Context, token string) error {
 	return nil
 }
 
-// Mock DB Instance Repository (Pre-seeded with db-default)
+// Mock DB Instance Repository
 type memInstanceRepo struct {
 	mu        sync.RWMutex
 	instances map[string]*dbDomain.DatabaseInstance
@@ -550,15 +549,14 @@ func newMemInstanceRepo() dbDomain.InstanceRepository {
 		ID:                "db-default",
 		ProjectID:         "proj-default",
 		Name:              "Primary Application Database",
-		Engine:            dbDomain.EnginePostgres,
-		Version:           "16",
-		Port:              15432,
-		DatabaseName:      "anarva_db",
-		Username:          "anarva_admin",
-		EncryptedPassword: "encrypted_password",
-		StorageSizeGB:     20,
+		Engine:            dbDomain.EnginePostgreSQL,
 		Status:            dbDomain.StatusRunning,
 		Host:              "localhost",
+		Port:              15432,
+		DBName:            "anarva_db",
+		Username:          "anarva_admin",
+		PasswordEncrypted: "encrypted_password",
+		StorageSizeGB:     20,
 		CreatedAt:         time.Now(),
 		UpdatedAt:         time.Now(),
 	}
@@ -580,17 +578,17 @@ func (m *memInstanceRepo) GetByID(ctx context.Context, id string) (*dbDomain.Dat
 		return inst, nil
 	}
 	return &dbDomain.DatabaseInstance{
-		ID:            id,
-		ProjectID:     "proj-default",
-		Name:          "Primary Application Database",
-		Engine:        dbDomain.EnginePostgres,
-		Version:       "16",
-		Port:          15432,
-		DatabaseName:  "anarva_db",
-		Username:      "anarva_admin",
-		StorageSizeGB: 20,
-		Status:        dbDomain.StatusRunning,
-		Host:          "localhost",
+		ID:                id,
+		ProjectID:         "proj-default",
+		Name:              "Primary Application Database",
+		Engine:            dbDomain.EnginePostgreSQL,
+		Status:            dbDomain.StatusRunning,
+		Host:              "localhost",
+		Port:              15432,
+		DBName:            "anarva_db",
+		Username:          "anarva_admin",
+		PasswordEncrypted: "encrypted_password",
+		StorageSizeGB:     20,
 	}, nil
 }
 
@@ -605,17 +603,17 @@ func (m *memInstanceRepo) ListByProjectID(ctx context.Context, projectID string)
 	}
 	if len(list) == 0 {
 		defaultDb := &dbDomain.DatabaseInstance{
-			ID:            "db-default",
-			ProjectID:     projectID,
-			Name:          "Primary Application Database",
-			Engine:        dbDomain.EnginePostgres,
-			Version:       "16",
-			Port:          15432,
-			DatabaseName:  "anarva_db",
-			Username:      "anarva_admin",
-			StorageSizeGB: 20,
-			Status:        dbDomain.StatusRunning,
-			Host:          "localhost",
+			ID:                "db-default",
+			ProjectID:         projectID,
+			Name:              "Primary Application Database",
+			Engine:            dbDomain.EnginePostgreSQL,
+			Status:            dbDomain.StatusRunning,
+			Host:              "localhost",
+			Port:              15432,
+			DBName:            "anarva_db",
+			Username:          "anarva_admin",
+			PasswordEncrypted: "encrypted_password",
+			StorageSizeGB:     20,
 		}
 		list = append(list, defaultDb)
 	}
