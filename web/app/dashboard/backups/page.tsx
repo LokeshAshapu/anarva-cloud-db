@@ -103,15 +103,15 @@ export default function BackupsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Backups & Point-In-Time Restore</h1>
-          <p className="text-slate-400 mt-1">Managed automated snapshot dumps and object storage archives.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Database Backups & Recovery</h1>
+          <p className="text-slate-400 text-xs sm:text-sm mt-1">Manage point-in-time snapshot archives, automated WAL logs, and instant cluster restores.</p>
         </div>
 
         <button
           onClick={() => setShowTriggerModal(true)}
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition shadow-lg shadow-blue-600/25"
+          className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition shadow-lg shadow-blue-600/25 text-sm"
         >
           + Trigger Snapshot Backup
         </button>

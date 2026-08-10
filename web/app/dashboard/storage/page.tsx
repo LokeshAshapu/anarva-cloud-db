@@ -288,26 +288,26 @@ export default function UnstructuredStoragePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Person-Centric Database & Storage</h1>
-          <p className="text-slate-400 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Person-Centric Database & Storage</h1>
+          <p className="text-slate-400 text-xs sm:text-sm mt-1">
             Unified entity database: Every person record holds all their structured profile data, files, and links.
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           {isAdmin && (
             <button
               onClick={() => setShowPersonModal(true)}
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg transition border border-slate-700 text-sm"
+              className="w-full sm:w-auto px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg transition border border-slate-700 text-xs sm:text-sm"
             >
               + Create Person Profile
             </button>
           )}
           <button
             onClick={() => setShowUploadModal(true)}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition shadow-lg shadow-blue-600/25 text-sm"
+            className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition shadow-lg shadow-blue-600/25 text-xs sm:text-sm"
           >
             + Push File / Link to Container
           </button>
