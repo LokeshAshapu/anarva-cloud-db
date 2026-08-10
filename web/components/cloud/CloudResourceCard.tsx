@@ -20,7 +20,7 @@ export function CloudResourceCard({ resource, action, onClick }: CloudResourceCa
         <div className="flex items-start justify-between">
           <div>
             <h4 className="font-bold text-white text-sm">{resource.name}</h4>
-            <div className="text-[11px] text-slate-400 font-mono mt-0.5">{resource.type} • {resource.region}</div>
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5">{resource.type} • {resource.regionId}</div>
           </div>
           <CloudStatus status={resource.status} />
         </div>
