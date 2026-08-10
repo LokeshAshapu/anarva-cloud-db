@@ -2,8 +2,6 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Navbar } from '@/components/Navbar'
-import { Sidebar } from '@/components/Sidebar'
 import DashboardOverview from '@/app/dashboard/page'
 import DatabasesPage from '@/app/dashboard/databases/page'
 import UnstructuredStoragePage from '@/app/dashboard/storage/page'
@@ -31,7 +29,7 @@ export default function EncryptedConsolePage({ params }: { params: { token: stri
 
   if (!authorized) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center space-y-4">
+      <div className="flex flex-col items-center justify-center p-12 text-center space-y-4">
         <div className="p-3 rounded-2xl bg-blue-600/10 border border-blue-500/20 text-blue-400 font-mono text-xs flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-blue-500 animate-ping"></span>
           Verifying Encrypted Route Token ({token})...
@@ -43,16 +41,22 @@ export default function EncryptedConsolePage({ params }: { params: { token: stri
   const renderView = () => {
     switch (token) {
       case 'enc-8f3a92':
+      case 'databases':
         return <DatabasesPage />
       case 'enc-7d4e11':
+      case 'storage':
         return <UnstructuredStoragePage />
       case 'enc-2c6b4d':
+      case 'projects':
         return <ProjectsPage />
       case 'enc-5f9e8a':
+      case 'query':
         return <SQLConsolePage />
       case 'enc-1d3a7e':
+      case 'backups':
         return <BackupsPage />
       case 'enc-9b2c4f':
+      case 'apikeys':
         return <APIKeysPage />
       case 'enc-0a1b9c':
       default:
@@ -61,26 +65,8 @@ export default function EncryptedConsolePage({ params }: { params: { token: stri
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col antialiased">
-      <Navbar />
-
-      {/* Encrypted Route Security Banner */}
-      <div className="bg-slate-900/60 border-b border-slate-800/80 px-4 py-1.5 flex items-center justify-between text-[11px] font-mono text-slate-400">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
-          <span>Address Bar URL Encrypted: <strong className="text-emerald-400">/console/{token}</strong></span>
-        </div>
-        <div className="hidden sm:block text-slate-500">
-          Zero-Trust Integrity Token Active
-        </div>
-      </div>
-
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-full pb-20 sm:pb-8">
-          {renderView()}
-        </main>
-      </div>
+    <div className="w-full">
+      {renderView()}
     </div>
   )
 }
