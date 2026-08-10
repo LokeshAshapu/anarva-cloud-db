@@ -21,7 +21,7 @@ export default function HomePage() {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('access_token')
       if (token) {
-        router.push('/dashboard')
+        router.push('/console')
       } else {
         router.push('/login')
       }

@@ -31,7 +31,7 @@ export default function LoginPage() {
 
       if (supaData && supaData.session) {
         localStorage.setItem('access_token', supaData.session.access_token)
-        router.push('/dashboard')
+        router.push('/console')
         return
       }
 
@@ -50,7 +50,7 @@ export default function LoginPage() {
       if (res && res.ok) {
         const data = await res.json()
         localStorage.setItem('access_token', data.access_token)
-        router.push('/dashboard')
+        router.push('/console')
         return
       }
 
