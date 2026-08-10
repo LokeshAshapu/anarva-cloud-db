@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnarvaLogo } from '../AnarvaLogo'
+import { RegionSelector } from '../cloud/RegionSelector'
 import { createClient } from '@/utils/supabase/client'
 
 interface ConsoleNavbarProps {
@@ -114,18 +115,8 @@ export function ConsoleNavbar({ onOpenCommandPalette, onToggleMobileMenu }: Cons
       {/* Right Tools & Profile */}
       <div className="flex items-center gap-2 sm:gap-3 text-xs">
         {/* Region Selector */}
-        <div className="relative hidden md:block">
-          <select
-            value={selectedRegion}
-            onChange={(e) => setSelectedRegion(e.target.value)}
-            className="bg-slate-900 border border-slate-800 text-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium focus:outline-none focus:border-blue-500 cursor-pointer"
-          >
-            {regions.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+        <div className="hidden md:block">
+          <RegionSelector />
         </div>
 
         {/* Notifications Tray Toggle */}

@@ -1,11 +1,29 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+const COLLAPSED_KEY = 'anarva_sidebar_collapsed'
+
 export function ConsoleSidebar() {
   const pathname = usePathname()
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(COLLAPSED_KEY)
+      if (stored === 'true') setIsCollapsed(true)
+    }
+  }, [])
+
+  const toggleCollapse = () => {
+    const next = !isCollapsed
+    setIsCollapsed(next)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(COLLAPSED_KEY, String(next))
+    }
+  }
 
   const navSections = [
     {
@@ -21,7 +39,7 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Compute Engine',
+          name: 'Compute',
           href: '/console/compute',
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -30,7 +48,7 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Managed Databases',
+          name: 'Databases',
           href: '/console/databases',
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -39,7 +57,7 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Object Storage (AOS)',
+          name: 'Storage',
           href: '/console/storage',
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -48,7 +66,7 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Networking (VPC)',
+          name: 'Networking',
           href: '/console/networking',
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -62,7 +80,7 @@ export function ConsoleSidebar() {
       title: 'OPERATIONS & SECURITY',
       items: [
         {
-          name: 'IAM & Access',
+          name: 'IAM',
           href: '/console/iam',
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -71,7 +89,7 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Security & Audit',
+          name: 'Security',
           href: '/console/security',
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -80,7 +98,7 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Observability & Metrics',
+          name: 'Monitoring',
           href: '/console/monitoring',
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -89,7 +107,7 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Backups & Recovery',
+          name: 'Backups',
           href: '/console/backups',
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -103,17 +121,17 @@ export function ConsoleSidebar() {
       title: 'MANAGEMENT & TOOLS',
       items: [
         {
-          name: 'Billing & Usage',
+          name: 'Billing',
           href: '/console/billing',
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 03 3z" />
             </svg>
           ),
         },
         {
-          name: 'Developer Tools & CLI',
-          href: '/console/devtools',
+          name: 'Developer',
+          href: '/console/developer',
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
@@ -121,7 +139,7 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Platform Settings',
+          name: 'Settings',
           href: '/console/settings',
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -135,27 +153,41 @@ export function ConsoleSidebar() {
   ]
 
   return (
-    <aside className="hidden lg:flex w-64 border-r border-slate-800 bg-slate-950 p-4 flex-col justify-between shrink-0 overflow-y-auto">
+    <aside className={`hidden lg:flex border-r border-slate-800 bg-slate-950 p-4 flex-col justify-between shrink-0 transition-all duration-200 ${isCollapsed ? 'w-20' : 'w-64'}`}>
       <div className="space-y-6">
+        <div className="flex items-center justify-between px-2">
+          {!isCollapsed && <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Navigation</span>}
+          <button
+            onClick={toggleCollapse}
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 transition text-xs"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? '→' : '←'}
+          </button>
+        </div>
+
         {navSections.map((section, idx) => (
           <div key={idx} className="space-y-1">
-            <div className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-              {section.title}
-            </div>
+            {!isCollapsed && (
+              <div className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                {section.title}
+              </div>
+            )}
             {section.items.map((item) => {
               const isActive = pathname === item.href || (item.href !== '/console' && pathname.startsWith(item.href))
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  title={isCollapsed ? item.name : undefined}
                   className={`flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded-xl transition ${
                     isActive
                       ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-sm'
                       : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
                   }`}
                 >
-                  <span>{item.icon}</span>
-                  <span>{item.name}</span>
+                  <span className="shrink-0">{item.icon}</span>
+                  {!isCollapsed && <span className="truncate">{item.name}</span>}
                 </Link>
               )
             })}
@@ -163,15 +195,17 @@ export function ConsoleSidebar() {
         ))}
       </div>
 
-      <div className="pt-4 border-t border-slate-900 space-y-2">
-        <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl text-xs space-y-1">
-          <div className="text-[11px] font-bold text-slate-300">Anarva Compute Engine</div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400">
-            <span>Quota Utilized:</span>
-            <span className="text-emerald-400 font-mono">1.5 / 128 ACU</span>
+      {!isCollapsed && (
+        <div className="pt-4 border-t border-slate-900 space-y-2">
+          <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl text-xs space-y-1">
+            <div className="text-[11px] font-bold text-slate-300">Anarva Platform</div>
+            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+              <span>Status:</span>
+              <span className="text-emerald-400 font-bold">100% UP</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </aside>
   )
 }
