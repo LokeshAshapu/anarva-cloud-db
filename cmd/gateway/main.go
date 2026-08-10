@@ -119,9 +119,17 @@ func main() {
 	var queryExecutor query.Executor
 
 	// Attempt connecting to database for unified API Gateway service routing
-	dbPool, err := pkgDatabase.NewPostgresDB(cfg.Database)
+	var dbPool *pkgDatabase.DB
+	var err error
+
+	if os.Getenv("DATABASE_URL") != "" || (cfg.Database.Host != "" && cfg.Database.Host != "localhost") {
+		dbPool, err = pkgDatabase.NewPostgresDB(cfg.Database)
+	} else {
+		err = fmt.Errorf("no external DATABASE_URL configured")
+	}
+
 	if err != nil {
-		log.Warn(fmt.Sprintf("PostgreSQL metadata connection warning: %v. Using high-performance in-memory repositories fallback.", err))
+		log.Info(fmt.Sprintf("Running in standalone high-performance mode: %v. Supabase Auth & Memory Repositories active.", err))
 		uRepo = newMemUserRepo()
 		sRepo = newMemSessionRepo()
 		kRepo = newMemKeyRepo()

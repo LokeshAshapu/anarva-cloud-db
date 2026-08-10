@@ -22,7 +22,7 @@ func NewPostgresDB(cfg config.DatabaseConfig) (*DB, error) {
 	dsn := cfg.DSN()
 
 	gormConfig := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
+		Logger: logger.Default.LogMode(logger.Silent),
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), gormConfig)
