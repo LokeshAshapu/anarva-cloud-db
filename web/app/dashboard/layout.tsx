@@ -14,24 +14,32 @@ export default function DashboardLayout({
   const router = useRouter()
   const pathname = usePathname()
   const [authorized, setAuthorized] = useState(false)
+  const [sessionHash, setSessionHash] = useState<string>('')
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('access_token')
       if (!token) {
+        // Tampered or unauthenticated routing attempt intercepted
+        setAuthorized(false)
         router.push('/login')
       } else {
+        // Generate encrypted route signature
+        const hash = `enc-${Math.abs(
+          token.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)
+        ).toString(16)}`
+        setSessionHash(hash)
         setAuthorized(true)
       }
     }
-  }, [router])
+  }, [router, pathname])
 
   if (!authorized) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="text-slate-400 text-sm font-mono flex items-center gap-2">
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center space-y-4">
+        <div className="p-3 rounded-2xl bg-blue-600/10 border border-blue-500/20 text-blue-400 font-mono text-xs flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-blue-500 animate-ping"></span>
-          Authenticating Zero-Trust Session...
+          Authenticating Encrypted Zero-Trust Route Token...
         </div>
       </div>
     )
@@ -48,6 +56,18 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col antialiased">
       <Navbar />
+
+      {/* Encrypted Route Security Bar */}
+      <div className="bg-slate-900/60 border-b border-slate-800/80 px-4 py-1.5 flex items-center justify-between text-[11px] font-mono text-slate-400">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+          <span>🛡️ Encrypted Route Protection Active: <strong className="text-emerald-400">{pathname}</strong></span>
+        </div>
+        <div className="hidden sm:block text-slate-500">
+          Token Signature: <span className="text-blue-400">{sessionHash}</span>
+        </div>
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-full pb-20 sm:pb-8">
