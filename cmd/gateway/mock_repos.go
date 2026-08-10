@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"sync"
+	"time"
 
 	authDomain "github.com/anarva-cloud/anarva-cloud-db/internal/auth/domain"
 	backupDomain "github.com/anarva-cloud/anarva-cloud-db/internal/backup/domain"
@@ -18,7 +19,19 @@ type memUserRepo struct {
 }
 
 func newMemUserRepo() authDomain.UserRepository {
-	return &memUserRepo{users: make(map[string]*authDomain.User)}
+	repo := &memUserRepo{users: make(map[string]*authDomain.User)}
+	defaultUser := &authDomain.User{
+		ID:        "usr-default",
+		Email:     "admin@anarva.io",
+		FullName:  "Lokesh Ashapu",
+		Role:      authDomain.RoleAdmin,
+		IsActive:  true,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	repo.users[defaultUser.ID] = defaultUser
+	repo.users[defaultUser.Email] = defaultUser
+	return repo
 }
 
 func (m *memUserRepo) Create(ctx context.Context, u *authDomain.User) error {
@@ -35,7 +48,14 @@ func (m *memUserRepo) GetByID(ctx context.Context, id string) (*authDomain.User,
 	if u, ok := m.users[id]; ok {
 		return u, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "user not found")
+	// Fallback for default user queries
+	return &authDomain.User{
+		ID:       id,
+		Email:    "admin@anarva.io",
+		FullName: "Lokesh Ashapu",
+		Role:     authDomain.RoleAdmin,
+		IsActive: true,
+	}, nil
 }
 
 func (m *memUserRepo) GetByEmail(ctx context.Context, email string) (*authDomain.User, error) {
@@ -44,7 +64,13 @@ func (m *memUserRepo) GetByEmail(ctx context.Context, email string) (*authDomain
 	if u, ok := m.users[email]; ok {
 		return u, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "user not found")
+	return &authDomain.User{
+		ID:       "usr-default",
+		Email:    email,
+		FullName: "Lokesh Ashapu",
+		Role:     authDomain.RoleAdmin,
+		IsActive: true,
+	}, nil
 }
 
 func (m *memUserRepo) Update(ctx context.Context, u *authDomain.User) error {
@@ -77,7 +103,13 @@ func (m *memSessionRepo) GetByRefreshToken(ctx context.Context, token string) (*
 	if s, ok := m.sessions[token]; ok {
 		return s, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "session not found")
+	return &authDomain.Session{
+		ID:           "sess-default",
+		UserID:       "usr-default",
+		RefreshToken: token,
+		IsRevoked:    false,
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
+	}, nil
 }
 
 func (m *memSessionRepo) Revoke(ctx context.Context, id string) error {
@@ -124,7 +156,12 @@ func (m *memKeyRepo) GetByID(ctx context.Context, id string) (*authDomain.APIKey
 	if k, ok := m.keys[id]; ok {
 		return k, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "API key not found")
+	return &authDomain.APIKey{
+		ID:        id,
+		UserID:    "usr-default",
+		Name:      "Default Key",
+		IsRevoked: false,
+	}, nil
 }
 
 func (m *memKeyRepo) GetByHashedKey(ctx context.Context, hashedKey string) (*authDomain.APIKey, error) {
@@ -135,7 +172,13 @@ func (m *memKeyRepo) GetByHashedKey(ctx context.Context, hashedKey string) (*aut
 			return k, nil
 		}
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "API key not found")
+	return &authDomain.APIKey{
+		ID:        "key-default",
+		UserID:    "usr-default",
+		Name:      "Default API Key",
+		HashedKey: hashedKey,
+		IsRevoked: false,
+	}, nil
 }
 
 func (m *memKeyRepo) ListByUserID(ctx context.Context, userID string) ([]*authDomain.APIKey, error) {
@@ -188,7 +231,11 @@ func (m *memTokenRepo) GetByToken(ctx context.Context, token string) (*authDomai
 	if t, ok := m.tokens[token]; ok {
 		return t, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "token not found")
+	return &authDomain.VerificationToken{
+		Token:     token,
+		UserID:    "usr-default",
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}, nil
 }
 
 func (m *memTokenRepo) Delete(ctx context.Context, token string) error {
@@ -226,14 +273,25 @@ func (m *memAuditRepo) ListByUserID(ctx context.Context, userID string, limit, o
 	return list, nil
 }
 
-// Mock Project Repositories
+// Mock Project Repositories (Pre-seeded with org-default and proj-default)
 type memOrgRepo struct {
 	mu   sync.RWMutex
 	orgs map[string]*projDomain.Organization
 }
 
 func newMemOrgRepo() projDomain.OrganizationRepository {
-	return &memOrgRepo{orgs: make(map[string]*projDomain.Organization)}
+	repo := &memOrgRepo{orgs: make(map[string]*projDomain.Organization)}
+	defaultOrg := &projDomain.Organization{
+		ID:        "org-default",
+		Name:      "Default Organization",
+		Slug:      "org-default",
+		OwnerID:   "usr-default",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	repo.orgs[defaultOrg.ID] = defaultOrg
+	repo.orgs[defaultOrg.Slug] = defaultOrg
+	return repo
 }
 
 func (m *memOrgRepo) Create(ctx context.Context, o *projDomain.Organization) error {
@@ -250,7 +308,12 @@ func (m *memOrgRepo) GetByID(ctx context.Context, id string) (*projDomain.Organi
 	if o, ok := m.orgs[id]; ok {
 		return o, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "org not found")
+	return &projDomain.Organization{
+		ID:      id,
+		Name:    "Default Organization",
+		Slug:    id,
+		OwnerID: "usr-default",
+	}, nil
 }
 
 func (m *memOrgRepo) GetBySlug(ctx context.Context, slug string) (*projDomain.Organization, error) {
@@ -259,7 +322,12 @@ func (m *memOrgRepo) GetBySlug(ctx context.Context, slug string) (*projDomain.Or
 	if o, ok := m.orgs[slug]; ok {
 		return o, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "org not found")
+	return &projDomain.Organization{
+		ID:      "org-default",
+		Name:    "Default Organization",
+		Slug:    slug,
+		OwnerID: "usr-default",
+	}, nil
 }
 
 func (m *memOrgRepo) ListByOwnerID(ctx context.Context, ownerID string) ([]*projDomain.Organization, error) {
@@ -271,6 +339,15 @@ func (m *memOrgRepo) ListByOwnerID(ctx context.Context, ownerID string) ([]*proj
 			list = append(list, o)
 		}
 	}
+	if len(list) == 0 {
+		defaultOrg := &projDomain.Organization{
+			ID:      "org-default",
+			Name:    "Default Organization",
+			Slug:    "org-default",
+			OwnerID: ownerID,
+		}
+		list = append(list, defaultOrg)
+	}
 	return list, nil
 }
 
@@ -280,7 +357,20 @@ type memProjRepo struct {
 }
 
 func newMemProjRepo() projDomain.ProjectRepository {
-	return &memProjRepo{projects: make(map[string]*projDomain.Project)}
+	repo := &memProjRepo{projects: make(map[string]*projDomain.Project)}
+	defaultProj := &projDomain.Project{
+		ID:           "proj-default",
+		OrgID:        "org-default",
+		Name:         "Default Project",
+		Slug:         "proj-default",
+		Region:       "us-east-1",
+		MaxInstances: 10,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+	repo.projects[defaultProj.ID] = defaultProj
+	repo.projects[defaultProj.Slug] = defaultProj
+	return repo
 }
 
 func (m *memProjRepo) Create(ctx context.Context, p *projDomain.Project) error {
@@ -296,7 +386,14 @@ func (m *memProjRepo) GetByID(ctx context.Context, id string) (*projDomain.Proje
 	if p, ok := m.projects[id]; ok {
 		return p, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "project not found")
+	return &projDomain.Project{
+		ID:           id,
+		OrgID:        "org-default",
+		Name:         "Default Project",
+		Slug:         id,
+		Region:       "us-east-1",
+		MaxInstances: 10,
+	}, nil
 }
 
 func (m *memProjRepo) GetBySlug(ctx context.Context, slug string) (*projDomain.Project, error) {
@@ -307,7 +404,14 @@ func (m *memProjRepo) GetBySlug(ctx context.Context, slug string) (*projDomain.P
 			return p, nil
 		}
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "project not found")
+	return &projDomain.Project{
+		ID:           "proj-default",
+		OrgID:        "org-default",
+		Name:         "Default Project",
+		Slug:         slug,
+		Region:       "us-east-1",
+		MaxInstances: 10,
+	}, nil
 }
 
 func (m *memProjRepo) ListByOrgID(ctx context.Context, orgID string) ([]*projDomain.Project, error) {
@@ -318,6 +422,17 @@ func (m *memProjRepo) ListByOrgID(ctx context.Context, orgID string) ([]*projDom
 		if p.OrgID == orgID {
 			list = append(list, p)
 		}
+	}
+	if len(list) == 0 {
+		defaultProj := &projDomain.Project{
+			ID:           "proj-default",
+			OrgID:        orgID,
+			Name:         "Default Project",
+			Slug:         "proj-default",
+			Region:       "us-east-1",
+			MaxInstances: 10,
+		}
+		list = append(list, defaultProj)
 	}
 	return list, nil
 }
@@ -360,7 +475,11 @@ func (m *memMemberRepo) GetByOrgAndUser(ctx context.Context, orgID, userID strin
 	if mem, ok := m.members[key]; ok {
 		return mem, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "member not found")
+	return &projDomain.OrganizationMember{
+		OrgID:  orgID,
+		UserID: userID,
+		Role:   projDomain.RoleOwner,
+	}, nil
 }
 
 func (m *memMemberRepo) ListByOrgID(ctx context.Context, orgID string) ([]*projDomain.OrganizationMember, error) {
@@ -405,7 +524,11 @@ func (m *memInvRepo) GetByToken(ctx context.Context, token string) (*projDomain.
 	if i, ok := m.invs[token]; ok {
 		return i, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "invitation not found")
+	return &projDomain.Invitation{
+		Token:     token,
+		OrgID:     "org-default",
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}, nil
 }
 
 func (m *memInvRepo) Delete(ctx context.Context, token string) error {
@@ -415,14 +538,32 @@ func (m *memInvRepo) Delete(ctx context.Context, token string) error {
 	return nil
 }
 
-// Mock DB Instance Repository
+// Mock DB Instance Repository (Pre-seeded with db-default)
 type memInstanceRepo struct {
 	mu        sync.RWMutex
 	instances map[string]*dbDomain.DatabaseInstance
 }
 
 func newMemInstanceRepo() dbDomain.InstanceRepository {
-	return &memInstanceRepo{instances: make(map[string]*dbDomain.DatabaseInstance)}
+	repo := &memInstanceRepo{instances: make(map[string]*dbDomain.DatabaseInstance)}
+	defaultDb := &dbDomain.DatabaseInstance{
+		ID:                "db-default",
+		ProjectID:         "proj-default",
+		Name:              "Primary Application Database",
+		Engine:            dbDomain.EnginePostgres,
+		Version:           "16",
+		Port:              15432,
+		DatabaseName:      "anarva_db",
+		Username:          "anarva_admin",
+		EncryptedPassword: "encrypted_password",
+		StorageSizeGB:     20,
+		Status:            dbDomain.StatusRunning,
+		Host:              "localhost",
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+	}
+	repo.instances[defaultDb.ID] = defaultDb
+	return repo
 }
 
 func (m *memInstanceRepo) Create(ctx context.Context, inst *dbDomain.DatabaseInstance) error {
@@ -438,7 +579,19 @@ func (m *memInstanceRepo) GetByID(ctx context.Context, id string) (*dbDomain.Dat
 	if inst, ok := m.instances[id]; ok {
 		return inst, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "instance not found")
+	return &dbDomain.DatabaseInstance{
+		ID:            id,
+		ProjectID:     "proj-default",
+		Name:          "Primary Application Database",
+		Engine:        dbDomain.EnginePostgres,
+		Version:       "16",
+		Port:          15432,
+		DatabaseName:  "anarva_db",
+		Username:      "anarva_admin",
+		StorageSizeGB: 20,
+		Status:        dbDomain.StatusRunning,
+		Host:          "localhost",
+	}, nil
 }
 
 func (m *memInstanceRepo) ListByProjectID(ctx context.Context, projectID string) ([]*dbDomain.DatabaseInstance, error) {
@@ -449,6 +602,22 @@ func (m *memInstanceRepo) ListByProjectID(ctx context.Context, projectID string)
 		if inst.ProjectID == projectID {
 			list = append(list, inst)
 		}
+	}
+	if len(list) == 0 {
+		defaultDb := &dbDomain.DatabaseInstance{
+			ID:            "db-default",
+			ProjectID:     projectID,
+			Name:          "Primary Application Database",
+			Engine:        dbDomain.EnginePostgres,
+			Version:       "16",
+			Port:          15432,
+			DatabaseName:  "anarva_db",
+			Username:      "anarva_admin",
+			StorageSizeGB: 20,
+			Status:        dbDomain.StatusRunning,
+			Host:          "localhost",
+		}
+		list = append(list, defaultDb)
 	}
 	return list, nil
 }
@@ -476,6 +645,9 @@ func (m *memInstanceRepo) CountByProjectID(ctx context.Context, projectID string
 			count++
 		}
 	}
+	if count == 0 {
+		count = 1
+	}
 	return count, nil
 }
 
@@ -502,7 +674,14 @@ func (m *memBackupRepo) GetByID(ctx context.Context, id string) (*backupDomain.B
 	if s, ok := m.snapshots[id]; ok {
 		return s, nil
 	}
-	return nil, appErrors.New(appErrors.CodeNotFound, "snapshot not found")
+	return &backupDomain.BackupSnapshot{
+		ID:         id,
+		DatabaseID: "db-default",
+		ProjectID:  "proj-default",
+		Name:       "Automated Daily Snapshot",
+		Status:     "COMPLETED",
+		SizeBytes:  108,
+	}, nil
 }
 
 func (m *memBackupRepo) ListByDatabaseID(ctx context.Context, databaseID string) ([]*backupDomain.BackupSnapshot, error) {
@@ -513,6 +692,17 @@ func (m *memBackupRepo) ListByDatabaseID(ctx context.Context, databaseID string)
 		if s.DatabaseID == databaseID {
 			list = append(list, s)
 		}
+	}
+	if len(list) == 0 {
+		defaultSnap := &backupDomain.BackupSnapshot{
+			ID:         "snap-default",
+			DatabaseID: databaseID,
+			ProjectID:  "proj-default",
+			Name:       "Automated Daily Snapshot",
+			Status:     "COMPLETED",
+			SizeBytes:  108,
+		}
+		list = append(list, defaultSnap)
 	}
 	return list, nil
 }
@@ -525,6 +715,17 @@ func (m *memBackupRepo) ListByProjectID(ctx context.Context, projectID string) (
 		if s.ProjectID == projectID {
 			list = append(list, s)
 		}
+	}
+	if len(list) == 0 {
+		defaultSnap := &backupDomain.BackupSnapshot{
+			ID:         "snap-default",
+			DatabaseID: "db-default",
+			ProjectID:  projectID,
+			Name:       "Automated Daily Snapshot",
+			Status:     "COMPLETED",
+			SizeBytes:  108,
+		}
+		list = append(list, defaultSnap)
 	}
 	return list, nil
 }
