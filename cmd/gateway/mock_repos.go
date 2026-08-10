@@ -9,7 +9,6 @@ import (
 	backupDomain "github.com/anarva-cloud/anarva-cloud-db/internal/backup/domain"
 	dbDomain "github.com/anarva-cloud/anarva-cloud-db/internal/database/domain"
 	projDomain "github.com/anarva-cloud/anarva-cloud-db/internal/project/domain"
-	appErrors "github.com/anarva-cloud/anarva-cloud-db/pkg/errors"
 )
 
 // Mock Auth Repositories
