@@ -28,6 +28,10 @@ import (
 	projectRepo "github.com/anarva-cloud/anarva-cloud-db/internal/project/repository"
 	projectUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/project/usecase"
 
+	"github.com/anarva-cloud/anarva-cloud-db/internal/activity"
+	"github.com/anarva-cloud/anarva-cloud-db/internal/resource"
+	resourceHttp "github.com/anarva-cloud/anarva-cloud-db/internal/resource/delivery/http"
+
 	gwMiddleware "github.com/anarva-cloud/anarva-cloud-db/internal/gateway/middleware"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/query"
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/config"
@@ -186,11 +190,16 @@ func main() {
 	dUC := databaseUsecase.NewDatabaseUseCase(dRepo, pDriver, cfg.JWT.Secret)
 	bUC := backupUsecase.NewBackupUseCase(bRepo, sProvider)
 
+	// Phase 4 Centralized Resource Registry & Activity Stream
+	resRegistry := resource.NewRegistry()
+	actStream := activity.NewStream()
+
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
 	databaseHttp.NewDatabaseHandler(dUC).RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bUC).RegisterRoutes(mux)
+	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
 
 	// Register Query Handler
 	qh := &queryHandler{

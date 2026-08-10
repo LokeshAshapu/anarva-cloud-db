@@ -1,78 +1,99 @@
-// Anarva Cloud Platform — Resource Model Abstraction
+// Anarva Cloud Platform — Phase 4 Resource Hierarchy & Registry Model
+
+export type EnvironmentType = 'Development' | 'Staging' | 'Production'
+
+export type RegionId =
+  | 'ap-hyderabad-1'
+  | 'ap-mumbai-1'
+  | 'ap-singapore-1'
+  | 'us-east-1'
+  | 'eu-west-1'
 
 export type ResourceStatus =
+  | 'CREATING'
   | 'AVAILABLE'
-  | 'PROVISIONING'
-  | 'DEGRADED'
-  | 'STOPPED'
+  | 'UPDATING'
+  | 'DELETING'
+  | 'DELETED'
   | 'FAILED'
-  | 'TERMINATED'
+  | 'STOPPED'
+  | 'COMING_SOON'
   | 'MAINTENANCE'
 
-export type CloudRegion =
-  | 'ap-south-2' // Asia Pacific — Hyderabad
-  | 'ap-south-1' // Asia Pacific — Mumbai
-  | 'ap-southeast-1' // Asia Pacific — Singapore
-  | 'us-east-1' // US East — N. Virginia
-  | 'eu-west-1' // Europe West — Frankfurt
+export type ResourceType =
+  | 'DATABASE'
+  | 'STORAGE_BUCKET'
+  | 'COMPUTE'
+  | 'NETWORK'
+  | 'BACKUP'
+  | 'REPLICA'
 
 export interface ResourceTag {
   key: string
   value: string
 }
 
-export interface CloudResource {
+export interface Organization {
   id: string
   name: string
-  type: 'DATABASE' | 'STORAGE' | 'COMPUTE' | 'NETWORK' | 'BACKUP'
-  status: ResourceStatus
-  region: CloudRegion
-  projectId: string
+  slug: string
   ownerId: string
   createdAt: string
   updatedAt: string
-  tags?: ResourceTag[]
 }
 
-export interface DatabaseResource extends CloudResource {
-  type: 'DATABASE'
-  engine: 'postgres' | 'mysql'
-  version: string
-  acuAllocated: number
-  storageSizeGb: number
-  multiAZ: boolean
-  connectionUri: string
+export interface Project {
+  id: string
+  organizationId: string
+  name: string
+  slug: string
+  description: string
+  environment: EnvironmentType
+  defaultRegion: RegionId
+  createdAt: string
+  updatedAt: string
 }
 
-export interface StorageResource extends CloudResource {
-  type: 'STORAGE'
-  bucketName: string
-  objectCount: number
-  totalSizeBytes: number
-  isPublic: boolean
-  versioning: boolean
+export interface Region {
+  id: RegionId
+  name: string
+  displayName: string
+  location: string
+  status: 'AVAILABLE' | 'COMING_SOON' | 'MAINTENANCE'
 }
 
-export interface ComputeResource extends CloudResource {
-  type: 'COMPUTE'
-  acu: number
-  vCPU: number
-  memoryGb: number
-  availabilityZone: string
-  publicIp?: string
+export interface CloudResource {
+  id: string
+  resourceId: string // ARNV string e.g. arnv:db:ap-hyderabad-1:proj-default:database/production-db
+  name: string
+  type: ResourceType
+  status: ResourceStatus
+  organizationId: string
+  projectId: string
+  environment: EnvironmentType
+  regionId: RegionId
+  ownerId: string
+  tags: ResourceTag[]
+  createdAt: string
+  updatedAt: string
 }
 
-export interface NetworkResource extends CloudResource {
-  type: 'NETWORK'
-  cidrBlock: string
-  subnetCount: number
-  securityRulesCount: number
-}
-
-export interface BackupResource extends CloudResource {
-  type: 'BACKUP'
-  targetResourceId: string
-  sizeBytes: number
-  backupType: 'AUTOMATED' | 'MANUAL'
-  retentionDays: number
+export interface ActivityEvent {
+  id: string
+  organizationId: string
+  projectId: string
+  resourceId?: string
+  actorId: string
+  action:
+    | 'RESOURCE_CREATED'
+    | 'RESOURCE_UPDATED'
+    | 'RESOURCE_DELETED'
+    | 'RESOURCE_STARTED'
+    | 'RESOURCE_STOPPED'
+    | 'RESOURCE_CONFIGURATION_CHANGED'
+    | 'USER_LOGIN'
+    | 'API_KEY_CREATED'
+    | 'BACKUP_CREATED'
+  timestamp: string
+  metadata?: Record<string, string>
 }

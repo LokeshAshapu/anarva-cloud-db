@@ -3,6 +3,15 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
+interface SearchItem {
+  id: string
+  name: string
+  category: 'RESOURCES' | 'PAGES' | 'ACTIONS' | 'DOCUMENTATION'
+  type?: string
+  region?: string
+  href: string
+}
+
 interface GlobalCommandPaletteProps {
   isOpen: boolean
   onClose: () => void
@@ -12,14 +21,33 @@ export function GlobalCommandPalette({ isOpen, onClose }: GlobalCommandPalettePr
   const router = useRouter()
   const [query, setQuery] = useState('')
 
+  const items: SearchItem[] = [
+    // Resources
+    { id: 'res-1', name: 'production-db (arnv:db:ap-hyderabad-1:proj-default:database/production-db)', category: 'RESOURCES', type: 'DATABASE', region: 'ap-hyderabad-1', href: '/console/databases' },
+    { id: 'res-2', name: 'analytics-db (arnv:db:ap-mumbai-1:proj-default:database/analytics-db)', category: 'RESOURCES', type: 'DATABASE', region: 'ap-mumbai-1', href: '/console/databases' },
+    { id: 'res-3', name: 'anarva-media-assets (arnv:s3:ap-hyderabad-1:proj-default:storage/anarva-media-assets)', category: 'RESOURCES', type: 'STORAGE_BUCKET', region: 'ap-hyderabad-1', href: '/console/storage' },
+    { id: 'res-4', name: 'ace-worker-node-01 (arnv:vm:ap-hyderabad-1:proj-default:compute/ace-worker-node-01)', category: 'RESOURCES', type: 'COMPUTE', region: 'ap-hyderabad-1', href: '/console/compute' },
+    
+    // Actions
+    { id: 'act-1', name: 'Create Database Cluster', category: 'ACTIONS', href: '/console/databases' },
+    { id: 'act-2', name: 'Create Object Storage Bucket', category: 'ACTIONS', href: '/console/storage' },
+    { id: 'act-3', name: 'Deploy Compute Node (ACE)', category: 'ACTIONS', href: '/console/compute' },
+
+    // Pages
+    { id: 'page-1', name: 'Home Infrastructure Overview', category: 'PAGES', href: '/console' },
+    { id: 'page-2', name: 'Managed Databases & SQL IDE', category: 'PAGES', href: '/console/databases' },
+    { id: 'page-3', name: 'Anarva Object Storage (AOS)', category: 'PAGES', href: '/console/storage' },
+    { id: 'page-4', name: 'Anarva Compute Engine (ACE)', category: 'PAGES', href: '/console/compute' },
+    { id: 'page-5', name: 'IAM & Access Control', category: 'PAGES', href: '/console/iam' },
+    { id: 'page-6', name: 'Platform Settings & Default Region', category: 'PAGES', href: '/console/settings' },
+  ]
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         if (isOpen) onClose()
-        else {
-          // Trigger open via parent state
-        }
+        else setQuery('')
       }
       if (e.key === 'Escape' && isOpen) {
         onClose()
@@ -31,22 +59,16 @@ export function GlobalCommandPalette({ isOpen, onClose }: GlobalCommandPalettePr
 
   if (!isOpen) return null
 
-  const items = [
-    { name: 'Home Infrastructure Dashboard', category: 'Services', href: '/console' },
-    { name: 'Anarva Compute Engine (ACE)', category: 'Services', href: '/console/compute' },
-    { name: 'Managed Database Clusters', category: 'Services', href: '/console/databases' },
-    { name: 'Anarva Object Storage (AOS)', category: 'Services', href: '/console/storage' },
-    { name: 'Virtual Private Cloud (VPC) & Security', category: 'Services', href: '/console/networking' },
-    { name: 'IAM Users, Roles & Policies', category: 'Security', href: '/console/iam' },
-    { name: 'Observability & Time-Series Metrics', category: 'Operations', href: '/console/monitoring' },
-    { name: 'Point-in-Time Backups & Recovery', category: 'Operations', href: '/console/backups' },
-    { name: 'Billing, Usage & Cost Analytics', category: 'Management', href: '/console/billing' },
-    { name: 'API Keys & CLI SDK Tools', category: 'Developer Tools', href: '/console/devtools' },
-  ]
-
-  const filtered = items.filter(
-    (i) => i.name.toLowerCase().includes(query.toLowerCase()) || i.category.toLowerCase().includes(query.toLowerCase())
-  )
+  const filteredItems = items.filter((item) => {
+    if (!query) return true
+    const q = query.toLowerCase()
+    return (
+      item.name.toLowerCase().includes(q) ||
+      item.category.toLowerCase().includes(q) ||
+      (item.type && item.type.toLowerCase().includes(q)) ||
+      (item.region && item.region.toLowerCase().includes(q))
+    )
+  })
 
   const handleSelect = (href: string) => {
     router.push(href)
@@ -54,37 +76,48 @@ export function GlobalCommandPalette({ isOpen, onClose }: GlobalCommandPalettePr
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start justify-center pt-20 p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in-95">
-        <div className="p-4 border-b border-slate-800 flex items-center gap-3">
-          <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start justify-center pt-16 sm:pt-24 p-4 animate-in fade-in">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden space-y-3 p-4">
+        {/* Search Header */}
+        <div className="flex items-center gap-3 border-b border-slate-800 pb-3 px-2">
+          <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type a command or search cloud resources..."
-            className="w-full bg-transparent text-white text-sm focus:outline-none placeholder-slate-500"
+            placeholder="Search resources, ARNV, pages, actions... (ESC to close)"
+            className="w-full bg-transparent text-white placeholder-slate-500 text-sm focus:outline-none font-sans"
             autoFocus
           />
-          <button onClick={onClose} className="text-xs text-slate-500 hover:text-slate-300 font-mono">
+          <button onClick={onClose} className="px-2 py-0.5 bg-slate-800 rounded text-[10px] text-slate-400 font-mono">
             ESC
           </button>
         </div>
 
-        <div className="max-h-80 overflow-y-auto p-2 divide-y divide-slate-800/50">
-          {filtered.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-500">No matching cloud resources found.</div>
+        {/* Results List */}
+        <div className="max-h-80 overflow-y-auto space-y-1 text-xs">
+          {filteredItems.length === 0 ? (
+            <div className="p-6 text-center text-slate-500">
+              No matching resources or actions found for &quot;{query}&quot;.
+            </div>
           ) : (
-            filtered.map((item, idx) => (
+            filteredItems.map((item) => (
               <button
-                key={idx}
+                key={item.id}
                 onClick={() => handleSelect(item.href)}
-                className="w-full text-left p-3 hover:bg-slate-800/60 rounded-xl flex items-center justify-between transition text-xs group"
+                className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800 flex items-center justify-between transition group"
               >
-                <span className="font-semibold text-slate-200 group-hover:text-blue-400">{item.name}</span>
-                <span className="px-2 py-0.5 bg-slate-950 border border-slate-800 text-[10px] text-slate-400 font-mono rounded">
+                <div className="truncate">
+                  <div className="font-semibold text-slate-200 group-hover:text-white truncate">{item.name}</div>
+                  {item.type && (
+                    <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                      Type: {item.type} • Region: {item.region}
+                    </div>
+                  )}
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-950 border border-slate-800 text-slate-400 group-hover:border-blue-500/40 group-hover:text-blue-400">
                   {item.category}
                 </span>
               </button>

@@ -1,28 +1,29 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { CloudRegion } from '@/types/resource'
+import { RegionId } from '@/types/resource'
 
 const REGION_KEY = 'anarva_selected_region'
 
 export interface RegionOption {
-  id: CloudRegion | string
+  id: RegionId | string
   name: string
+  displayName: string
   location: string
   status: 'AVAILABLE' | 'COMING_SOON'
 }
 
 export function RegionSelector() {
-  const [selectedRegion, setSelectedRegion] = useState<string>('ap-south-1')
+  const [selectedRegion, setSelectedRegion] = useState<string>('ap-hyderabad-1')
 
   const regions: RegionOption[] = [
-    { id: 'ap-south-2', name: 'Asia Pacific (Hyderabad)', location: 'hyderabad', status: 'AVAILABLE' },
-    { id: 'ap-south-1', name: 'Asia Pacific (Mumbai)', location: 'mumbai', status: 'AVAILABLE' },
-    { id: 'ap-southeast-1', name: 'Asia Pacific (Singapore)', location: 'singapore', status: 'AVAILABLE' },
-    { id: 'us-east-1', name: 'US East (N. Virginia)', location: 'virginia', status: 'AVAILABLE' },
-    { id: 'eu-west-1', name: 'Europe West (Frankfurt)', location: 'frankfurt', status: 'AVAILABLE' },
-    { id: 'sa-east-1', name: 'South America (São Paulo)', location: 'sao-paulo', status: 'COMING_SOON' },
-    { id: 'me-central-1', name: 'Middle East (UAE)', location: 'uae', status: 'COMING_SOON' },
+    { id: 'ap-hyderabad-1', name: 'ap-hyderabad-1', displayName: 'Asia Pacific — Hyderabad', location: 'Hyderabad', status: 'AVAILABLE' },
+    { id: 'ap-mumbai-1', name: 'ap-mumbai-1', displayName: 'Asia Pacific — Mumbai', location: 'Mumbai', status: 'AVAILABLE' },
+    { id: 'ap-singapore-1', name: 'ap-singapore-1', displayName: 'Asia Pacific — Singapore', location: 'Singapore', status: 'AVAILABLE' },
+    { id: 'us-east-1', name: 'us-east-1', displayName: 'US East — N. Virginia', location: 'Virginia', status: 'AVAILABLE' },
+    { id: 'eu-west-1', name: 'eu-west-1', displayName: 'Europe West — Frankfurt', location: 'Frankfurt', status: 'AVAILABLE' },
+    { id: 'sa-east-1', name: 'sa-east-1', displayName: 'South America — São Paulo', location: 'São Paulo', status: 'COMING_SOON' },
+    { id: 'me-central-1', name: 'me-central-1', displayName: 'Middle East — UAE', location: 'UAE', status: 'COMING_SOON' },
   ]
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export function RegionSelector() {
       >
         {regions.map((r) => (
           <option key={r.id} value={r.id} disabled={r.status === 'COMING_SOON'}>
-            {r.name} {r.status === 'COMING_SOON' ? '(Coming Soon)' : ''}
+            {r.displayName} {r.status === 'COMING_SOON' ? '(Coming Soon)' : ''}
           </option>
         ))}
       </select>
