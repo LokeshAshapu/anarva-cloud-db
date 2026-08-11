@@ -651,83 +651,86 @@ func (m *memInstanceRepo) CountByProjectID(ctx context.Context, projectID string
 // Mock Backup Repository
 type memBackupRepo struct {
 	mu        sync.RWMutex
-	snapshots map[string]*backupDomain.BackupSnapshot
+	snapshots map[string]*backupDomain.BackupRecord
 }
 
 func newMemBackupRepo() backupDomain.BackupRepository {
-	return &memBackupRepo{snapshots: make(map[string]*backupDomain.BackupSnapshot)}
+	return &memBackupRepo{snapshots: make(map[string]*backupDomain.BackupRecord)}
 }
 
-func (m *memBackupRepo) Create(ctx context.Context, s *backupDomain.BackupSnapshot) error {
+func (m *memBackupRepo) Create(ctx context.Context, s *backupDomain.BackupRecord) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.snapshots[s.ID] = s
 	return nil
 }
 
-func (m *memBackupRepo) GetByID(ctx context.Context, id string) (*backupDomain.BackupSnapshot, error) {
+func (m *memBackupRepo) GetByID(ctx context.Context, id string) (*backupDomain.BackupRecord, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if s, ok := m.snapshots[id]; ok {
 		return s, nil
 	}
-	return &backupDomain.BackupSnapshot{
-		ID:         id,
-		DatabaseID: "db-default",
-		ProjectID:  "proj-default",
-		Name:       "Automated Daily Snapshot",
-		Status:     "COMPLETED",
-		SizeBytes:  108,
+	return &backupDomain.BackupRecord{
+		ID:           id,
+		DatabaseID:   "db-default",
+		ProjectID:    "proj-default",
+		Name:         "Automated Daily Snapshot",
+		Status:       backupDomain.StatusCompleted,
+		SizeBytes:    108,
+		StorageBucket: "anarva-media-assets",
 	}, nil
 }
 
-func (m *memBackupRepo) ListByDatabaseID(ctx context.Context, databaseID string) ([]*backupDomain.BackupSnapshot, error) {
+func (m *memBackupRepo) ListByDatabaseID(ctx context.Context, databaseID string) ([]*backupDomain.BackupRecord, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var list []*backupDomain.BackupSnapshot
+	var list []*backupDomain.BackupRecord
 	for _, s := range m.snapshots {
 		if s.DatabaseID == databaseID {
 			list = append(list, s)
 		}
 	}
 	if len(list) == 0 {
-		defaultSnap := &backupDomain.BackupSnapshot{
-			ID:         "snap-default",
-			DatabaseID: databaseID,
-			ProjectID:  "proj-default",
-			Name:       "Automated Daily Snapshot",
-			Status:     "COMPLETED",
-			SizeBytes:  108,
+		defaultSnap := &backupDomain.BackupRecord{
+			ID:           "snap-default",
+			DatabaseID:   databaseID,
+			ProjectID:    "proj-default",
+			Name:         "Automated Daily Snapshot",
+			Status:       backupDomain.StatusCompleted,
+			SizeBytes:    108,
+			StorageBucket: "anarva-media-assets",
 		}
 		list = append(list, defaultSnap)
 	}
 	return list, nil
 }
 
-func (m *memBackupRepo) ListByProjectID(ctx context.Context, projectID string) ([]*backupDomain.BackupSnapshot, error) {
+func (m *memBackupRepo) ListByProjectID(ctx context.Context, projectID string) ([]*backupDomain.BackupRecord, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var list []*backupDomain.BackupSnapshot
+	var list []*backupDomain.BackupRecord
 	for _, s := range m.snapshots {
 		if s.ProjectID == projectID {
 			list = append(list, s)
 		}
 	}
 	if len(list) == 0 {
-		defaultSnap := &backupDomain.BackupSnapshot{
-			ID:         "snap-default",
-			DatabaseID: "db-default",
-			ProjectID:  projectID,
-			Name:       "Automated Daily Snapshot",
-			Status:     "COMPLETED",
-			SizeBytes:  108,
+		defaultSnap := &backupDomain.BackupRecord{
+			ID:           "snap-default",
+			DatabaseID:   "db-default",
+			ProjectID:    projectID,
+			Name:         "Automated Daily Snapshot",
+			Status:       backupDomain.StatusCompleted,
+			SizeBytes:    108,
+			StorageBucket: "anarva-media-assets",
 		}
 		list = append(list, defaultSnap)
 	}
 	return list, nil
 }
 
-func (m *memBackupRepo) Update(ctx context.Context, s *backupDomain.BackupSnapshot) error {
+func (m *memBackupRepo) Update(ctx context.Context, s *backupDomain.BackupRecord) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.snapshots[s.ID] = s

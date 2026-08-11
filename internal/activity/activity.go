@@ -17,6 +17,7 @@ const (
 	ActionUserLogin                    EventAction = "USER_LOGIN"
 	ActionAPIKeyCreated                EventAction = "API_KEY_CREATED"
 	ActionBackupCreated                EventAction = "BACKUP_CREATED"
+	ActionBackupCompleted              EventAction = "BACKUP_COMPLETED"
 )
 
 type ActivityEvent struct {

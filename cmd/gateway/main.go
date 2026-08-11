@@ -29,7 +29,6 @@ import (
 	projectUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/project/usecase"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/activity"
-	backupHttp "github.com/anarva-cloud/anarva-cloud-db/internal/backup/delivery/http"
 	backupProvider "github.com/anarva-cloud/anarva-cloud-db/internal/backup/provider"
 	iamHttp "github.com/anarva-cloud/anarva-cloud-db/internal/iam/delivery/http"
 	iamService "github.com/anarva-cloud/anarva-cloud-db/internal/iam/service"
@@ -167,7 +166,7 @@ func main() {
 			&projectDomain.OrganizationMember{},
 			&projectDomain.Invitation{},
 			&databaseDomain.DatabaseInstance{},
-			&backupDomain.BackupSnapshot{},
+			&backupDomain.BackupRecord{},
 		)
 
 		uRepo = authRepo.NewUserRepository(dbPool.DB)
@@ -196,6 +195,7 @@ func main() {
 	pUC := projectUsecase.NewProjectUseCase(oRepo, pRepo, mRepo, iRepo)
 	dUC := databaseUsecase.NewDatabaseUseCase(dRepo, pDriver, cfg.JWT.Secret)
 	bUC := backupUsecase.NewBackupUseCase(bRepo, sProvider)
+	_ = bUC
 
 	// Phase 4 Centralized Resource Registry & Activity Stream
 	resRegistry := resource.NewRegistry()

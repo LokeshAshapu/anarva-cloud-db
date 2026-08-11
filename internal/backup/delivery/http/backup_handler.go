@@ -3,7 +3,6 @@ package http
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/activity"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/backup/domain"
@@ -72,7 +71,7 @@ func (h *BackupHandler) CreateSnapshot(w http.ResponseWriter, r *http.Request) {
 		SizeBytes:      14589000,
 	}
 
-	created, err := h.prov.CreateSnapshot(r.Context(), rec)
+	created, err := h.prov.CreateBackup(r.Context(), rec)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
