@@ -14,10 +14,10 @@ import (
 )
 
 type BackupUseCase interface {
-	CreateBackup(ctx context.Context, databaseID, projectID, name string, backupType domain.BackupType) (*domain.BackupSnapshot, error)
+	CreateBackup(ctx context.Context, databaseID, projectID, name string, backupType domain.BackupType) (*domain.BackupRecord, error)
 	RestoreBackup(ctx context.Context, snapshotID, targetDatabaseID string) error
-	GetBackup(ctx context.Context, snapshotID string) (*domain.BackupSnapshot, error)
-	ListBackups(ctx context.Context, databaseID string) ([]*domain.BackupSnapshot, error)
+	GetBackup(ctx context.Context, snapshotID string) (*domain.BackupRecord, error)
+	ListBackups(ctx context.Context, databaseID string) ([]*domain.BackupRecord, error)
 	DeleteBackup(ctx context.Context, snapshotID string) error
 }
 
@@ -33,13 +33,28 @@ func NewBackupUseCase(repo domain.BackupRepository, storageProvider storage.Stor
 	}
 }
 
-func (u *backupUseCase) CreateBackup(ctx context.Context, databaseID, projectID, name string, backupType domain.BackupType) (*domain.BackupSnapshot, error) {
+func (u *backupUseCase) CreateBackup(ctx context.Context, databaseID, projectID, name string, backupType domain.BackupType) (*domain.BackupRecord, error) {
 	if databaseID == "" || projectID == "" || name == "" {
 		return nil, appErrors.New(appErrors.CodeInvalidInput, "databaseID, projectID, and name are required")
 	}
 
 	storageKey := fmt.Sprintf("backups/%s/%s_%d.dump", projectID, databaseID, time.Now().Unix())
-	snapshot := domain.NewBackupSnapshot(databaseID, projectID, name, storageKey, backupType)
+	now := time.Now()
+	snapshot := &domain.BackupRecord{
+		ID:             fmt.Sprintf("bak-%d", now.UnixNano()),
+		OrganizationID: "org-default",
+		ProjectID:      projectID,
+		DatabaseID:     databaseID,
+		Name:           name,
+		Type:           backupType,
+		Status:         domain.StatusRunning,
+		Integrity:      domain.IntegrityValid,
+		StorageBucket:  "anarva-media-assets",
+		StoragePath:    storageKey,
+		StartedAt:      now,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
 
 	if err := u.repo.Create(ctx, snapshot); err != nil {
 		return nil, err
@@ -51,14 +66,16 @@ func (u *backupUseCase) CreateBackup(ctx context.Context, databaseID, projectID,
 
 	_, err := u.storageProvider.Upload(ctx, storageKey, reader, int64(len(mockDumpContent)))
 	if err != nil {
-		snapshot.Status = domain.BackupStatusFailed
+		snapshot.Status = domain.StatusFailed
 		_ = u.repo.Update(ctx, snapshot)
 		return nil, appErrors.Wrap(err, appErrors.CodeInternal, "failed to upload backup stream to storage provider")
 	}
 
+	completed := time.Now()
 	snapshot.StoragePath = storageKey
 	snapshot.SizeBytes = int64(len(mockDumpContent))
-	snapshot.Status = domain.BackupStatusCompleted
+	snapshot.Status = domain.StatusCompleted
+	snapshot.CompletedAt = &completed
 
 	if err := u.repo.Update(ctx, snapshot); err != nil {
 		return nil, err
@@ -74,7 +91,7 @@ func (u *backupUseCase) RestoreBackup(ctx context.Context, snapshotID, targetDat
 		return err
 	}
 
-	if snapshot.Status != domain.BackupStatusCompleted {
+	if snapshot.Status != domain.StatusCompleted && snapshot.Status != domain.StatusVerified {
 		return appErrors.New(appErrors.CodeInvalidInput, "cannot restore from an incomplete or failed backup snapshot")
 	}
 
@@ -93,11 +110,11 @@ func (u *backupUseCase) RestoreBackup(ctx context.Context, snapshotID, targetDat
 	return nil
 }
 
-func (u *backupUseCase) GetBackup(ctx context.Context, snapshotID string) (*domain.BackupSnapshot, error) {
+func (u *backupUseCase) GetBackup(ctx context.Context, snapshotID string) (*domain.BackupRecord, error) {
 	return u.repo.GetByID(ctx, snapshotID)
 }
 
-func (u *backupUseCase) ListBackups(ctx context.Context, databaseID string) ([]*domain.BackupSnapshot, error) {
+func (u *backupUseCase) ListBackups(ctx context.Context, databaseID string) ([]*domain.BackupRecord, error) {
 	return u.repo.ListByDatabaseID(ctx, databaseID)
 }
 

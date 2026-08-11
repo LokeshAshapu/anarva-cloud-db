@@ -208,7 +208,6 @@ func main() {
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
 	databaseHttp.NewDatabaseHandler(dUC).RegisterRoutes(mux)
-	backupHttp.NewBackupHandler(bUC).RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bakProv, actStream).RegisterRoutes(mux)
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
 	iamHttp.NewIAMHandler(authSvc, actStream).RegisterRoutes(mux)
