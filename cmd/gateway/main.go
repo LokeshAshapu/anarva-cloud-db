@@ -29,6 +29,8 @@ import (
 	projectUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/project/usecase"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/activity"
+	iamHttp "github.com/anarva-cloud/anarva-cloud-db/internal/iam/delivery/http"
+	iamService "github.com/anarva-cloud/anarva-cloud-db/internal/iam/service"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/resource"
 	resourceHttp "github.com/anarva-cloud/anarva-cloud-db/internal/resource/delivery/http"
 
@@ -193,6 +195,7 @@ func main() {
 	// Phase 4 Centralized Resource Registry & Activity Stream
 	resRegistry := resource.NewRegistry()
 	actStream := activity.NewStream()
+	authSvc := iamService.NewAuthorizationService()
 
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
@@ -200,6 +203,7 @@ func main() {
 	databaseHttp.NewDatabaseHandler(dUC).RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bUC).RegisterRoutes(mux)
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
+	iamHttp.NewIAMHandler(authSvc, actStream).RegisterRoutes(mux)
 
 	// Register Query Handler
 	qh := &queryHandler{
