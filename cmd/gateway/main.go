@@ -30,6 +30,9 @@ import (
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/activity"
 	backupProvider "github.com/anarva-cloud/anarva-cloud-db/internal/backup/provider"
+	computeHttp "github.com/anarva-cloud/anarva-cloud-db/internal/compute/delivery/http"
+	computeProvider "github.com/anarva-cloud/anarva-cloud-db/internal/compute/provider"
+	computeUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/compute/usecase"
 	iamHttp "github.com/anarva-cloud/anarva-cloud-db/internal/iam/delivery/http"
 	iamService "github.com/anarva-cloud/anarva-cloud-db/internal/iam/service"
 	observabilityHttp "github.com/anarva-cloud/anarva-cloud-db/internal/observability/delivery/http"
@@ -203,12 +206,15 @@ func main() {
 	authSvc := iamService.NewAuthorizationService()
 	obsSvc := observabilityService.NewObservabilityService()
 	bakProv := backupProvider.NewControlPlaneBackupProvider(storageProvider.NewLocalStorageProvider())
+	compProv := computeProvider.NewLocalDockerComputeProvider()
+	compUC := computeUsecase.NewComputeUseCase(newMemComputeRepo(), nil, compProv)
 
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
 	databaseHttp.NewDatabaseHandler(dUC).RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bakProv, actStream).RegisterRoutes(mux)
+	computeHttp.NewComputeHandler(compUC, actStream).RegisterRoutes(mux)
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
 	iamHttp.NewIAMHandler(authSvc, actStream).RegisterRoutes(mux)
 	observabilityHttp.NewObservabilityHandler(obsSvc).RegisterRoutes(mux)

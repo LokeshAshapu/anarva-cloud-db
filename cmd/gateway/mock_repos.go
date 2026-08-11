@@ -7,6 +7,7 @@ import (
 
 	authDomain "github.com/anarva-cloud/anarva-cloud-db/internal/auth/domain"
 	backupDomain "github.com/anarva-cloud/anarva-cloud-db/internal/backup/domain"
+	computeDomain "github.com/anarva-cloud/anarva-cloud-db/internal/compute/domain"
 	dbDomain "github.com/anarva-cloud/anarva-cloud-db/internal/database/domain"
 	projDomain "github.com/anarva-cloud/anarva-cloud-db/internal/project/domain"
 )
@@ -741,5 +742,111 @@ func (m *memBackupRepo) Delete(ctx context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.snapshots, id)
+	return nil
+}
+
+// Mock Compute Repository
+type memComputeRepo struct {
+	mu        sync.RWMutex
+	instances map[string]*computeDomain.ComputeInstance
+}
+
+func newMemComputeRepo() computeDomain.ComputeRepository {
+	return &memComputeRepo{instances: make(map[string]*computeDomain.ComputeInstance)}
+}
+
+func (m *memComputeRepo) Create(ctx context.Context, inst *computeDomain.ComputeInstance) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.instances[inst.ID] = inst
+	return nil
+}
+
+func (m *memComputeRepo) GetByID(ctx context.Context, id string) (*computeDomain.ComputeInstance, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if inst, ok := m.instances[id]; ok {
+		return inst, nil
+	}
+	return &computeDomain.ComputeInstance{
+		ID:                 id,
+		ResourceID:         "arnv:vm:us-east-1:proj-default:compute/ace-worker-node-01",
+		OrganizationID:     "org-default",
+		ProjectID:          "proj-default",
+		Name:               "API Gateway Worker",
+		Slug:               "api-gateway-worker",
+		RegionID:           "us-east-1",
+		ZoneID:             "us-east-1a",
+		Status:             computeDomain.StatusRunning,
+		Health:             computeDomain.HealthHealthy,
+		PlanID:             "plan-1.0",
+		ACU:                1.0,
+		VCPU:               1.0,
+		MemoryMB:           2048,
+		StorageGB:          20,
+		ImageID:            "img-ubuntu-24",
+		NetworkID:          "net-default",
+		SubnetID:           "subnet-01",
+		PrivateIP:          "10.0.1.14",
+		PublicIP:           "20.198.42.10",
+		Provider:           computeDomain.ProviderLocalDocker,
+		ProviderInstanceID: "docker-sim-acu-instance-8f12",
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}, nil
+}
+
+func (m *memComputeRepo) ListByProjectID(ctx context.Context, projectID string) ([]*computeDomain.ComputeInstance, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var list []*computeDomain.ComputeInstance
+	for _, inst := range m.instances {
+		if inst.ProjectID == projectID && inst.DeletedAt == nil {
+			list = append(list, inst)
+		}
+	}
+	if len(list) == 0 {
+		defaultInst := &computeDomain.ComputeInstance{
+			ID:                 "acu-instance-8f12",
+			ResourceID:         "arnv:vm:us-east-1:proj-default:compute/ace-worker-node-01",
+			OrganizationID:     "org-default",
+			ProjectID:          projectID,
+			Name:               "API Gateway Worker",
+			Slug:               "api-gateway-worker",
+			RegionID:           "us-east-1",
+			ZoneID:             "us-east-1a",
+			Status:             computeDomain.StatusRunning,
+			Health:             computeDomain.HealthHealthy,
+			PlanID:             "plan-1.0",
+			ACU:                1.0,
+			VCPU:               1.0,
+			MemoryMB:           2048,
+			StorageGB:          20,
+			ImageID:            "img-ubuntu-24",
+			NetworkID:          "net-default",
+			SubnetID:           "subnet-01",
+			PrivateIP:          "10.0.1.14",
+			PublicIP:           "20.198.42.10",
+			Provider:           computeDomain.ProviderLocalDocker,
+			ProviderInstanceID: "docker-sim-acu-instance-8f12",
+			CreatedAt:          time.Now(),
+			UpdatedAt:          time.Now(),
+		}
+		list = append(list, defaultInst)
+	}
+	return list, nil
+}
+
+func (m *memComputeRepo) Update(ctx context.Context, inst *computeDomain.ComputeInstance) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.instances[inst.ID] = inst
+	return nil
+}
+
+func (m *memComputeRepo) Delete(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.instances, id)
 	return nil
 }

@@ -18,6 +18,12 @@ const (
 	ActionAPIKeyCreated                EventAction = "API_KEY_CREATED"
 	ActionBackupCreated                EventAction = "BACKUP_CREATED"
 	ActionBackupCompleted              EventAction = "BACKUP_COMPLETED"
+	ActionComputeCreated               EventAction = "COMPUTE_CREATED"
+	ActionComputeStarted               EventAction = "COMPUTE_STARTED"
+	ActionComputeStopped               EventAction = "COMPUTE_STOPPED"
+	ActionComputeDeleted               EventAction = "COMPUTE_DELETED"
+	ActionVolumeCreated                EventAction = "VOLUME_CREATED"
+	ActionCommandExecuted               EventAction = "COMMAND_EXECUTED"
 )
 
 type ActivityEvent struct {
