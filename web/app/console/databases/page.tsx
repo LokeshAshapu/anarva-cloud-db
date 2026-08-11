@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { CloudResource, ResourceStatus, RegionId } from '@/types/resource'
 import { CloudStatus } from '@/components/cloud/CloudStatus'
 import { CloudButton } from '@/components/cloud/CloudButton'
@@ -60,63 +60,92 @@ export default function DatabasesPage() {
   const [isExecutingSql, setIsExecutingSql] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  // Clusters List
-  const [clusters, setClusters] = useState<DatabaseClusterItem[]>([
-    {
-      id: 'res-db-prod-1',
-      resourceId: 'arnv:db:ap-hyderabad-1:proj-default:database/production-db',
-      name: 'production-db',
-      engine: 'PostgreSQL',
-      engineVersion: '17.2',
-      status: 'AVAILABLE',
-      regionId: 'ap-hyderabad-1',
-      environment: 'Production',
-      computeUnits: 2.0,
-      storageGb: 48,
-      maxStorageGb: 256,
-      autoScaling: true,
-      backupEnabled: true,
-      backupRetentionDays: 7,
-      pitrEnabled: true,
-      highAvailability: true,
-      host: 'db-prod-1.anarva.cloud',
-      port: 5432,
-      dbname: 'production_db',
-      username: 'anarva_admin',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'res-db-analytics-1',
-      resourceId: 'arnv:db:ap-mumbai-1:proj-default:database/analytics-db',
-      name: 'analytics-db',
-      engine: 'PostgreSQL',
-      engineVersion: '16.4',
-      status: 'AVAILABLE',
-      regionId: 'ap-mumbai-1',
-      environment: 'Production',
-      computeUnits: 4.0,
-      storageGb: 120,
-      maxStorageGb: 512,
-      autoScaling: true,
-      backupEnabled: true,
-      backupRetentionDays: 14,
-      pitrEnabled: true,
-      highAvailability: false,
-      host: 'db-analytics-1.anarva.cloud',
-      port: 5432,
-      dbname: 'analytics_db',
-      username: 'anarva_analytics',
-      createdAt: new Date().toISOString(),
-    },
-  ])
+  // User Email & Clusters State
+  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
+  const [clusters, setClusters] = useState<DatabaseClusterItem[]>([])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const email = localStorage.getItem('anarva_user_email') || 'lokeshashapu@gmail.com'
+      setUserEmail(email)
+
+      const dbKey = `anarva_user_databases_${email}`
+      const stored = localStorage.getItem(dbKey)
+
+      if (stored) {
+        setClusters(JSON.parse(stored))
+      } else if (email === 'lokeshashapu@gmail.com') {
+        const defaults: DatabaseClusterItem[] = [
+          {
+            id: 'res-db-prod-1',
+            resourceId: 'arnv:db:ap-hyderabad-1:proj-default:database/production-db',
+            name: 'production-db',
+            engine: 'PostgreSQL',
+            engineVersion: '17.2',
+            status: 'AVAILABLE',
+            regionId: 'ap-hyderabad-1',
+            environment: 'Production',
+            computeUnits: 2.0,
+            storageGb: 48,
+            maxStorageGb: 256,
+            autoScaling: true,
+            backupEnabled: true,
+            backupRetentionDays: 7,
+            pitrEnabled: true,
+            highAvailability: true,
+            host: 'db-prod-1.anarva.cloud',
+            port: 5432,
+            dbname: 'production_db',
+            username: 'anarva_admin',
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: 'res-db-analytics-1',
+            resourceId: 'arnv:db:ap-mumbai-1:proj-default:database/analytics-db',
+            name: 'analytics-db',
+            engine: 'PostgreSQL',
+            engineVersion: '16.4',
+            status: 'AVAILABLE',
+            regionId: 'ap-mumbai-1',
+            environment: 'Production',
+            computeUnits: 4.0,
+            storageGb: 120,
+            maxStorageGb: 512,
+            autoScaling: true,
+            backupEnabled: true,
+            backupRetentionDays: 14,
+            pitrEnabled: true,
+            highAvailability: false,
+            host: 'db-analytics-1.anarva.cloud',
+            port: 5432,
+            dbname: 'analytics_db',
+            username: 'anarva_analytics',
+            createdAt: new Date().toISOString(),
+          },
+        ]
+        setClusters(defaults)
+        localStorage.setItem(dbKey, JSON.stringify(defaults))
+      } else {
+        setClusters([])
+      }
+    }
+  }, [])
+
+  const saveUserClusters = (updated: DatabaseClusterItem[]) => {
+    setClusters(updated)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`anarva_user_databases_${userEmail}`, JSON.stringify(updated))
+    }
+  }
 
   const handleCreateDatabase = () => {
     setIsCreating(true)
     setTimeout(() => {
+      const dbName = name || 'new-database'
       const newCluster: DatabaseClusterItem = {
         id: `res-db-${Date.now()}`,
-        resourceId: generateARNV('DATABASE', regionId, 'proj-default', name || 'new-database'),
-        name: name || 'new-database',
+        resourceId: generateARNV('DATABASE', regionId, 'proj-default', dbName),
+        name: dbName,
         engine,
         engineVersion,
         status: 'AVAILABLE',
@@ -130,18 +159,34 @@ export default function DatabasesPage() {
         backupRetentionDays,
         pitrEnabled,
         highAvailability,
-        host: `${name || 'new-db'}.anarva.cloud`,
+        host: `${dbName}.anarva.cloud`,
         port: engine === 'MySQL' ? 3306 : 5432,
-        dbname: (name || 'new_db').replace(/-/g, '_'),
+        dbname: dbName.replace(/-/g, '_'),
         username: 'anarva_admin',
         createdAt: new Date().toISOString(),
       }
 
-      setClusters([newCluster, ...clusters])
+      const updated = [newCluster, ...clusters]
+      saveUserClusters(updated)
+
+      // Record activity event
+      if (typeof window !== 'undefined') {
+        const actKey = `anarva_user_activities_${userEmail}`
+        const existingActs = JSON.parse(localStorage.getItem(actKey) || '[]')
+        const newAct = {
+          id: `act-${Date.now()}`,
+          action: 'RESOURCE_CREATED',
+          resource: dbName,
+          actor: userEmail,
+          time: 'Just now',
+        }
+        localStorage.setItem(actKey, JSON.stringify([newAct, ...existingActs]))
+      }
+
       setIsCreating(false)
       setIsWizardOpen(false)
       setWizardStep(1)
-    }, 1500)
+    }, 1200)
   }
 
   const handleExecuteSql = () => {

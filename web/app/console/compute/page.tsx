@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 
 export default function ComputeEnginePage() {
   const [acu, setAcu] = useState<number>(1.0)
@@ -8,25 +8,70 @@ export default function ComputeEnginePage() {
   const [autoScaling, setAutoScaling] = useState<boolean>(true)
   const [isProvisioning, setIsProvisioning] = useState<boolean>(false)
 
-  const [instances, setInstances] = useState([
-    { id: 'acu-instance-8f12', name: 'API Gateway Worker', acu: 1.0, memory: '2 GB', vCPU: 1, status: 'RUNNING', zone: 'us-east-1a' },
-    { id: 'acu-instance-3b49', name: 'Background Job Processing', acu: 0.5, memory: '1 GB', vCPU: 0.5, status: 'RUNNING', zone: 'us-east-1b' },
-  ])
+  // User Email & Compute State
+  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
+  const [instances, setInstances] = useState<any[]>([])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const email = localStorage.getItem('anarva_user_email') || 'lokeshashapu@gmail.com'
+      setUserEmail(email)
+
+      const computeKey = `anarva_user_compute_${email}`
+      const stored = localStorage.getItem(computeKey)
+
+      if (stored) {
+        setInstances(JSON.parse(stored))
+      } else if (email === 'lokeshashapu@gmail.com') {
+        const defaults = [
+          { id: 'acu-instance-8f12', name: 'API Gateway Worker', acu: 1.0, memory: '2 GB', vCPU: 1, status: 'RUNNING', zone: 'us-east-1a' },
+        ]
+        setInstances(defaults)
+        localStorage.setItem(computeKey, JSON.stringify(defaults))
+      } else {
+        setInstances([])
+      }
+    }
+  }, [])
+
+  const saveUserCompute = (updated: any[]) => {
+    setInstances(updated)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`anarva_user_compute_${userEmail}`, JSON.stringify(updated))
+    }
+  }
 
   const handleLaunchCompute = (e: React.FormEvent) => {
     e.preventDefault()
     setIsProvisioning(true)
     setTimeout(() => {
+      const instName = `Worker Instance ${Math.floor(Math.random() * 900 + 100)}`
       const newInst = {
         id: `acu-instance-${Math.floor(Math.random() * 9000 + 1000)}`,
-        name: 'Serverless Worker Task',
+        name: instName,
         acu: acu,
         memory: `${acu * 2} GB`,
         vCPU: acu,
         status: 'RUNNING',
         zone: `${region}a`,
       }
-      setInstances([newInst, ...instances])
+      const updated = [newInst, ...instances]
+      saveUserCompute(updated)
+
+      // Record activity event
+      if (typeof window !== 'undefined') {
+        const actKey = `anarva_user_activities_${userEmail}`
+        const existingActs = JSON.parse(localStorage.getItem(actKey) || '[]')
+        const newAct = {
+          id: `act-${Date.now()}`,
+          action: 'RESOURCE_STARTED',
+          resource: instName,
+          actor: userEmail,
+          time: 'Just now',
+        }
+        localStorage.setItem(actKey, JSON.stringify([newAct, ...existingActs]))
+      }
+
       setIsProvisioning(false)
     }, 1200)
   }

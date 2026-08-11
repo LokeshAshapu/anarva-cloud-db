@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { CloudResource, ResourceStatus, RegionId } from '@/types/resource'
 import { CloudStatus } from '@/components/cloud/CloudStatus'
 import { CloudButton } from '@/components/cloud/CloudButton'
@@ -59,35 +59,50 @@ export default function StoragePage() {
   const [uploadFileType, setUploadFileType] = useState('image/png')
   const [isUploading, setIsUploading] = useState(false)
 
-  // Buckets List
-  const [buckets, setBuckets] = useState<BucketItem[]>([
-    {
-      id: 'res-s3-assets-1',
-      resourceId: 'arnv:s3:ap-hyderabad-1:proj-default:storage/anarva-media-assets',
-      name: 'anarva-media-assets',
-      regionId: 'ap-hyderabad-1',
-      status: 'AVAILABLE',
-      storageClass: 'STANDARD',
-      versioningEnabled: true,
-      publicAccessBlocked: true,
-      objectCount: 4,
-      sizeBytes: 14589000,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'res-s3-logs-1',
-      resourceId: 'arnv:s3:ap-mumbai-1:proj-default:storage/anarva-audit-logs',
-      name: 'anarva-audit-logs',
-      regionId: 'ap-mumbai-1',
-      status: 'AVAILABLE',
-      storageClass: 'INFREQUENT_ACCESS',
-      versioningEnabled: true,
-      publicAccessBlocked: true,
-      objectCount: 128,
-      sizeBytes: 245000000,
-      createdAt: new Date().toISOString(),
-    },
-  ])
+  // User Email & Buckets State
+  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
+  const [buckets, setBuckets] = useState<BucketItem[]>([])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const email = localStorage.getItem('anarva_user_email') || 'lokeshashapu@gmail.com'
+      setUserEmail(email)
+
+      const bucketKey = `anarva_user_buckets_${email}`
+      const stored = localStorage.getItem(bucketKey)
+
+      if (stored) {
+        setBuckets(JSON.parse(stored))
+      } else if (email === 'lokeshashapu@gmail.com') {
+        const defaults: BucketItem[] = [
+          {
+            id: 'res-s3-assets-1',
+            resourceId: 'arnv:s3:ap-hyderabad-1:proj-default:storage/anarva-media-assets',
+            name: 'anarva-media-assets',
+            regionId: 'ap-hyderabad-1',
+            status: 'AVAILABLE',
+            storageClass: 'STANDARD',
+            versioningEnabled: true,
+            publicAccessBlocked: true,
+            objectCount: 4,
+            sizeBytes: 14589000,
+            createdAt: new Date().toISOString(),
+          },
+        ]
+        setBuckets(defaults)
+        localStorage.setItem(bucketKey, JSON.stringify(defaults))
+      } else {
+        setBuckets([])
+      }
+    }
+  }, [])
+
+  const saveUserBuckets = (updated: BucketItem[]) => {
+    setBuckets(updated)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`anarva_user_buckets_${userEmail}`, JSON.stringify(updated))
+    }
+  }
 
   // Objects List
   const [objects, setObjects] = useState<ObjectItem[]>([
@@ -113,17 +128,6 @@ export default function StoragePage() {
       checksum: 'sha256-1c88846c8793b8e788c2ad16a695b28d7085c9eb92f44005b4b1a45a1c726ee8',
       createdAt: new Date().toISOString(),
     },
-    {
-      id: 'obj-103',
-      bucketId: 'res-s3-assets-1',
-      objectKey: 'videos/demos/cloud-intro.mp4',
-      contentType: 'video/mp4',
-      sizeBytes: 11200000,
-      etag: '"e1d2c3b4a5"',
-      versionId: 'v1.0',
-      checksum: 'sha256-8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b',
-      createdAt: new Date().toISOString(),
-    },
   ])
 
   const handleCreateBucket = () => {
@@ -144,11 +148,27 @@ export default function StoragePage() {
         createdAt: new Date().toISOString(),
       }
 
-      setBuckets([newBucket, ...buckets])
+      const updated = [newBucket, ...buckets]
+      saveUserBuckets(updated)
+
+      // Record activity event
+      if (typeof window !== 'undefined') {
+        const actKey = `anarva_user_activities_${userEmail}`
+        const existingActs = JSON.parse(localStorage.getItem(actKey) || '[]')
+        const newAct = {
+          id: `act-${Date.now()}`,
+          action: 'RESOURCE_CREATED',
+          resource: cleanName,
+          actor: userEmail,
+          time: 'Just now',
+        }
+        localStorage.setItem(actKey, JSON.stringify([newAct, ...existingActs]))
+      }
+
       setIsCreating(false)
       setIsWizardOpen(false)
       setWizardStep(1)
-    }, 1200)
+    }, 1000)
   }
 
   const handleUploadObject = () => {
