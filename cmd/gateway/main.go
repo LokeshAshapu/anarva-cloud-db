@@ -31,6 +31,8 @@ import (
 	"github.com/anarva-cloud/anarva-cloud-db/internal/activity"
 	iamHttp "github.com/anarva-cloud/anarva-cloud-db/internal/iam/delivery/http"
 	iamService "github.com/anarva-cloud/anarva-cloud-db/internal/iam/service"
+	observabilityHttp "github.com/anarva-cloud/anarva-cloud-db/internal/observability/delivery/http"
+	observabilityService "github.com/anarva-cloud/anarva-cloud-db/internal/observability/service"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/resource"
 	resourceHttp "github.com/anarva-cloud/anarva-cloud-db/internal/resource/delivery/http"
 
@@ -196,6 +198,7 @@ func main() {
 	resRegistry := resource.NewRegistry()
 	actStream := activity.NewStream()
 	authSvc := iamService.NewAuthorizationService()
+	obsSvc := observabilityService.NewObservabilityService()
 
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
@@ -204,6 +207,7 @@ func main() {
 	backupHttp.NewBackupHandler(bUC).RegisterRoutes(mux)
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
 	iamHttp.NewIAMHandler(authSvc, actStream).RegisterRoutes(mux)
+	observabilityHttp.NewObservabilityHandler(obsSvc).RegisterRoutes(mux)
 
 	// Register Query Handler
 	qh := &queryHandler{
