@@ -217,6 +217,45 @@ export default function DatabasesPage() {
     { id: 'settings', label: 'Settings' },
   ]
 
+  const handleDeleteDatabase = (clusterId: string, name: string) => {
+    if (confirm(`Are you sure you want to delete database cluster '${name}'?`)) {
+      const updated = clusters.filter((c) => c.id !== clusterId)
+      saveUserClusters(updated)
+
+      // Record activity event
+      if (typeof window !== 'undefined') {
+        const actKey = `anarva_user_activities_${userEmail}`
+        const existingActs = JSON.parse(localStorage.getItem(actKey) || '[]')
+        const newAct = {
+          id: `act-${Date.now()}`,
+          action: 'RESOURCE_DELETED',
+          resource: name,
+          actor: userEmail,
+          time: 'Just now',
+        }
+        localStorage.setItem(actKey, JSON.stringify([newAct, ...existingActs]))
+      }
+
+      setSelectedCluster(null)
+    }
+  }
+
+  const handleStopDatabase = (clusterId: string, name: string) => {
+    const updated = clusters.map((c) => (c.id === clusterId ? { ...c, status: 'STOPPED' as ResourceStatus } : c))
+    saveUserClusters(updated)
+    if (selectedCluster && selectedCluster.id === clusterId) {
+      setSelectedCluster({ ...selectedCluster, status: 'STOPPED' })
+    }
+  }
+
+  const handleRestartDatabase = (clusterId: string, name: string) => {
+    const updated = clusters.map((c) => (c.id === clusterId ? { ...c, status: 'AVAILABLE' as ResourceStatus } : c))
+    saveUserClusters(updated)
+    if (selectedCluster && selectedCluster.id === clusterId) {
+      setSelectedCluster({ ...selectedCluster, status: 'AVAILABLE' })
+    }
+  }
+
   // DETAIL VIEW
   if (selectedCluster) {
     return (
@@ -244,13 +283,13 @@ export default function DatabasesPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <CloudButton variant="secondary" size="sm">
+            <CloudButton variant="secondary" size="sm" onClick={() => handleRestartDatabase(selectedCluster.id, selectedCluster.name)}>
               Restart
             </CloudButton>
-            <CloudButton variant="outline" size="sm">
+            <CloudButton variant="outline" size="sm" onClick={() => handleStopDatabase(selectedCluster.id, selectedCluster.name)}>
               Stop
             </CloudButton>
-            <CloudButton variant="danger" size="sm">
+            <CloudButton variant="danger" size="sm" onClick={() => handleDeleteDatabase(selectedCluster.id, selectedCluster.name)}>
               Delete
             </CloudButton>
           </div>

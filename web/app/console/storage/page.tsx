@@ -222,6 +222,29 @@ export default function StoragePage() {
     { id: 'settings', label: 'Settings' },
   ]
 
+  const handleDeleteBucket = (bucketId: string, name: string) => {
+    if (confirm(`Are you sure you want to delete storage bucket '${name}'?`)) {
+      const updated = buckets.filter((b) => b.id !== bucketId)
+      saveUserBuckets(updated)
+
+      // Record activity event
+      if (typeof window !== 'undefined') {
+        const actKey = `anarva_user_activities_${userEmail}`
+        const existingActs = JSON.parse(localStorage.getItem(actKey) || '[]')
+        const newAct = {
+          id: `act-${Date.now()}`,
+          action: 'RESOURCE_DELETED',
+          resource: name,
+          actor: userEmail,
+          time: 'Just now',
+        }
+        localStorage.setItem(actKey, JSON.stringify([newAct, ...existingActs]))
+      }
+
+      setSelectedBucket(null)
+    }
+  }
+
   // BUCKET DETAIL VIEW
   if (selectedBucket) {
     const bucketObjects = objects.filter((o) => o.bucketId === selectedBucket.id)
@@ -251,10 +274,10 @@ export default function StoragePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <CloudButton variant="outline" size="sm">
+            <CloudButton variant="outline" size="sm" onClick={() => setActiveTab('permissions')}>
               Bucket Policy
             </CloudButton>
-            <CloudButton variant="danger" size="sm">
+            <CloudButton variant="danger" size="sm" onClick={() => handleDeleteBucket(selectedBucket.id, selectedBucket.name)}>
               Delete Bucket
             </CloudButton>
           </div>
