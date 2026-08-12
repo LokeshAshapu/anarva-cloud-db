@@ -39,31 +39,40 @@ export default function DevToolsPage() {
     loadUser()
   }, [])
 
-  const samplePowershell = `# Build Anarva Cloud CLI locally on Windows PowerShell
+  const samplePowershell = `# 1. Navigate to your Anarva Cloud project directory
+cd Downloads\\anarva-cloud-db
+
+# 2. Build Anarva Cloud CLI locally on Windows PowerShell
 go build -o bin/anarva.exe ./cmd/cli
 
-# Authenticate with credentials
-.\bin\anarva.exe login --token anarva_live_8f3a921b
+# 3. Authenticate with credentials
+.\\bin\\anarva.exe login --token anarva_live_8f3a921b
 
-# Provision a new PostgreSQL cluster
-.\bin\anarva.exe db create --name prod-db --engine postgres --acu 2.0 --region ap-hyderabad-1`
+# 4. Provision a new PostgreSQL cluster
+.\\bin\\anarva.exe db create --name prod-db --engine postgres --acu 2.0 --region ap-hyderabad-1`
 
-  const sampleCmd = `rem Build Anarva Cloud CLI locally on Windows Command Prompt (CMD)
+  const sampleCmd = `rem 1. Navigate to your Anarva Cloud project directory
+cd Downloads\\anarva-cloud-db
+
+rem 2. Build Anarva Cloud CLI locally on Windows Command Prompt (CMD)
 go build -o bin/anarva.exe ./cmd/cli
 
-rem Authenticate with credentials
+rem 3. Authenticate with credentials
 bin\\anarva.exe login --token anarva_live_8f3a921b
 
-rem Provision a new PostgreSQL cluster
+rem 4. Provision a new PostgreSQL cluster
 bin\\anarva.exe db create --name prod-db --engine postgres --acu 2.0 --region ap-hyderabad-1`
 
-  const sampleBash = `# Build Anarva Cloud CLI locally on Linux/macOS
+  const sampleBash = `# 1. Navigate to your Anarva Cloud project directory
+cd Downloads/anarva-cloud-db
+
+# 2. Build Anarva Cloud CLI locally on Linux/macOS
 go build -o bin/anarva ./cmd/cli
 
-# Authenticate with credentials
+# 3. Authenticate with credentials
 ./bin/anarva login --token anarva_live_8f3a921b
 
-# Provision a new PostgreSQL cluster
+# 4. Provision a new PostgreSQL cluster
 ./bin/anarva db create --name prod-db --engine postgres --acu 2.0 --region ap-hyderabad-1`
 
   const sampleSdk = `import { AnarvaCloud } from '@anarva/sdk';
