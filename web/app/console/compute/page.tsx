@@ -40,7 +40,7 @@ interface VolumeItem {
 }
 
 export default function ComputeEnginePage() {
-  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
+  const [userEmail, setUserEmail] = useState('user@anarva.io')
   const [instances, setInstances] = useState<ComputeInstanceItem[]>([])
   const [selectedInstance, setSelectedInstance] = useState<ComputeInstanceItem | null>(null)
   const [activeTab, setActiveTab] = useState<string>('overview')
@@ -78,7 +78,7 @@ export default function ComputeEnginePage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const email = localStorage.getItem('anarva_user_email') || 'lokeshashapu@gmail.com'
+      const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
 
       const computeKey = `anarva_user_compute_${email}`

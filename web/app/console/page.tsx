@@ -26,14 +26,14 @@ interface ResourceItem {
 }
 
 export default function CloudConsoleHome() {
-  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
+  const [userEmail, setUserEmail] = useState('user@anarva.io')
   const [userResources, setUserResources] = useState<ResourceItem[]>([])
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
     async function loadDashboard() {
-      let email = 'lokeshashapu@gmail.com'
+      let email = 'user@anarva.io'
       if (typeof window !== 'undefined') {
         const storedEmail = localStorage.getItem('anarva_user_email')
         if (storedEmail) email = storedEmail

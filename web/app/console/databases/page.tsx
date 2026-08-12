@@ -61,12 +61,12 @@ export default function DatabasesPage() {
   const [showPassword, setShowPassword] = useState(false)
 
   // User Email & Clusters State
-  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
+  const [userEmail, setUserEmail] = useState('user@anarva.io')
   const [clusters, setClusters] = useState<DatabaseClusterItem[]>([])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const email = localStorage.getItem('anarva_user_email') || 'lokeshashapu@gmail.com'
+      const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
 
       const dbKey = `anarva_user_databases_${email}`
@@ -193,10 +193,12 @@ export default function DatabasesPage() {
     setIsExecutingSql(true)
     setTimeout(() => {
       setIsExecutingSql(false)
+      const uName = userEmail.split('@')[0]
+      const capitalized = uName.charAt(0).toUpperCase() + uName.slice(1)
       setQueryResults({
         columns: ['id', 'full_name', 'email', 'role', 'status', 'created_at'],
         rows: [
-          ['usr-87a1', 'Lokesh Ashapu', 'lokeshashapu@gmail.com', 'OWNER', 'ACTIVE', '2026-08-10 21:00:00'],
+          ['usr-active', capitalized, userEmail, 'OWNER', 'ACTIVE', '2026-08-12 20:00:00'],
         ],
         executionTimeMs: 12.4,
         rowsAffected: 1,

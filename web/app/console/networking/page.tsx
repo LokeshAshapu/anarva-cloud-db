@@ -52,7 +52,7 @@ interface DNSRecordItem {
 }
 
 export default function NetworkingPage() {
-  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
+  const [userEmail, setUserEmail] = useState('user@anarva.io')
   const [networks, setNetworks] = useState<NetworkItem[]>([])
   const [selectedNetwork, setSelectedNetwork] = useState<NetworkItem | null>(null)
   const [activeTab, setActiveTab] = useState<string>('overview')
@@ -91,7 +91,7 @@ export default function NetworkingPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const email = localStorage.getItem('anarva_user_email') || 'lokeshashapu@gmail.com'
+      const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
 
       const netKey = `anarva_user_networks_${email}`

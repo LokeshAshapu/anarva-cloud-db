@@ -52,6 +52,8 @@ export default function SignUpPage() {
           { fullName, email, passwordHash: encryptedPassword, supaId: supaData?.user?.id },
         ]
         localStorage.setItem('anarva_registered_users', JSON.stringify(updated))
+        localStorage.setItem('anarva_user_email', email)
+        localStorage.setItem('anarva_user_name', fullName)
       }
 
       await fetch(`${API_BASE_URL}/api/v1/auth/signup`, {

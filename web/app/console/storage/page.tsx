@@ -60,12 +60,12 @@ export default function StoragePage() {
   const [isUploading, setIsUploading] = useState(false)
 
   // User Email & Buckets State
-  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
+  const [userEmail, setUserEmail] = useState('user@anarva.io')
   const [buckets, setBuckets] = useState<BucketItem[]>([])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const email = localStorage.getItem('anarva_user_email') || 'lokeshashapu@gmail.com'
+      const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
 
       const bucketKey = `anarva_user_buckets_${email}`

@@ -28,33 +28,36 @@ export default function IAMPage() {
   ])
 
   useEffect(() => {
+    let email = 'user@anarva.io'
+    let name = 'Account User'
+
     if (typeof window !== 'undefined') {
-      const email = localStorage.getItem('anarva_user_email')
-      const name = localStorage.getItem('anarva_user_name')
-      if (email) setUserEmail(email)
-      if (name) setUserName(name)
+      const storedEmail = localStorage.getItem('anarva_user_email')
+      const storedName = localStorage.getItem('anarva_user_name')
+      if (storedEmail) email = storedEmail
+      if (storedName) name = storedName
     }
 
-    async function loadMembers() {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/v1/iam/members`).catch(() => null)
-        if (res && res.ok) {
-          const list = await res.json()
-          if (Array.isArray(list) && list.length > 0) {
-            setMembers(list.map((m: any) => ({
-              id: m.id,
-              name: m.userName || m.userEmail,
-              email: m.userEmail,
-              role: m.role,
-              status: m.status,
-            })))
+    try {
+      const supabase = createClient()
+      supabase.auth.getUser().then(({ data }) => {
+        if (data?.user?.email) {
+          email = data.user.email
+          localStorage.setItem('anarva_user_email', email)
+          if (data.user.user_metadata?.full_name) {
+            name = data.user.user_metadata.full_name
+            localStorage.setItem('anarva_user_name', name)
           }
+          setUserEmail(email)
+          setUserName(name)
+          setMembers([{ id: 'usr-current', name, email, role: 'OWNER', status: 'ACTIVE' }])
         }
-      } catch (e) {
-        console.log('IAM fetch notice:', e)
-      }
-    }
-    loadMembers()
+      })
+    } catch (e) {}
+
+    setUserEmail(email)
+    setUserName(name)
+    setMembers([{ id: 'usr-current', name, email, role: 'OWNER', status: 'ACTIVE' }])
   }, [])
 
   const handleInviteMember = () => {

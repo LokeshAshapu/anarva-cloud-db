@@ -26,6 +26,25 @@ interface ServiceAccountItem {
 
 export default function SecurityPage() {
   const [activeTab, setActiveTab] = useState('overview')
+  const [userEmail, setUserEmail] = useState('user@anarva.io')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const email = localStorage.getItem('anarva_user_email')
+      if (email) setUserEmail(email)
+
+      try {
+        const supabase = createClient()
+        supabase.auth.getUser().then(({ data }) => {
+          if (data?.user?.email) {
+            setUserEmail(data.user.email)
+            localStorage.setItem('anarva_user_email', data.user.email)
+          }
+        })
+      } catch (e) {}
+    }
+  }, [])
+
   const [apiKeys, setApiKeys] = useState<APIKeyItem[]>([
     {
       id: 'ak-101',
@@ -112,7 +131,7 @@ export default function SecurityPage() {
       {/* Security Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <CloudMetric label="Security Score" value="96 / 100" subtext="Grade A+ Verified" trend="PASSED" trendType="positive" />
-        <CloudMetric label="Active Sessions" value="1 Session" subtext="lokeshashapu@gmail.com" trend="SECURE" trendType="positive" />
+        <CloudMetric label="Active Sessions" value="1 Session" subtext={userEmail} trend="SECURE" trendType="positive" />
         <CloudMetric label="API Keys" value={apiKeys.length} subtext="SHA-256 Secret Masked" trend="ACTIVE" trendType="positive" />
         <CloudMetric label="MFA Enrollment" value="PLANNED" subtext="Coming Soon Feature" trend="NOTICE" trendType="neutral" />
       </div>
@@ -127,7 +146,7 @@ export default function SecurityPage() {
             <CloudCard title="Automated Security Checks & Compliance">
               <div className="space-y-3 text-xs">
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-mono flex items-center justify-between">
-                  <span>✓ Supabase Bcrypt Password Storage Active</span>
+                  <span>✓ Authenticated Account ({userEmail})</span>
                   <span className="text-[10px] font-bold">VERIFIED</span>
                 </div>
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-mono flex items-center justify-between">

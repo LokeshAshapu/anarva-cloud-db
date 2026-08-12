@@ -22,6 +22,17 @@ export default function LoginPage() {
     setError('')
 
     try {
+      const emailParts = email.split('@')[0].split('.')
+      const derivedName = emailParts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') || 'Account User'
+
+      // Helper to store session info
+      const saveUserSession = (userEmail: string, userName: string) => {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('anarva_user_email', userEmail)
+          localStorage.setItem('anarva_user_name', userName)
+        }
+      }
+
       // 1. Authenticate with Supabase Auth
       const supabase = createClient()
       const { data: supaData, error: supaError } = await supabase.auth.signInWithPassword({
@@ -31,6 +42,8 @@ export default function LoginPage() {
 
       if (supaData && supaData.session) {
         localStorage.setItem('access_token', supaData.session.access_token)
+        const fullName = supaData.user?.user_metadata?.full_name || derivedName
+        saveUserSession(email, fullName)
         router.push('/console')
         return
       }
@@ -50,6 +63,7 @@ export default function LoginPage() {
       if (res && res.ok) {
         const data = await res.json()
         localStorage.setItem('access_token', data.access_token)
+        saveUserSession(email, derivedName)
         router.push('/console')
         return
       }
@@ -68,14 +82,16 @@ export default function LoginPage() {
 
       if (match) {
         localStorage.setItem('access_token', `supa-session-${Date.now()}`)
-        router.push('/dashboard')
+        saveUserSession(match.email, match.fullName || derivedName)
+        router.push('/console')
         return
       }
 
       // Demo login fallback
       if (email.includes('@') && password.length >= 6) {
         localStorage.setItem('access_token', `supa-session-${Date.now()}`)
-        router.push('/dashboard')
+        saveUserSession(email, derivedName)
+        router.push('/console')
         return
       }
 
