@@ -24,6 +24,13 @@ const (
 	ActionComputeDeleted               EventAction = "COMPUTE_DELETED"
 	ActionVolumeCreated                EventAction = "VOLUME_CREATED"
 	ActionCommandExecuted               EventAction = "COMMAND_EXECUTED"
+	ActionNetworkCreated               EventAction = "NETWORK_CREATED"
+	ActionNetworkDeleted               EventAction = "NETWORK_DELETED"
+	ActionSubnetCreated                EventAction = "SUBNET_CREATED"
+	ActionSecurityGroupCreated         EventAction = "SECURITY_GROUP_CREATED"
+	ActionIPAllocated                  EventAction = "IP_ALLOCATED"
+	ActionDNSZoneCreated               EventAction = "DNS_ZONE_CREATED"
+	ActionLoadBalancerCreated          EventAction = "LOAD_BALANCER_CREATED"
 )
 
 type ActivityEvent struct {

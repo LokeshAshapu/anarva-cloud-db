@@ -9,6 +9,7 @@ import (
 	backupDomain "github.com/anarva-cloud/anarva-cloud-db/internal/backup/domain"
 	computeDomain "github.com/anarva-cloud/anarva-cloud-db/internal/compute/domain"
 	dbDomain "github.com/anarva-cloud/anarva-cloud-db/internal/database/domain"
+	networkDomain "github.com/anarva-cloud/anarva-cloud-db/internal/network/domain"
 	projDomain "github.com/anarva-cloud/anarva-cloud-db/internal/project/domain"
 )
 
@@ -848,5 +849,89 @@ func (m *memComputeRepo) Delete(ctx context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.instances, id)
+	return nil
+}
+
+// Mock Network Repository
+type memNetworkRepo struct {
+	mu       sync.RWMutex
+	networks map[string]*networkDomain.Network
+}
+
+func newMemNetworkRepo() networkDomain.NetworkRepository {
+	return &memNetworkRepo{networks: make(map[string]*networkDomain.Network)}
+}
+
+func (m *memNetworkRepo) Create(ctx context.Context, net *networkDomain.Network) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.networks[net.ID] = net
+	return nil
+}
+
+func (m *memNetworkRepo) GetByID(ctx context.Context, id string) (*networkDomain.Network, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if net, ok := m.networks[id]; ok {
+		return net, nil
+	}
+	return &networkDomain.Network{
+		ID:             id,
+		ResourceID:     "arnv:vpc:us-east-1:proj-default:vpc/primary-production-vpc",
+		OrganizationID: "org-default",
+		ProjectID:      "proj-default",
+		Name:           "Primary Production VPC",
+		Slug:           "primary-production-vpc",
+		RegionID:       "us-east-1",
+		CIDR:           "10.0.0.0/16",
+		IPv4CIDR:       "10.0.0.0/16",
+		Status:         networkDomain.StatusAvailable,
+		Provider:       "LOCAL_DOCKER",
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}, nil
+}
+
+func (m *memNetworkRepo) ListByProjectID(ctx context.Context, projectID string) ([]*networkDomain.Network, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var list []*networkDomain.Network
+	for _, net := range m.networks {
+		if net.ProjectID == projectID && net.DeletedAt == nil {
+			list = append(list, net)
+		}
+	}
+	if len(list) == 0 {
+		defaultNet := &networkDomain.Network{
+			ID:             "vpc-0a1b2c3d",
+			ResourceID:     "arnv:vpc:us-east-1:proj-default:vpc/primary-production-vpc",
+			OrganizationID: "org-default",
+			ProjectID:      projectID,
+			Name:           "Primary Production VPC",
+			Slug:           "primary-production-vpc",
+			RegionID:       "us-east-1",
+			CIDR:           "10.0.0.0/16",
+			IPv4CIDR:       "10.0.0.0/16",
+			Status:         networkDomain.StatusAvailable,
+			Provider:       "LOCAL_DOCKER",
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+		}
+		list = append(list, defaultNet)
+	}
+	return list, nil
+}
+
+func (m *memNetworkRepo) Update(ctx context.Context, net *networkDomain.Network) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.networks[net.ID] = net
+	return nil
+}
+
+func (m *memNetworkRepo) Delete(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.networks, id)
 	return nil
 }
