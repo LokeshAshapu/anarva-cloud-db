@@ -18,9 +18,9 @@ func TestWebhookEngine_SSRFProtectionAndHMAC(t *testing.T) {
 		t.Errorf("Expected SSRF error for 127.0.0.1, got nil")
 	}
 
-	err = domain.ValidateWebhookURL("https://webhook.site/test-event")
+	err = domain.ValidateWebhookURL("https://api.anarva.io/v1/webhooks/receive")
 	if err != nil {
-		t.Errorf("Expected valid URL for webhook.site, got error: %v", err)
+		t.Errorf("Expected valid URL for api.anarva.io, got error: %v", err)
 	}
 
 	// Test HMAC Signature Generation

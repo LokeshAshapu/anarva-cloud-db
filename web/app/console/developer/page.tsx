@@ -148,7 +148,7 @@ export default function DeveloperCenterPage() {
     setWebhooks([
       {
         id: 'whe-101',
-        url: 'https://webhook.site/anarva-events',
+        url: 'https://api.anarva.io/v1/webhooks/receive',
         description: 'Production Deployment Webhook Notification',
         status: 'ACTIVE',
         secretPrefix: 'whsec_live_9f...',
