@@ -242,8 +242,8 @@ func main() {
 
 	log.Info("Successfully registered Auth, Project, Database, Backup, and Query routes on API Gateway")
 
-	// Wrap middleware chain: CORS -> RateLimit -> Auth -> Mux
-	handler := gwMiddleware.CORSMiddleware(rateLimiter.Limit(authMiddleware.Authenticate(mux)))
+	// Wrap middleware chain: Correlation -> CORS -> RateLimit -> Auth -> Mux
+	handler := gwMiddleware.CorrelationMiddleware(gwMiddleware.CORSMiddleware(rateLimiter.Limit(authMiddleware.Authenticate(mux))))
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),

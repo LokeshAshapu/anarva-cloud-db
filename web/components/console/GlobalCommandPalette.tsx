@@ -42,6 +42,27 @@ export function GlobalCommandPalette({ isOpen, onClose }: GlobalCommandPalettePr
     { id: 'page-6', name: 'Platform Settings & Default Region', category: 'PAGES', href: '/console/settings' },
   ]
 
+  const [userItems, setUserItems] = useState<SearchItem[]>([])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const email = localStorage.getItem('anarva_user_email') || 'lokeshashapu@gmail.com'
+      
+      const userNets = JSON.parse(localStorage.getItem(`anarva_user_networks_${email}`) || '[]')
+      const userDbs = JSON.parse(localStorage.getItem(`anarva_user_databases_${email}`) || '[]')
+      const userCompute = JSON.parse(localStorage.getItem(`anarva_user_compute_${email}`) || '[]')
+      const userBuckets = JSON.parse(localStorage.getItem(`anarva_user_buckets_${email}`) || '[]')
+
+      const dynamic: SearchItem[] = [
+        ...userNets.map((n: any) => ({ id: n.id, name: `${n.name} (${n.cidr})`, category: 'RESOURCES' as const, type: 'NETWORK', region: n.regionId, href: '/console/networking' })),
+        ...userDbs.map((d: any) => ({ id: d.id, name: d.name, category: 'RESOURCES' as const, type: 'DATABASE', region: d.regionId || 'us-east-1', href: '/console/databases' })),
+        ...userCompute.map((c: any) => ({ id: c.id, name: c.name, category: 'RESOURCES' as const, type: 'COMPUTE', region: c.zone || 'us-east-1', href: '/console/compute' })),
+        ...userBuckets.map((b: any) => ({ id: b.id, name: b.name, category: 'RESOURCES' as const, type: 'STORAGE_BUCKET', region: b.regionId || 'us-east-1', href: '/console/storage' })),
+      ]
+      setUserItems(dynamic)
+    }
+  }, [isOpen])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -59,7 +80,9 @@ export function GlobalCommandPalette({ isOpen, onClose }: GlobalCommandPalettePr
 
   if (!isOpen) return null
 
-  const filteredItems = items.filter((item) => {
+  const allItems = [...userItems, ...items]
+
+  const filteredItems = allItems.filter((item) => {
     if (!query) return true
     const q = query.toLowerCase()
     return (

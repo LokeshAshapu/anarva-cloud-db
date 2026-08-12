@@ -30,8 +30,12 @@ const (
 	TypeStorageBucket ResourceType = "STORAGE_BUCKET"
 	TypeCompute       ResourceType = "COMPUTE"
 	TypeNetwork       ResourceType = "NETWORK"
+	TypeSubnet        ResourceType = "SUBNET"
+	TypeVolume        ResourceType = "VOLUME"
+	TypeLoadBalancer  ResourceType = "LOAD_BALANCER"
 	TypeBackup        ResourceType = "BACKUP"
-	TypeReplica       ResourceType = "REPLICA"
+	TypeSnapshot      ResourceType = "SNAPSHOT"
+	TypeDNSZone       ResourceType = "DNS_ZONE"
 )
 
 type Tag struct {
@@ -40,22 +44,25 @@ type Tag struct {
 }
 
 type CloudResource struct {
-	ID             string         `json:"id"`
-	ResourceID     string         `json:"resourceId"`
-	Name           string         `json:"name"`
-	Type           ResourceType   `json:"type"`
-	Status         ResourceStatus `json:"status"`
-	OrganizationID string         `json:"organizationId"`
-	ProjectID      string         `json:"projectId"`
-	Environment    string         `json:"environment"`
-	RegionID       string         `json:"regionId"`
-	OwnerID        string         `json:"ownerId"`
-	Tags           []Tag          `json:"tags"`
-	CreatedAt      time.Time      `json:"createdAt"`
-	UpdatedAt      time.Time      `json:"updatedAt"`
+	ID                 string         `json:"id"`
+	ResourceID         string         `json:"resourceId"`
+	Name               string         `json:"name"`
+	Type               ResourceType   `json:"type"`
+	Status             ResourceStatus `json:"status"`
+	OrganizationID     string         `json:"organizationId"`
+	ProjectID          string         `json:"projectId"`
+	Environment        string         `json:"environment"`
+	RegionID           string         `json:"regionId"`
+	OwnerID            string         `json:"ownerId"`
+	Provider           string         `json:"provider"`
+	ProviderResourceID string         `json:"providerResourceId,omitempty"`
+	ParentResourceID   string         `json:"parentResourceId,omitempty"`
+	Dependencies       []string       `json:"dependencies,omitempty"`
+	Tags               []Tag          `json:"tags"`
+	CreatedAt          time.Time      `json:"createdAt"`
+	UpdatedAt          time.Time      `json:"updatedAt"`
 }
 
-// Registry manages in-memory resource CRUD with tenant and project isolation safeguards
 type Registry struct {
 	mu        sync.RWMutex
 	resources map[string]*CloudResource
@@ -73,79 +80,75 @@ func (r *Registry) seedDefaultResources() {
 	now := time.Now()
 	defaults := []*CloudResource{
 		{
-			ID:             "res-db-prod-1",
-			ResourceID:     arnv.GenerateARNV("DATABASE", "ap-hyderabad-1", "proj-default", "production-db"),
-			Name:           "production-db",
-			Type:           TypeDatabase,
-			Status:         StatusAvailable,
-			OrganizationID: "org-default",
-			ProjectID:      "proj-default",
-			Environment:    "Production",
-			RegionID:       "ap-hyderabad-1",
-			OwnerID:        "usr-default",
-			Tags:           []Tag{{Key: "Environment", Value: "Production"}, {Key: "Team", Value: "Engineering"}},
-			CreatedAt:      now.Add(-48 * time.Hour),
-			UpdatedAt:      now,
+			ID:                 "res-db-prod-1",
+			ResourceID:         arnv.GenerateARNV("DATABASE", "ap-hyderabad-1", "proj-default", "production-db"),
+			Name:               "production-db",
+			Type:               TypeDatabase,
+			Status:             StatusAvailable,
+			OrganizationID:     "org-default",
+			ProjectID:          "proj-default",
+			Environment:        "Production",
+			RegionID:           "ap-hyderabad-1",
+			OwnerID:            "usr-default",
+			Provider:           "LOCAL_DOCKER",
+			ProviderResourceID: "container-db-prod-1",
+			ParentResourceID:   "res-vpc-prod-1",
+			Tags:               []Tag{{Key: "Environment", Value: "Production"}},
+			CreatedAt:          now.Add(-48 * time.Hour),
+			UpdatedAt:          now,
 		},
 		{
-			ID:             "res-db-analytics-1",
-			ResourceID:     arnv.GenerateARNV("DATABASE", "ap-mumbai-1", "proj-default", "analytics-db"),
-			Name:           "analytics-db",
-			Type:           TypeDatabase,
-			Status:         StatusAvailable,
-			OrganizationID: "org-default",
-			ProjectID:      "proj-default",
-			Environment:    "Production",
-			RegionID:       "ap-mumbai-1",
-			OwnerID:        "usr-default",
-			Tags:           []Tag{{Key: "Environment", Value: "Production"}, {Key: "Application", Value: "Analytics"}},
-			CreatedAt:      now.Add(-24 * time.Hour),
-			UpdatedAt:      now,
+			ID:                 "res-s3-assets-1",
+			ResourceID:         arnv.GenerateARNV("STORAGE_BUCKET", "ap-hyderabad-1", "proj-default", "anarva-media-assets"),
+			Name:               "anarva-media-assets",
+			Type:               TypeStorageBucket,
+			Status:             StatusAvailable,
+			OrganizationID:     "org-default",
+			ProjectID:          "proj-default",
+			Environment:        "Production",
+			RegionID:           "ap-hyderabad-1",
+			OwnerID:            "usr-default",
+			Provider:           "LOCAL_STORAGE",
+			ProviderResourceID: "bucket-media-assets",
+			Tags:               []Tag{{Key: "Access", Value: "Public-Read"}},
+			CreatedAt:          now.Add(-12 * time.Hour),
+			UpdatedAt:          now,
 		},
 		{
-			ID:             "res-s3-assets-1",
-			ResourceID:     arnv.GenerateARNV("STORAGE_BUCKET", "ap-hyderabad-1", "proj-default", "anarva-media-assets"),
-			Name:           "anarva-media-assets",
-			Type:           TypeStorageBucket,
-			Status:         StatusAvailable,
-			OrganizationID: "org-default",
-			ProjectID:      "proj-default",
-			Environment:    "Production",
-			RegionID:       "ap-hyderabad-1",
-			OwnerID:        "usr-default",
-			Tags:           []Tag{{Key: "Access", Value: "Public-Read"}},
-			CreatedAt:      now.Add(-12 * time.Hour),
-			UpdatedAt:      now,
+			ID:                 "res-ace-worker-1",
+			ResourceID:         arnv.GenerateARNV("COMPUTE", "us-east-1", "proj-default", "ace-worker-node-01"),
+			Name:               "ace-worker-node-01",
+			Type:               TypeCompute,
+			Status:             StatusAvailable,
+			OrganizationID:     "org-default",
+			ProjectID:          "proj-default",
+			Environment:        "Production",
+			RegionID:           "us-east-1",
+			OwnerID:            "usr-default",
+			Provider:           "LOCAL_DOCKER",
+			ProviderResourceID: "container-ace-worker-01",
+			ParentResourceID:   "res-vpc-prod-1",
+			Tags:               []Tag{{Key: "Role", Value: "Compute"}},
+			CreatedAt:          now.Add(-6 * time.Hour),
+			UpdatedAt:          now,
 		},
 		{
-			ID:             "res-ace-worker-1",
-			ResourceID:     arnv.GenerateARNV("COMPUTE", "ap-hyderabad-1", "proj-default", "ace-worker-node-01"),
-			Name:           "ace-worker-node-01",
-			Type:           TypeCompute,
-			Status:         StatusAvailable,
-			OrganizationID: "org-default",
-			ProjectID:      "proj-default",
-			Environment:    "Production",
-			RegionID:       "ap-hyderabad-1",
-			OwnerID:        "usr-default",
-			Tags:           []Tag{{Key: "Role", Value: "Compute"}},
-			CreatedAt:      now.Add(-6 * time.Hour),
-			UpdatedAt:      now,
-		},
-		{
-			ID:             "res-vpc-prod-1",
-			ResourceID:     arnv.GenerateARNV("NETWORK", "ap-hyderabad-1", "proj-default", "anarva-primary-vpc"),
-			Name:           "anarva-primary-vpc",
-			Type:           TypeNetwork,
-			Status:         StatusAvailable,
-			OrganizationID: "org-default",
-			ProjectID:      "proj-default",
-			Environment:    "Production",
-			RegionID:       "ap-hyderabad-1",
-			OwnerID:        "usr-default",
-			Tags:           []Tag{{Key: "Subnet", Value: "10.0.0.0/16"}},
-			CreatedAt:      now.Add(-72 * time.Hour),
-			UpdatedAt:      now,
+			ID:                 "res-vpc-prod-1",
+			ResourceID:         arnv.GenerateARNV("NETWORK", "us-east-1", "proj-default", "primary-production-vpc"),
+			Name:               "Primary Production VPC",
+			Type:               TypeNetwork,
+			Status:             StatusAvailable,
+			OrganizationID:     "org-default",
+			ProjectID:          "proj-default",
+			Environment:        "Production",
+			RegionID:           "us-east-1",
+			OwnerID:            "usr-default",
+			Provider:           "LOCAL_DOCKER",
+			ProviderResourceID: "docker-net-vpc-prod-1",
+			Dependencies:       []string{"res-db-prod-1", "res-ace-worker-1"},
+			Tags:               []Tag{{Key: "Subnet", Value: "10.0.0.0/16"}},
+			CreatedAt:          now.Add(-72 * time.Hour),
+			UpdatedAt:          now,
 		},
 	}
 
@@ -180,7 +183,6 @@ func (r *Registry) GetByID(id, orgID string) (*CloudResource, error) {
 	if !ok || res.Status == StatusDeleted {
 		return nil, fmt.Errorf("resource not found")
 	}
-	// Tenant Isolation Guard
 	if orgID != "" && res.OrganizationID != orgID {
 		return nil, fmt.Errorf("access denied: cross-tenant authorization violation")
 	}
@@ -204,7 +206,36 @@ func (r *Registry) Update(id, orgID string, updater func(*CloudResource)) (*Clou
 	return res, nil
 }
 
+func (r *Registry) CheckDependenciesBeforeDelete(id, orgID string) ([]string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	res, ok := r.resources[id]
+	if !ok || res.Status == StatusDeleted {
+		return nil, fmt.Errorf("resource not found")
+	}
+	if orgID != "" && res.OrganizationID != orgID {
+		return nil, fmt.Errorf("access denied: cross-tenant authorization violation")
+	}
+
+	var dependentIDs []string
+	for _, child := range r.resources {
+		if child.Status != StatusDeleted && child.ParentResourceID == id {
+			dependentIDs = append(dependentIDs, child.Name)
+		}
+	}
+	return dependentIDs, nil
+}
+
 func (r *Registry) SafeDelete(id, orgID string) error {
+	deps, err := r.CheckDependenciesBeforeDelete(id, orgID)
+	if err != nil {
+		return err
+	}
+	if len(deps) > 0 {
+		return fmt.Errorf("cannot delete resource '%s': %d dependent resources exist (%s)", id, len(deps), strings.Join(deps, ", "))
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -212,10 +243,6 @@ func (r *Registry) SafeDelete(id, orgID string) error {
 	if !ok {
 		return fmt.Errorf("resource not found")
 	}
-	if orgID != "" && res.OrganizationID != orgID {
-		return fmt.Errorf("access denied: cross-tenant authorization violation")
-	}
-
 	res.Status = StatusDeleted
 	res.UpdatedAt = time.Now()
 	return nil
