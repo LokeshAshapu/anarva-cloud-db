@@ -148,7 +148,7 @@ export default function DeveloperCenterPage() {
     setWebhooks([
       {
         id: 'whe-101',
-        url: 'https://api.anarva.io/v1/webhooks/receive',
+        url: 'https://anarva-cloud-db.vercel.app/api/v1/webhooks',
         description: 'Production Deployment Webhook Notification',
         status: 'ACTIVE',
         secretPrefix: 'whsec_live_9f...',

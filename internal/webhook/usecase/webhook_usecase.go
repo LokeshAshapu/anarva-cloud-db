@@ -36,7 +36,7 @@ func (uc *WebhookUseCase) seedDefaults() {
 		ID:             "whe-101",
 		OrganizationID: "org-default",
 		ProjectID:      "proj-default",
-		URL:            "https://api.anarva.io/v1/webhooks/receive",
+		URL:            "https://anarva-cloud-db.vercel.app/api/v1/webhooks",
 		Description:    "Production Deployment Webhook Notification",
 		Status:         "ACTIVE",
 		SecretPrefix:   "whsec_live_9f...",
