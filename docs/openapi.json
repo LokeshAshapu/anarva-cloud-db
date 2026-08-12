@@ -1,0 +1,73 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Anarva Cloud Developer API",
+    "version": "1.0.0",
+    "description": "Public Developer Infrastructure Control Plane REST API for Anarva Cloud."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local API Gateway Server"
+    }
+  ],
+  "paths": {
+    "/api/v1/compute/instances": {
+      "get": {
+        "summary": "List Anarva Compute Instances",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful list of compute instances",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "type": "array" },
+                    "meta": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Launch Anarva Compute Instance",
+        "responses": {
+          "201": { "description": "Compute instance launch request queued" }
+        }
+      }
+    },
+    "/api/v1/databases": {
+      "get": {
+        "summary": "List Managed PostgreSQL Databases"
+      }
+    },
+    "/api/v1/storage/buckets": {
+      "get": {
+        "summary": "List Object Storage Buckets"
+      }
+    },
+    "/api/v1/networks": {
+      "get": {
+        "summary": "List VPC Networks"
+      }
+    },
+    "/api/v1/provisioning/plan": {
+      "post": {
+        "summary": "Generate Infrastructure Provisioning Plan Preview"
+      }
+    }
+  }
+}

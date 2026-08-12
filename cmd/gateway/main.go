@@ -45,6 +45,11 @@ import (
 	provHttp "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/delivery/http"
 	provProvider "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/provider"
 	provUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/usecase"
+
+	devHttp "github.com/anarva-cloud/anarva-cloud-db/internal/developer/delivery/http"
+	devUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/developer/usecase"
+	whUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/webhook/usecase"
+
 	"github.com/anarva-cloud/anarva-cloud-db/internal/resource"
 	resourceHttp "github.com/anarva-cloud/anarva-cloud-db/internal/resource/delivery/http"
 
@@ -224,6 +229,10 @@ func main() {
 	provRegistry.RegisterProvider(dockerProv)
 	provUC := provUsecase.NewProvisioningUseCase(newMemProvisioningRepo(), nil, nil, provRegistry)
 
+	// Phase 14 Developer Platform & Webhook Engine
+	devUC := devUsecase.NewDeveloperUseCase()
+	whUC := whUsecase.NewWebhookUseCase()
+
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
@@ -235,6 +244,7 @@ func main() {
 	iamHttp.NewIAMHandler(authSvc, actStream).RegisterRoutes(mux)
 	observabilityHttp.NewObservabilityHandler(obsSvc).RegisterRoutes(mux)
 	provHttp.NewProvisioningHandler(provUC, provRegistry, actStream).RegisterRoutes(mux)
+	devHttp.NewDeveloperHandler(devUC, whUC, actStream).RegisterRoutes(mux)
 
 	// Register Query Handler
 	qh := &queryHandler{
