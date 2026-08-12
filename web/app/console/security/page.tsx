@@ -7,6 +7,7 @@ import { CloudButton } from '@/components/cloud/CloudButton'
 import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
 import { CloudModal } from '@/components/cloud/CloudModal'
 import { API_BASE_URL } from '@/lib/api'
+import { createClient } from '@/utils/supabase/client'
 
 interface APIKeyItem {
   id: string

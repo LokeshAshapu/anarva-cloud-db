@@ -6,6 +6,7 @@ import { CloudMetric } from '@/components/cloud/CloudMetric'
 import { CloudButton } from '@/components/cloud/CloudButton'
 import { CloudModal } from '@/components/cloud/CloudModal'
 import { API_BASE_URL } from '@/lib/api'
+import { createClient } from '@/utils/supabase/client'
 
 interface MemberItem {
   id: string
