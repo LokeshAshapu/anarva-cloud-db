@@ -39,32 +39,32 @@ export default function DevToolsPage() {
     loadUser()
   }, [])
 
-  const samplePowershell = `# Install Anarva Cloud CLI on Windows PowerShell
-iwr -useb https://cli.anarva.io/install.ps1 | iex
+  const samplePowershell = `# Build Anarva Cloud CLI locally on Windows PowerShell
+go build -o bin/anarva.exe ./cmd/cli
 
 # Authenticate with credentials
-anarva login --token anarva_live_8f3a921b
+.\bin\anarva.exe login --token anarva_live_8f3a921b
 
 # Provision a new PostgreSQL cluster
-anarva db create --name prod-db --engine postgres --acu 2.0 --region ap-hyderabad-1`
+.\bin\anarva.exe db create --name prod-db --engine postgres --acu 2.0 --region ap-hyderabad-1`
 
-  const sampleCmd = `rem Install Anarva Cloud CLI on Windows Command Prompt (CMD)
-powershell -Command "iwr -useb https://cli.anarva.io/install.ps1 | iex"
+  const sampleCmd = `rem Build Anarva Cloud CLI locally on Windows Command Prompt (CMD)
+go build -o bin/anarva.exe ./cmd/cli
 
 rem Authenticate with credentials
-anarva login --token anarva_live_8f3a921b
+bin\\anarva.exe login --token anarva_live_8f3a921b
 
 rem Provision a new PostgreSQL cluster
-anarva db create --name prod-db --engine postgres --acu 2.0 --region ap-hyderabad-1`
+bin\\anarva.exe db create --name prod-db --engine postgres --acu 2.0 --region ap-hyderabad-1`
 
-  const sampleBash = `# Install Anarva Cloud CLI on Linux/macOS
-curl -sSL https://cli.anarva.io/install.sh | bash
+  const sampleBash = `# Build Anarva Cloud CLI locally on Linux/macOS
+go build -o bin/anarva ./cmd/cli
 
 # Authenticate with credentials
-anarva login --token anarva_live_8f3a921b
+./bin/anarva login --token anarva_live_8f3a921b
 
 # Provision a new PostgreSQL cluster
-anarva db create --name prod-db --engine postgres --acu 2.0 --region ap-hyderabad-1`
+./bin/anarva db create --name prod-db --engine postgres --acu 2.0 --region ap-hyderabad-1`
 
   const sampleSdk = `import { AnarvaCloud } from '@anarva/sdk';
 
