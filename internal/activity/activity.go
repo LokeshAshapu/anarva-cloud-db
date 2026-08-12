@@ -31,6 +31,14 @@ const (
 	ActionIPAllocated                  EventAction = "IP_ALLOCATED"
 	ActionDNSZoneCreated               EventAction = "DNS_ZONE_CREATED"
 	ActionLoadBalancerCreated          EventAction = "LOAD_BALANCER_CREATED"
+	ActionProvisioningPlanCreated      EventAction = "PROVISIONING_PLAN_CREATED"
+	ActionProvisioningStarted          EventAction = "PROVISIONING_STARTED"
+	ActionProvisioningCompleted        EventAction = "PROVISIONING_COMPLETED"
+	ActionProvisioningFailed           EventAction = "PROVISIONING_FAILED"
+	ActionRollbackStarted              EventAction = "ROLLBACK_STARTED"
+	ActionRollbackCompleted            EventAction = "ROLLBACK_COMPLETED"
+	ActionResourceDriftDetected        EventAction = "RESOURCE_DRIFT_DETECTED"
+	ActionResourceReconciled           EventAction = "RESOURCE_RECONCILED"
 )
 
 type ActivityEvent struct {

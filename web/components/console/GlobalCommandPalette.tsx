@@ -32,14 +32,16 @@ export function GlobalCommandPalette({ isOpen, onClose }: GlobalCommandPalettePr
     { id: 'act-1', name: 'Create Database Cluster', category: 'ACTIONS', href: '/console/databases' },
     { id: 'act-2', name: 'Create Object Storage Bucket', category: 'ACTIONS', href: '/console/storage' },
     { id: 'act-3', name: 'Deploy Compute Node (ACE)', category: 'ACTIONS', href: '/console/compute' },
+    { id: 'act-4', name: 'Create Provisioning Plan Preview', category: 'ACTIONS', href: '/console/provisioning' },
 
     // Pages
     { id: 'page-1', name: 'Home Infrastructure Overview', category: 'PAGES', href: '/console' },
     { id: 'page-2', name: 'Managed Databases & SQL IDE', category: 'PAGES', href: '/console/databases' },
     { id: 'page-3', name: 'Anarva Object Storage (AOS)', category: 'PAGES', href: '/console/storage' },
     { id: 'page-4', name: 'Anarva Compute Engine (ACE)', category: 'PAGES', href: '/console/compute' },
-    { id: 'page-5', name: 'IAM & Access Control', category: 'PAGES', href: '/console/iam' },
-    { id: 'page-6', name: 'Platform Settings & Default Region', category: 'PAGES', href: '/console/settings' },
+    { id: 'page-5', name: 'Infrastructure Provisioning Center', category: 'PAGES', href: '/console/provisioning' },
+    { id: 'page-6', name: 'IAM & Access Control', category: 'PAGES', href: '/console/iam' },
+    { id: 'page-7', name: 'Platform Settings & Default Region', category: 'PAGES', href: '/console/settings' },
   ]
 
   const [userItems, setUserItems] = useState<SearchItem[]>([])

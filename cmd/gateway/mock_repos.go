@@ -11,6 +11,7 @@ import (
 	dbDomain "github.com/anarva-cloud/anarva-cloud-db/internal/database/domain"
 	networkDomain "github.com/anarva-cloud/anarva-cloud-db/internal/network/domain"
 	projDomain "github.com/anarva-cloud/anarva-cloud-db/internal/project/domain"
+	provDomain "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/domain"
 )
 
 // Mock Auth Repositories
@@ -933,5 +934,66 @@ func (m *memNetworkRepo) Delete(ctx context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.networks, id)
+	return nil
+}
+
+// Mock Provisioning Repository
+type memProvisioningRepo struct {
+	mu       sync.RWMutex
+	requests map[string]*provDomain.ProvisioningRequest
+}
+
+func newMemProvisioningRepo() provDomain.ProvisioningRepository {
+	return &memProvisioningRepo{requests: make(map[string]*provDomain.ProvisioningRequest)}
+}
+
+func (m *memProvisioningRepo) CreateRequest(ctx context.Context, req *provDomain.ProvisioningRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.requests[req.ID] = req
+	return nil
+}
+
+func (m *memProvisioningRepo) GetRequestByID(ctx context.Context, id string) (*provDomain.ProvisioningRequest, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if req, ok := m.requests[id]; ok {
+		return req, nil
+	}
+	return nil, nil
+}
+
+func (m *memProvisioningRepo) GetRequestByIdempotencyKey(ctx context.Context, key string) (*provDomain.ProvisioningRequest, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, req := range m.requests {
+		if req.IdempotencyKey == key {
+			return req, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *memProvisioningRepo) ListRequests(ctx context.Context, projectID string) ([]*provDomain.ProvisioningRequest, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var list []*provDomain.ProvisioningRequest
+	for _, req := range m.requests {
+		if projectID == "" || req.ProjectID == projectID {
+			list = append(list, req)
+		}
+	}
+	return list, nil
+}
+
+func (m *memProvisioningRepo) UpdateRequestStatus(ctx context.Context, id string, status provDomain.ProvisioningStatus, errCode, errMsg string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if req, ok := m.requests[id]; ok {
+		req.Status = status
+		req.ErrorCode = errCode
+		req.ErrorMessage = errMsg
+		req.UpdatedAt = time.Now()
+	}
 	return nil
 }

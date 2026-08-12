@@ -41,6 +41,10 @@ import (
 	observabilityHttp "github.com/anarva-cloud/anarva-cloud-db/internal/observability/delivery/http"
 	observabilityService "github.com/anarva-cloud/anarva-cloud-db/internal/observability/service"
 	storageProvider "github.com/anarva-cloud/anarva-cloud-db/internal/storage/provider"
+
+	provHttp "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/delivery/http"
+	provProvider "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/provider"
+	provUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/usecase"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/resource"
 	resourceHttp "github.com/anarva-cloud/anarva-cloud-db/internal/resource/delivery/http"
 
@@ -214,6 +218,12 @@ func main() {
 	netProv := networkProvider.NewLocalDockerNetworkProvider()
 	netUC := networkUsecase.NewNetworkUseCase(newMemNetworkRepo(), nil, nil, nil, nil, nil, netProv)
 
+	// Phase 13 Provisioning Engine & Provider Registry
+	provRegistry := provProvider.NewProviderRegistry()
+	dockerProv := provProvider.NewDockerInfrastructureProvider()
+	provRegistry.RegisterProvider(dockerProv)
+	provUC := provUsecase.NewProvisioningUseCase(newMemProvisioningRepo(), nil, nil, provRegistry)
+
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
@@ -224,6 +234,7 @@ func main() {
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
 	iamHttp.NewIAMHandler(authSvc, actStream).RegisterRoutes(mux)
 	observabilityHttp.NewObservabilityHandler(obsSvc).RegisterRoutes(mux)
+	provHttp.NewProvisioningHandler(provUC, provRegistry, actStream).RegisterRoutes(mux)
 
 	// Register Query Handler
 	qh := &queryHandler{
