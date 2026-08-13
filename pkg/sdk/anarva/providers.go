@@ -7,14 +7,14 @@ import (
 )
 
 type ProviderInfo struct {
-	ID                  string           `json:"id"`
-	Name                string           `json:"name"`
-	Type                string           `json:"type"`
-	Status              string           `json:"status"`
-	CredentialReference string           `json:"credentialReference"`
-	Capabilities        map[string]bool  `json:"capabilities"`
-	Regions             []string         `json:"regions"`
-	RealityLabel        string           `json:"realityLabel"`
+	ID                  string          `json:"id"`
+	Name                string          `json:"name"`
+	Type                string          `json:"type"`
+	Status              string          `json:"status"`
+	CredentialReference string          `json:"credentialReference"`
+	Capabilities        map[string]bool `json:"capabilities"`
+	Regions             []string        `json:"regions"`
+	RealityLabel        string          `json:"realityLabel"`
 }
 
 type ProviderResourceMapping struct {
@@ -66,7 +66,7 @@ func (s *ProvidersService) Import(ctx context.Context, provider, providerResourc
 		"resourceType":       resourceType,
 		"region":             region,
 	}
-	res, err := s.client.doRequest(ctx, "POST", "/api/v1/resources/import", body, "")
+	res, err := s.client.doRequest(ctx, "POST", "/api/v1/providers/resources/import", body, "")
 	if err != nil {
 		return nil, err
 	}

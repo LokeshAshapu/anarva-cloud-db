@@ -103,7 +103,7 @@ export default function CloudProvidersPage() {
 
   const handleImportResource = async () => {
     if (!importResId) return
-    const res = await fetch(`${API_BASE_URL}/api/v1/resources/import`, {
+    const res = await fetch(`${API_BASE_URL}/api/v1/providers/resources/import`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -123,8 +123,10 @@ export default function CloudProvidersPage() {
   }
 
   const handleAdoptResource = async (anarvaId: string) => {
-    const res = await fetch(`${API_BASE_URL}/api/v1/resources/${anarvaId}/adopt`, {
+    const res = await fetch(`${API_BASE_URL}/api/v1/providers/resources/adopt`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ anarvaResourceId: anarvaId }),
     })
       .then((r) => r.json())
       .catch(() => null)
@@ -135,8 +137,10 @@ export default function CloudProvidersPage() {
   }
 
   const handleReleaseResource = async (anarvaId: string) => {
-    await fetch(`${API_BASE_URL}/api/v1/resources/${anarvaId}/release`, {
+    await fetch(`${API_BASE_URL}/api/v1/providers/resources/release`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ anarvaResourceId: anarvaId }),
     }).catch(() => null)
 
     setImportedResources(
