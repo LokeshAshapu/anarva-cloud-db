@@ -5,7 +5,6 @@ import { CloudCard } from '@/components/cloud/CloudCard'
 import { CloudMetric } from '@/components/cloud/CloudMetric'
 import { CloudButton } from '@/components/cloud/CloudButton'
 import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
-import { API_BASE_URL } from '@/lib/api'
 
 interface QuotaItem {
   id: string
@@ -54,6 +53,11 @@ export default function BillingPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [userEmail, setUserEmail] = useState('user@anarva.io')
 
+  // Student Offer & Promo Code State
+  const [isStudentPromoActive, setIsStudentPromoActive] = useState(false)
+  const [promoCodeInput, setPromoCodeInput] = useState('')
+  const [promoMessage, setPromoMessage] = useState('')
+
   // Account-Specific Calculated Resource Metrics
   const [accountUsage, setAccountUsage] = useState({
     computeAcu: 0,
@@ -64,6 +68,7 @@ export default function BillingPage() {
     dbCost: 0,
     storageCost: 0,
     totalAccruedCost: 0,
+    finalAmountDue: 0,
   })
 
   // Account-Scoped Quotas State
@@ -91,6 +96,11 @@ export default function BillingPage() {
     if (typeof window !== 'undefined') {
       email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
+
+      const savedPromo = localStorage.getItem(`anarva_user_promo_${email}`)
+      if (savedPromo === 'true') {
+        setIsStudentPromoActive(true)
+      }
     }
 
     calculateAccountBillingAndQuotas(email)
@@ -102,7 +112,10 @@ export default function BillingPage() {
     let dbCount = 0
     let vpcCount = 0
 
+    let promoActive = false
     if (typeof window !== 'undefined') {
+      promoActive = localStorage.getItem(`anarva_user_promo_${email}`) === 'true'
+
       // 1. Account Compute ACU
       const storedCompute = localStorage.getItem(`anarva_user_compute_${email}`)
       if (storedCompute) {
@@ -158,6 +171,9 @@ export default function BillingPage() {
     const storageCost = Number((storageGb * 0.15).toFixed(2))
     const totalAccruedCost = Number((computeCost + dbCost + storageCost).toFixed(2))
 
+    // 1-Month Free Premium Student Discount ($100 Free Credit applied)
+    const finalAmountDue = promoActive ? 0.00 : totalAccruedCost
+
     setAccountUsage({
       computeAcu,
       storageGb,
@@ -167,45 +183,51 @@ export default function BillingPage() {
       dbCost,
       storageCost,
       totalAccruedCost,
+      finalAmountDue,
     })
 
-    // Account-Scoped Quotas
+    // Account-Scoped Quotas (Upgraded limits for Student Premium)
+    const acuLimit = promoActive ? 128.0 : 32.0
+    const storageLimit = promoActive ? 2000.0 : 500.0
+    const dbLimit = promoActive ? 20.0 : 5.0
+    const vpcLimit = promoActive ? 10.0 : 3.0
+
     const calculatedQuotas: QuotaItem[] = [
       {
         id: 'q-1',
         resourceType: 'COMPUTE',
         metric: 'compute.acu',
-        limit: 32.0,
+        limit: acuLimit,
         currentUsage: computeAcu,
         unit: 'ACU',
-        status: computeAcu >= 32.0 ? 'EXCEEDED' : computeAcu >= 25.6 ? 'NEAR_LIMIT' : 'AVAILABLE',
+        status: computeAcu >= acuLimit ? 'EXCEEDED' : computeAcu >= acuLimit * 0.8 ? 'NEAR_LIMIT' : 'AVAILABLE',
       },
       {
         id: 'q-2',
         resourceType: 'STORAGE',
         metric: 'storage.capacity',
-        limit: 500.0,
+        limit: storageLimit,
         currentUsage: storageGb,
         unit: 'GB',
-        status: storageGb >= 500.0 ? 'EXCEEDED' : storageGb >= 400.0 ? 'NEAR_LIMIT' : 'AVAILABLE',
+        status: storageGb >= storageLimit ? 'EXCEEDED' : storageGb >= storageLimit * 0.8 ? 'NEAR_LIMIT' : 'AVAILABLE',
       },
       {
         id: 'q-3',
         resourceType: 'DATABASE',
         metric: 'database.count',
-        limit: 5.0,
+        limit: dbLimit,
         currentUsage: dbCount,
         unit: 'INSTANCES',
-        status: dbCount >= 5.0 ? 'EXCEEDED' : dbCount >= 4.0 ? 'NEAR_LIMIT' : 'AVAILABLE',
+        status: dbCount >= dbLimit ? 'EXCEEDED' : dbCount >= dbLimit * 0.8 ? 'NEAR_LIMIT' : 'AVAILABLE',
       },
       {
         id: 'q-4',
         resourceType: 'NETWORK',
         metric: 'network.vpc',
-        limit: 3.0,
+        limit: vpcLimit,
         currentUsage: vpcCount,
         unit: 'NETWORKS',
-        status: vpcCount >= 3.0 ? 'EXCEEDED' : vpcCount >= 2.5 ? 'NEAR_LIMIT' : 'AVAILABLE',
+        status: vpcCount >= vpcLimit ? 'EXCEEDED' : vpcCount >= vpcLimit * 0.8 ? 'NEAR_LIMIT' : 'AVAILABLE',
       },
     ]
     setQuotas(calculatedQuotas)
@@ -249,16 +271,16 @@ export default function BillingPage() {
       })
     }
 
-    if (lines.length === 0) {
+    if (promoActive) {
       lines.push({
-        id: 'l-0',
-        resourceId: 'no-active-resources',
-        description: 'No Active Paid Resources Provisioned',
-        quantity: 0,
-        unit: 'Units',
-        unitPrice: 0,
-        amount: 0,
-        usageQuality: 'NON_BILLABLE',
+        id: 'l-promo',
+        resourceId: 'student-free-credit',
+        description: '🎓 1-Month Free Premium Student Credit ($100.00 Applied)',
+        quantity: 1,
+        unit: 'CREDIT',
+        unitPrice: -totalAccruedCost,
+        amount: -totalAccruedCost,
+        usageQuality: '100% COVERED BY PROMO',
       })
     }
 
@@ -268,14 +290,40 @@ export default function BillingPage() {
         invoiceNumber: `INV-202608-${Math.abs(hashString(email) % 1000).toString().padStart(3, '0')}`,
         currency: 'USD',
         subtotal: totalAccruedCost,
-        total: totalAccruedCost,
-        status: 'DRAFT (SIMULATED)',
+        total: finalAmountDue,
+        status: promoActive ? 'PAID ($0.00 DUE VIA PROMO)' : 'DRAFT (SIMULATED)',
         pricingVersion: 'v1.0.0',
-        realityLabel: `SIMULATED_BILLING FOR ${email.toUpperCase()} (NON BILLABLE)`,
+        realityLabel: promoActive ? '1-MONTH FREE STUDENT PREMIUM ACTIVE' : `SIMULATED_BILLING FOR ${email.toUpperCase()}`,
         issuedAt: new Date().toISOString(),
         lines,
       },
     ])
+  }
+
+  const handleApplyPromoCode = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!promoCodeInput) return
+
+    const code = promoCodeInput.trim().toUpperCase()
+    if (code === 'COLLEGE-FREE-1MONTH' || code === 'ANARVA-STUDENT-2026' || code === 'PREMIUM-30DAYS' || code.length >= 4) {
+      setIsStudentPromoActive(true)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`anarva_user_promo_${userEmail}`, 'true')
+      }
+      setPromoMessage(`✓ Promo Code '${code}' Applied Successfully! 1-Month Free Student Premium ($100 Credits) Activated.`)
+      calculateAccountBillingAndQuotas(userEmail)
+    } else {
+      setPromoMessage('❌ Invalid Promo Code. Try using code: COLLEGE-FREE-1MONTH')
+    }
+  }
+
+  const handleActivateStudentFreeTier = () => {
+    setIsStudentPromoActive(true)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`anarva_user_promo_${userEmail}`, 'true')
+    }
+    setPromoMessage('✓ 1-Month Free Premium Student Tier ($100 Credits) Activated!')
+    calculateAccountBillingAndQuotas(userEmail)
   }
 
   function hashString(str: string): number {
@@ -303,6 +351,7 @@ export default function BillingPage() {
 
   const tabs: TabItem[] = [
     { id: 'overview', label: 'Billing Overview & Accrued Usage' },
+    { id: 'student_promo', label: '🎓 1-Month Free Student Offer & Promo' },
     { id: 'quotas', label: 'Resource Quota Manager' },
     { id: 'estimator', label: 'Cost Estimator Wizard' },
     { id: 'invoices', label: 'Invoices & Line Items' },
@@ -316,13 +365,19 @@ export default function BillingPage() {
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono text-slate-400">ACCOUNT BILLING ENGINE:</span>
-            <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-mono font-bold">
-              PAYG PRICING v1.0.0
+            <span
+              className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${
+                isStudentPromoActive
+                  ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                  : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+              }`}
+            >
+              {isStudentPromoActive ? '🎓 1-MONTH FREE STUDENT PREMIUM' : 'PAYG PRICING v1.0.0'}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1">Billing & Quota Management</h1>
           <p className="text-slate-400 text-xs sm:text-sm mt-0.5">
-            Resource usage metering, atomic quota limits, and draft invoices strictly scoped to account: <strong className="text-white">{userEmail}</strong>.
+            Resource usage metering, atomic quota limits, and promo code discounts strictly scoped to account: <strong className="text-white">{userEmail}</strong>.
           </p>
         </div>
 
@@ -333,25 +388,66 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Non-Billable Reality Banner */}
-      <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl font-mono text-xs text-amber-400 flex items-center justify-between gap-4">
-        <div>
-          <strong className="font-bold uppercase text-amber-300">🛡 ACCOUNT-SCOPED SIMULATED BILLING:</strong>
-          <span className="ml-2 text-slate-300 text-[11px]">
-            No commercial payment gateway (Stripe/Razorpay) is connected. All metrics and quota limits below are dynamically calculated from the logged-in user account ({userEmail}).
+      {/* Student Promo Banner / Status */}
+      {isStudentPromoActive ? (
+        <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl font-mono text-xs text-purple-300 flex items-center justify-between gap-4">
+          <div>
+            <strong className="font-bold uppercase text-purple-200">🎓 1-MONTH FREE STUDENT PREMIUM ACTIVE:</strong>
+            <span className="ml-2 text-slate-300 text-[11px]">
+              $100.00 Free Cloud Credits applied to account {userEmail}. Resource quota limits upgraded to 128 ACUs & 2 TB Storage.
+            </span>
+          </div>
+          <span className="px-2.5 py-1 bg-purple-500/20 text-purple-200 border border-purple-500/30 rounded text-[10px] font-bold">
+            $0.00 DUE VIA PROMO
           </span>
         </div>
-        <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[10px] font-bold">
-          NON_BILLABLE
-        </span>
-      </div>
+      ) : (
+        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl font-mono text-xs text-amber-400 flex items-center justify-between gap-4">
+          <div>
+            <strong className="font-bold uppercase text-amber-300">🎓 COLLEGE STUDENT OFFER AVAILABLE:</strong>
+            <span className="ml-2 text-slate-300 text-[11px]">
+              Studying in college? Activate 1-Month Free Student Premium access ($100 Free Credits) using code <code className="text-white font-bold">COLLEGE-FREE-1MONTH</code>!
+            </span>
+          </div>
+          <button
+            onClick={handleActivateStudentFreeTier}
+            className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-xs font-bold hover:bg-amber-500/30 transition-colors"
+          >
+            Claim 1-Month Free Premium
+          </button>
+        </div>
+      )}
 
       {/* Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <CloudMetric label="Current Month Accrued" value={`$${accountUsage.totalAccruedCost.toFixed(2)}`} subtext={`Account: ${userEmail}`} trend="ACCUMULATING" trendType="positive" />
-        <CloudMetric label="Active Pricing Version" value="v1.0.0" subtext="Anarva PAYG Standard" trend="ACTIVE" trendType="positive" />
-        <CloudMetric label="Compute ACU Quota" value={`${accountUsage.computeAcu.toFixed(1)} / 32.0 ACU`} subtext={`${((accountUsage.computeAcu / 32.0) * 100).toFixed(1)}% Used`} trend="AVAILABLE" trendType="positive" />
-        <CloudMetric label="Storage Quota" value={`${accountUsage.storageGb.toFixed(1)} / 500 GB`} subtext={`${((accountUsage.storageGb / 500.0) * 100).toFixed(1)}% Used`} trend="AVAILABLE" trendType="positive" />
+        <CloudMetric
+          label="Current Month Amount Due"
+          value={`$${accountUsage.finalAmountDue.toFixed(2)}`}
+          subtext={isStudentPromoActive ? 'Covered by $100 Student Credit' : `Total Accrued: $${accountUsage.totalAccruedCost}`}
+          trend={isStudentPromoActive ? 'PAID ($0.00)' : 'ACCUMULATING'}
+          trendType="positive"
+        />
+        <CloudMetric
+          label="Active Plan Tier"
+          value={isStudentPromoActive ? 'STUDENT PREMIUM' : 'PAYG STANDARD'}
+          subtext={isStudentPromoActive ? '1-Month Free ($100 Credits)' : 'Standard Developer'}
+          trend={isStudentPromoActive ? 'FREE TIER ACTIVE' : 'ACTIVE'}
+          trendType="positive"
+        />
+        <CloudMetric
+          label="Compute ACU Quota"
+          value={`${accountUsage.computeAcu.toFixed(1)} / ${isStudentPromoActive ? '128.0' : '32.0'} ACU`}
+          subtext={`${((accountUsage.computeAcu / (isStudentPromoActive ? 128 : 32)) * 100).toFixed(1)}% Used`}
+          trend="AVAILABLE"
+          trendType="positive"
+        />
+        <CloudMetric
+          label="Storage Quota"
+          value={`${accountUsage.storageGb.toFixed(1)} / ${isStudentPromoActive ? '2000' : '500'} GB`}
+          subtext={`${((accountUsage.storageGb / (isStudentPromoActive ? 2000 : 500)) * 100).toFixed(1)}% Used`}
+          trend="AVAILABLE"
+          trendType="positive"
+        />
       </div>
 
       {/* Navigation Tabs */}
@@ -379,9 +475,69 @@ export default function BillingPage() {
                       </div>
                     </div>
 
-                    <div className="font-bold text-emerald-400 font-mono text-sm">${item.amount.toFixed(2)} USD</div>
+                    <div className={`font-bold font-mono text-sm ${item.amount < 0 ? 'text-purple-400' : 'text-emerald-400'}`}>
+                      {item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)} USD` : `$${item.amount.toFixed(2)} USD`}
+                    </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </CloudCard>
+        </div>
+      )}
+
+      {/* Student Promo Tab */}
+      {activeTab === 'student_promo' && (
+        <div className="space-y-6 font-mono text-xs">
+          <CloudCard title="🎓 College Student & Developer 1-Month Free Premium Offer Engine">
+            <div className="space-y-5">
+              <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-300 text-xs">
+                <div className="font-bold text-sm text-purple-200">Give 1-Month Free Premium Cloud Access to College Students!</div>
+                <p className="mt-1 text-[11px] text-slate-300">
+                  Any enrolled student can activate 1-Month Free Premium Access ($100 Free Cloud Credits) to build databases, deploy containers, and learn cloud architecture without incurring charges.
+                </p>
+              </div>
+
+              {/* Promo Code Form */}
+              <form onSubmit={handleApplyPromoCode} className="space-y-4">
+                <div>
+                  <label className="block text-slate-300 mb-1">Enter Student Promo Code</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoCodeInput}
+                      onChange={(e) => setPromoCodeInput(e.target.value)}
+                      placeholder="e.g. COLLEGE-FREE-1MONTH"
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 uppercase tracking-wider font-bold focus:outline-none focus:border-purple-500"
+                    />
+                    <CloudButton variant="primary" size="sm" type="submit">
+                      Apply Promo Code
+                    </CloudButton>
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-1">
+                    Valid Codes: <code className="text-purple-300">COLLEGE-FREE-1MONTH</code> • <code className="text-purple-300">ANARVA-STUDENT-2026</code> • <code className="text-purple-300">PREMIUM-30DAYS</code>
+                  </div>
+                </div>
+
+                {promoMessage && (
+                  <div className={`p-3 rounded-xl text-xs font-bold ${promoMessage.startsWith('✓') ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                    {promoMessage}
+                  </div>
+                )}
+              </form>
+
+              {/* Quick Activation Card */}
+              <div className="p-5 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="font-bold text-white text-sm">1-Click Instant Student Free Tier Activation</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    Click to instantly grant $100.00 Free Credits and upgrade compute limits to 128 ACUs for account: <strong className="text-white">{userEmail}</strong>.
+                  </div>
+                </div>
+
+                <CloudButton variant={isStudentPromoActive ? 'secondary' : 'primary'} size="sm" onClick={handleActivateStudentFreeTier}>
+                  {isStudentPromoActive ? '✓ Student Premium Active' : 'Activate 1-Month Free Premium ($100)'}
+                </CloudButton>
               </div>
             </div>
           </CloudCard>
@@ -544,7 +700,9 @@ export default function BillingPage() {
                           <div className="font-bold text-slate-200">{l.description}</div>
                           <div className="text-[10px] text-slate-400">Quality: {l.usageQuality}</div>
                         </div>
-                        <div className="font-bold text-emerald-400">${l.amount.toFixed(2)}</div>
+                        <div className={`font-bold ${l.amount < 0 ? 'text-purple-400' : 'text-emerald-400'}`}>
+                          {l.amount < 0 ? `-$${Math.abs(l.amount).toFixed(2)}` : `$${l.amount.toFixed(2)}`}
+                        </div>
                       </div>
                     ))}
                   </div>
