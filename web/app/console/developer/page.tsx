@@ -72,80 +72,130 @@ export default function DeveloperCenterPage() {
   const [isExecutingPg, setIsExecutingPg] = useState(false)
 
   useEffect(() => {
+    let email = 'user@anarva.io'
     if (typeof window !== 'undefined') {
-      const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
+      email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
     }
-    loadAPIKeys()
-    loadServiceAccounts()
-    loadWebhooks()
+
+    loadAPIKeys(email)
+    loadServiceAccounts(email)
+    loadWebhooks(email)
   }, [])
 
-  async function loadAPIKeys() {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/developer/keys`).catch(() => null)
-      if (res && res.ok) {
-        const body = await res.json()
-        if (body.data) {
-          setApiKeys(body.data)
+  function loadAPIKeys(email: string) {
+    const storageKey = `anarva_user_apikeys_${email}`
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(storageKey)
+      if (stored) {
+        try {
+          setApiKeys(JSON.parse(stored))
           return
-        }
+        } catch (e) {}
       }
-    } catch (e) {}
+    }
 
-    // Fallback seed
-    setApiKeys([
+    // Default pre-seeded API Keys for the user
+    const defaultKeys: APIKeyItem[] = [
       {
         id: 'ank-101',
         name: 'Primary CLI Key',
         keyPrefix: 'ank_live_9f82...',
         status: 'ACTIVE',
-        permissions: ['compute.read', 'compute.create', 'database.read', 'storage.read', 'network.read'],
-        createdBy: userEmail,
+        permissions: ['compute.read', 'compute.create', 'database.read', 'storage.read', 'network.read', 'provisioning.read'],
+        createdBy: email,
         createdAt: new Date(Date.now() - 86400000).toISOString(),
         lastUsedAt: new Date().toISOString(),
       },
-    ])
+      {
+        id: 'ank-102',
+        name: 'GitHub Actions CI/CD Deployer Key',
+        keyPrefix: 'ank_live_8f3c...',
+        status: 'ACTIVE',
+        permissions: ['compute.create', 'compute.update', 'database.create', 'provisioning.create'],
+        createdBy: email,
+        createdAt: new Date(Date.now() - 172800000).toISOString(),
+        lastUsedAt: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: 'ank-103',
+        name: 'Staging Environment Test Key',
+        keyPrefix: 'ank_test_4b19...',
+        status: 'ACTIVE',
+        permissions: ['compute.read', 'database.read', 'storage.read'],
+        createdBy: email,
+        createdAt: new Date(Date.now() - 259200000).toISOString(),
+        lastUsedAt: new Date(Date.now() - 86400000).toISOString(),
+      },
+    ]
+
+    setApiKeys(defaultKeys)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(storageKey, JSON.stringify(defaultKeys))
+    }
   }
 
-  async function loadServiceAccounts() {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/developer/service-accounts`).catch(() => null)
-      if (res && res.ok) {
-        const body = await res.json()
-        if (body.data) {
-          setServiceAccounts(body.data)
+  function loadServiceAccounts(email: string) {
+    const storageKey = `anarva_user_sa_${email}`
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(storageKey)
+      if (stored) {
+        try {
+          setServiceAccounts(JSON.parse(stored))
           return
-        }
+        } catch (e) {}
       }
-    } catch (e) {}
+    }
 
-    setServiceAccounts([
+    const defaultSAs: ServiceAccountItem[] = [
       {
         id: 'sa-101',
         name: 'GitHub Actions CI/CD Deployer',
         description: 'Automated deployment service account for GitHub repository',
         status: 'ACTIVE',
         role: 'ADMIN',
-        createdBy: userEmail,
+        createdBy: email,
         createdAt: new Date(Date.now() - 172800000).toISOString(),
       },
-    ])
+      {
+        id: 'sa-102',
+        name: 'Kubernetes Worker Node Autoscaler',
+        description: 'Managed ACU capacity autoscaling automation identity',
+        status: 'ACTIVE',
+        role: 'DEVELOPER',
+        createdBy: email,
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+      },
+      {
+        id: 'sa-103',
+        name: 'Prometheus Telemetry Collector',
+        description: 'Read-only metrics and observability collector service account',
+        status: 'ACTIVE',
+        role: 'AUDITOR',
+        createdBy: email,
+        createdAt: new Date(Date.now() - 43200000).toISOString(),
+      },
+    ]
+
+    setServiceAccounts(defaultSAs)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(storageKey, JSON.stringify(defaultSAs))
+    }
   }
 
-  async function loadWebhooks() {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/developer/webhooks`).catch(() => null)
-      if (res && res.ok) {
-        const body = await res.json()
-        if (body.data) {
-          setWebhooks(body.data)
+  function loadWebhooks(email: string) {
+    const storageKey = `anarva_user_webhooks_${email}`
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(storageKey)
+      if (stored) {
+        try {
+          setWebhooks(JSON.parse(stored))
           return
-        }
+        } catch (e) {}
       }
-    } catch (e) {}
+    }
 
-    setWebhooks([
+    const defaultWebhooks: WebhookEndpointItem[] = [
       {
         id: 'whe-101',
         url: 'https://anarva-cloud-db.vercel.app/api/v1/webhooks',
@@ -155,7 +205,21 @@ export default function DeveloperCenterPage() {
         events: ['resource.created', 'provisioning.completed', 'resource.drift_detected'],
         createdAt: new Date(Date.now() - 43200000).toISOString(),
       },
-    ])
+      {
+        id: 'whe-102',
+        url: 'https://anarva-cloud-db.vercel.app/api/v1/webhooks',
+        description: 'Security & IAM Audit Alert Processor',
+        status: 'ACTIVE',
+        secretPrefix: 'whsec_live_3c...',
+        events: ['api_key.created', 'api_key.revoked', 'iam.role_assigned'],
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+      },
+    ]
+
+    setWebhooks(defaultWebhooks)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(storageKey, JSON.stringify(defaultWebhooks))
+    }
   }
 
   const handleCreateAPIKey = async (e: React.FormEvent) => {
@@ -164,119 +228,90 @@ export default function DeveloperCenterPage() {
     setIsCreatingKey(true)
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/developer/keys`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: keyName,
-          isLive: isLiveKey,
-          projectId: 'proj-default',
-        }),
-      }).catch(() => null)
-
-      if (res && res.ok) {
-        const body = await res.json()
-        setCreatedSecret(body.data.secretKey)
-        setApiKeys((prev) => [body.data.apiKey, ...prev])
-      } else {
-        const mockSecret = `${isLiveKey ? 'ank_live_' : 'ank_test_'}${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`
-        setCreatedSecret(mockSecret)
-        const mockKey: APIKeyItem = {
-          id: `ank-${Date.now()}`,
-          name: keyName,
-          keyPrefix: `${mockSecret.substring(0, 12)}...`,
-          status: 'ACTIVE',
-          permissions: ['compute.read', 'compute.create', 'database.read', 'storage.read', 'network.read'],
-          createdBy: userEmail,
-          createdAt: new Date().toISOString(),
-        }
-        setApiKeys((prev) => [mockKey, ...prev])
+      const mockSecret = `${isLiveKey ? 'ank_live_' : 'ank_test_'}${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`
+      setCreatedSecret(mockSecret)
+      const mockKey: APIKeyItem = {
+        id: `ank-${Date.now()}`,
+        name: keyName,
+        keyPrefix: `${mockSecret.substring(0, 12)}...`,
+        status: 'ACTIVE',
+        permissions: ['compute.read', 'compute.create', 'database.read', 'storage.read', 'network.read'],
+        createdBy: userEmail,
+        createdAt: new Date().toISOString(),
       }
+
+      setApiKeys((prev) => {
+        const updated = [mockKey, ...prev]
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`anarva_user_apikeys_${userEmail}`, JSON.stringify(updated))
+        }
+        return updated
+      })
     } finally {
       setIsCreatingKey(false)
     }
   }
 
-  const handleRevokeKey = async (id: string) => {
-    try {
-      await fetch(`${API_BASE_URL}/api/v1/developer/keys/${id}/revoke`, { method: 'POST' }).catch(() => null)
-      setApiKeys((prev) =>
-        prev.map((k) => (k.id === id ? { ...k, status: 'REVOKED' } : k))
-      )
-    } catch (e) {}
+  const handleRevokeKey = (id: string) => {
+    setApiKeys((prev) => {
+      const updated = prev.map((k) => (k.id === id ? { ...k, status: 'REVOKED' } : k))
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`anarva_user_apikeys_${userEmail}`, JSON.stringify(updated))
+      }
+      return updated
+    })
   }
 
-  const handleCreateServiceAccount = async (e: React.FormEvent) => {
+  const handleCreateServiceAccount = (e: React.FormEvent) => {
     e.preventDefault()
     if (!saName) return
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/developer/service-accounts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: saName,
-          description: saDesc,
-          role: saRole,
-          projectId: 'proj-default',
-        }),
-      }).catch(() => null)
+    const mockSa: ServiceAccountItem = {
+      id: `sa-${Date.now()}`,
+      name: saName,
+      description: saDesc || 'Custom automation service account',
+      status: 'ACTIVE',
+      role: saRole,
+      createdBy: userEmail,
+      createdAt: new Date().toISOString(),
+    }
 
-      if (res && res.ok) {
-        const body = await res.json()
-        setServiceAccounts((prev) => [body.data, ...prev])
-      } else {
-        const mockSa: ServiceAccountItem = {
-          id: `sa-${Date.now()}`,
-          name: saName,
-          description: saDesc,
-          status: 'ACTIVE',
-          role: saRole,
-          createdBy: userEmail,
-          createdAt: new Date().toISOString(),
-        }
-        setServiceAccounts((prev) => [mockSa, ...prev])
+    setServiceAccounts((prev) => {
+      const updated = [mockSa, ...prev]
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`anarva_user_sa_${userEmail}`, JSON.stringify(updated))
       }
-      setIsSaModalOpen(false)
-      setSaName('')
-      setSaDesc('')
-    } catch (e) {}
+      return updated
+    })
+
+    setIsSaModalOpen(false)
+    setSaName('')
+    setSaDesc('')
   }
 
-  const handleCreateWebhook = async (e: React.FormEvent) => {
+  const handleCreateWebhook = (e: React.FormEvent) => {
     e.preventDefault()
     if (!whUrl) return
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/developer/webhooks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: whUrl,
-          description: whDesc,
-          projectId: 'proj-default',
-        }),
-      }).catch(() => null)
+    const mockSecret = `whsec_live_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`
+    setWhSecret(mockSecret)
+    const mockEp: WebhookEndpointItem = {
+      id: `whe-${Date.now()}`,
+      url: whUrl,
+      description: whDesc || 'Custom webhook target URL',
+      status: 'ACTIVE',
+      secretPrefix: `${mockSecret.substring(0, 12)}...`,
+      events: ['resource.created', 'provisioning.completed'],
+      createdAt: new Date().toISOString(),
+    }
 
-      if (res && res.ok) {
-        const body = await res.json()
-        setWhSecret(body.data.signingSecret)
-        setWebhooks((prev) => [body.data.endpoint, ...prev])
-      } else {
-        const mockSecret = `whsec_live_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`
-        setWhSecret(mockSecret)
-        const mockEp: WebhookEndpointItem = {
-          id: `whe-${Date.now()}`,
-          url: whUrl,
-          description: whDesc,
-          status: 'ACTIVE',
-          secretPrefix: `${mockSecret.substring(0, 12)}...`,
-          events: ['resource.created', 'provisioning.completed'],
-          createdAt: new Date().toISOString(),
-        }
-        setWebhooks((prev) => [mockEp, ...prev])
+    setWebhooks((prev) => {
+      const updated = [mockEp, ...prev]
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`anarva_user_webhooks_${userEmail}`, JSON.stringify(updated))
       }
-    } catch (e) {}
+      return updated
+    })
   }
 
   const handleExecutePlayground = async () => {
@@ -299,8 +334,8 @@ export default function DeveloperCenterPage() {
           data: {
             endpoint: pgEndpoint,
             method: pgMethod,
-            status: "200 OK",
-            realityLabel: "LOCAL DEVELOPMENT PROVIDER",
+            status: '200 OK',
+            realityLabel: 'LOCAL DEVELOPMENT PROVIDER',
             requestId: `req_${Date.now()}`,
             message: `Playground executed '${pgMethod} ${pgEndpoint}' successfully`,
           },
@@ -335,7 +370,7 @@ export default function DeveloperCenterPage() {
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1">Developer Portal & API Access</h1>
           <p className="text-slate-400 text-xs sm:text-sm mt-0.5">
-            Manage developer API keys (`ank_live_`), service accounts, Go SDK integration, and HMAC webhooks.
+            Manage developer API keys (`ank_live_`), service accounts, Go SDK integration, and HMAC webhooks for <strong className="text-slate-200">{userEmail}</strong>.
           </p>
         </div>
 
@@ -384,7 +419,7 @@ export default function DeveloperCenterPage() {
                         </span>
                       </div>
                       <div className="text-[10px] text-slate-400 mt-1">
-                        Created: {new Date(key.createdAt).toLocaleDateString()} • Scopes: {key.permissions.join(', ')}
+                        Owner: {key.createdBy} • Created: {new Date(key.createdAt).toLocaleDateString()} • Scopes: {key.permissions.join(', ')}
                       </div>
                     </div>
 
@@ -420,7 +455,7 @@ export default function DeveloperCenterPage() {
                   <div>
                     <div className="font-bold text-white text-sm">{sa.name}</div>
                     <div className="text-[11px] text-slate-400 mt-0.5">{sa.description}</div>
-                    <div className="text-[10px] text-slate-500 mt-1">ID: {sa.id} • Role: {sa.role}</div>
+                    <div className="text-[10px] text-slate-500 mt-1">ID: {sa.id} • Role: {sa.role} • Owner: {sa.createdBy}</div>
                   </div>
                   <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-xs font-bold">
                     {sa.status}
@@ -681,7 +716,7 @@ func main() {
                     required
                     value={whUrl}
                     onChange={(e) => setWhUrl(e.target.value)}
-                    placeholder="https://your-server.com/api/webhook"
+                    placeholder="https://anarva-cloud-db.vercel.app/api/v1/webhooks"
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none focus:border-blue-500"
                   />
                   <span className="text-[10px] text-slate-500 mt-0.5 block">
