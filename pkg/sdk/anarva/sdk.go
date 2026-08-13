@@ -20,6 +20,7 @@ type Client struct {
 	Databases    *PostgresService
 	Storage      *StorageService
 	Network      *NetworkService
+	Networks     *NetworksService
 	Provisioning *ProvisioningService
 	Projects     *ProjectsService
 	Providers    *ProvidersService
@@ -55,6 +56,7 @@ func NewClient(apiKey string, baseURLs ...string) *Client {
 	c.Databases = &PostgresService{client: c}
 	c.Storage = &StorageService{client: c}
 	c.Network = &NetworkService{client: c}
+	c.Networks = &NetworksService{client: c}
 	c.Provisioning = &ProvisioningService{client: c}
 	c.Projects = &ProjectsService{client: c}
 	c.Providers = &ProvidersService{client: c}

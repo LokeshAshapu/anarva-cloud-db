@@ -1,46 +1,36 @@
-# ANARVA CLOUD — NETWORKING ARCHITECTURE & VPC SPECIFICATION
+# Anarva Cloud Networking Architecture (Phase 18)
 
 ## Overview
-Phase 11 introduces the **Anarva Cloud Networking Platform**, providing software-defined Virtual Private Clouds (VPCs), CIDR address management (IPAM), Subnet isolation (`PUBLIC`, `PRIVATE`), Route Tables, Internet Gateways, Security Groups, Private DNS, and Load Balancers.
+Anarva Cloud Phase 18 introduces a provider-neutral **Virtual Private Cloud (VPC), Networking, Security Group, IPAM, DNS, and SSRF-Protected Connectivity Platform** under `internal/networking/...`. It extends Phase 11 networking capabilities with strict tenant isolation, CIDR overlap detection, database port security validation, and state reconciliation.
 
 ---
 
-## Architecture & Provider Layers
-
-```
-                      Public Internet
-                             │
-                      Internet Gateway
-                             │
-                      ANARVA VPC (10.0.0.0/16)
-                             │
-      ┌──────────────────────┴──────────────────────┐
-      │                                             │
-Public Subnet (10.0.1.0/24)             Private Subnet (10.0.2.0/24)
-  - Application Load Balancer             - PostgreSQL Database (10.0.2.14)
-  - ACE Compute Instances                 - Private DNS (db.anarva.internal)
-```
-
-### Feature Implementation Matrix
-
-| Component | Status | Implementation Details |
-| :--- | :--- | :--- |
-| **VPC Control Plane** | REAL | Software-defined VPC network lifecycle management |
-| **CIDR Validation** | REAL | Strict IPv4 CIDR math (`net.ParseCIDR`) and subnet containment checks |
-| **IPAM Manager** | REAL | Private / Public IP address allocation and tracking |
-| **Local Docker Driver** | LOCAL DEVELOPMENT | Docker bridge network creation (`docker network create`) when daemon is present |
-| **Security Groups** | REAL | Strict backend port and protocol ingress/egress firewall evaluation |
-| **Private DNS** | REAL | Internal service discovery hostnames (`*.anarva.internal`) |
-| **Load Balancers** | REAL | Application and Network Load Balancers targeting Compute & Container IP endpoints |
+## Core Domain Models (`internal/networking/domain/domain.go`)
+- **`VirtualNetwork`**: Multi-tenant virtual private cloud metadata including CIDR, region, DNS resolution flags, and reality labels (`LOCAL_NETWORK (LIMITED_CAPABILITIES)`).
+- **`Subnet`**: Subnet partitioning with explicit types (`PUBLIC`, `PRIVATE`, `ISOLATED`). Private subnets block direct inbound internet routing.
+- **`RouteTable` & `Route`**: Destination CIDR targets (`LOCAL`, `INTERNET_GATEWAY`, `NAT_GATEWAY`, `NETWORK_INTERFACE`, `PEERING`).
+- **`SecurityGroup` & `SecurityRule`**: Stateful firewall policies with default `DENY` inbound and `ALLOW` outbound rules.
+- **`NetworkInterface`**: Virtual network interfaces bound to Compute ACUs, PostgreSQL instances, and Load Balancers.
+- **`ConnectivityTest`**: Real-time reachability and latency probe with **SSRF Protection**.
+- **`DNSZone` & `DNSRecord`**: Private and Public DNS zone resolution supporting `A`, `AAAA`, `CNAME`, `TXT`, `MX`, `NS`.
 
 ---
 
-## API Endpoints
+## Security & Protection Architecture
 
-- `GET /api/v1/networks`: List VPC networks
-- `POST /api/v1/networks`: Create new VPC network with CIDR block
-- `GET /api/v1/networks/:id`: Inspect VPC details
-- `DELETE /api/v1/networks/:id`: Delete VPC network
-- `POST /api/v1/networks/:id/subnets`: Add Public/Private Subnet
-- `GET /api/v1/networks/:id/dns`: Retrieve Private DNS zones & records
-- `POST /api/v1/networks/:id/load-balancers`: Provision Application Load Balancer
+### 1. Database Port 5432 Inbound Protection
+- PostgreSQL instances default to `PRIVATE` network attachment.
+- Security group rule validation rejects ingress rules allowing `0.0.0.0/0` on port `5432` unless explicitly authorized by platform administrators.
+
+### 2. SSRF Protection Engine (`internal/networking/connectivity/connectivity_service.go`)
+- Connectivity testing enforces strict SSRF filters blocking:
+  - Cloud provider metadata endpoints (`169.254.169.254`, `169.254.169.253`, link-local ranges `169.254.0.0/16`).
+  - Local loopback control plane addresses (`127.0.0.1`, `localhost`, `::1`).
+  - Cross-tenant network boundaries.
+
+---
+
+## Provider Reality Labels
+- **Local Network**: `LOCAL_NETWORK (LIMITED_CAPABILITIES)`
+- **Cloud Provider**: `PROVIDER_NETWORK_CONNECTED`
+- **Unconfigured**: `PROVIDER_NETWORK_NOT_CONFIGURED`

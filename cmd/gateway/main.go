@@ -48,6 +48,15 @@ import (
 	postgresService "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/service"
 	storageProvider "github.com/anarva-cloud/anarva-cloud-db/internal/storage/provider"
 
+	networkingConn "github.com/anarva-cloud/anarva-cloud-db/internal/networking/connectivity"
+	networkingDns "github.com/anarva-cloud/anarva-cloud-db/internal/networking/dns"
+	networkingFw "github.com/anarva-cloud/anarva-cloud-db/internal/networking/firewall"
+	networkingHandler "github.com/anarva-cloud/anarva-cloud-db/internal/networking/handler"
+	networkingIpam "github.com/anarva-cloud/anarva-cloud-db/internal/networking/ipam"
+	networkingProvider "github.com/anarva-cloud/anarva-cloud-db/internal/networking/provider"
+	networkingRepo "github.com/anarva-cloud/anarva-cloud-db/internal/networking/repository"
+	networkingService "github.com/anarva-cloud/anarva-cloud-db/internal/networking/service"
+
 	provHttp "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/delivery/http"
 	provProvider "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/provider"
 	provUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/usecase"
@@ -246,11 +255,22 @@ func main() {
 	pgService := postgresService.NewPostgresService(pgProvider)
 	sqlService := postgresService.NewSQLService()
 
+	// Phase 18 VPC / Networking / Security / DNS Platform
+	vNetRepo := networkingRepo.NewNetworkingRepository()
+	vNetProv := networkingProvider.NewLocalDockerNetworkProvider()
+	vNetIpam := networkingIpam.NewIPAMService()
+	vNetFw := networkingFw.NewFirewallService()
+	vNetDnsProv := networkingDns.NewLocalDNSProvider()
+	vNetConn := networkingConn.NewConnectivityService()
+	vNetSvc := networkingService.NewNetworkingService(vNetRepo, vNetProv, vNetIpam, vNetFw, vNetDnsProv, vNetConn, actStream)
+	vNetHandler := networkingHandler.NewNetworkingHandler(vNetSvc)
+
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
 	databaseHttp.NewDatabaseHandler(dUC).RegisterRoutes(mux)
 	postgresHandler.NewPostgresHandler(pgService, sqlService).RegisterRoutes(mux)
+	vNetHandler.RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bakProv, actStream).RegisterRoutes(mux)
 	computeHttp.NewComputeHandler(compUC, actStream).RegisterRoutes(mux)
 	networkHttp.NewNetworkHandler(netUC, actStream).RegisterRoutes(mux)

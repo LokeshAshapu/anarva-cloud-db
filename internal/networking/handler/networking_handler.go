@@ -1,0 +1,181 @@
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+	"strings"
+
+	"github.com/anarva-cloud/anarva-cloud-db/internal/networking/domain"
+	"github.com/anarva-cloud/anarva-cloud-db/internal/networking/service"
+)
+
+type NetworkingHandler struct {
+	svc *service.NetworkingService
+}
+
+func NewNetworkingHandler(svc *service.NetworkingService) *NetworkingHandler {
+	return &NetworkingHandler{svc: svc}
+}
+
+func (h *NetworkingHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/v1/networks", h.handleNetworks)
+	mux.HandleFunc("/api/v1/networks/", h.handleNetworkSubroutes)
+	mux.HandleFunc("/api/v1/security-groups", h.handleSecurityGroups)
+	mux.HandleFunc("/api/v1/security-groups/", h.handleSecurityGroupSubroutes)
+	mux.HandleFunc("/api/v1/network/connectivity-tests", h.handleConnectivityTests)
+}
+
+func (h *NetworkingHandler) handleNetworks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		orgID := r.URL.Query().Get("organizationId")
+		projectID := r.URL.Query().Get("projectId")
+		nets, err := h.svc.ListNetworks(r.Context(), orgID, projectID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": nets,
+			"meta": map[string]interface{}{"count": len(nets)},
+		})
+
+	case http.MethodPost:
+		var req struct {
+			OrganizationID string `json:"organizationId"`
+			ProjectID      string `json:"projectId"`
+			Name           string `json:"name"`
+			RegionID       string `json:"regionId"`
+			CIDR           string `json:"cidr"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		vNet, err := h.svc.CreateNetwork(r.Context(), req.OrganizationID, req.ProjectID, req.Name, req.RegionID, req.CIDR)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{"data": vNet})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *NetworkingHandler) handleNetworkSubroutes(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/networks/")
+	parts := strings.Split(path, "/")
+
+	if len(parts) == 0 || parts[0] == "" {
+		http.Error(w, "Invalid network ID", http.StatusBadRequest)
+		return
+	}
+
+	netID := parts[0]
+	action := ""
+	if len(parts) > 1 {
+		action = parts[1]
+	}
+
+	switch action {
+	case "":
+		if r.Method == http.MethodGet {
+			vNet, err := h.svc.GetNetwork(r.Context(), netID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"data": vNet})
+		} else if r.Method == http.MethodDelete {
+			if err := h.svc.DeleteNetwork(r.Context(), netID); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"status": "DELETED", "id": netID})
+		}
+
+	default:
+		http.Error(w, "Subroute not found", http.StatusNotFound)
+	}
+}
+
+func (h *NetworkingHandler) handleSecurityGroups(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == http.MethodPost {
+		var req struct {
+			NetworkID   string `json:"networkId"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		sg, err := h.svc.CreateSecurityGroup(r.Context(), req.NetworkID, req.Name, req.Description)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{"data": sg})
+	}
+}
+
+func (h *NetworkingHandler) handleSecurityGroupSubroutes(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/security-groups/")
+	parts := strings.Split(path, "/")
+
+	if len(parts) > 1 && parts[1] == "rules" && r.Method == http.MethodPost {
+		sgID := parts[0]
+		var rule domain.SecurityRule
+		if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		sg, err := h.svc.AddSecurityRule(r.Context(), sgID, rule)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"data": sg})
+	}
+}
+
+func (h *NetworkingHandler) handleConnectivityTests(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == http.MethodPost {
+		var req struct {
+			Source      string `json:"source"`
+			Destination string `json:"destination"`
+			Port        int    `json:"port"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if req.Port == 0 {
+			req.Port = 80
+		}
+
+		res, err := h.svc.TestConnectivity(r.Context(), req.Source, req.Destination, req.Port)
+		if err != nil {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error(), "data": res})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"data": res})
+	}
+}
