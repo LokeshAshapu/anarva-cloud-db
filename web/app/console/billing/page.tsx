@@ -56,7 +56,7 @@ export default function BillingPage() {
 
   // Student Offer & Promo Code State
   const [isStudentPromoActive, setIsStudentPromoActive] = useState(false)
-  const [cooldownInfo, setCooldownInfo] = useState<{ isCoolingDown: boolean; daysRemaining: number; unlockDate: string } | null>(null)
+  const [hasAlreadyClaimedPromo, setHasAlreadyClaimedPromo] = useState(false)
   const [promoCodeInput, setPromoCodeInput] = useState('')
   const [promoMessage, setPromoMessage] = useState('')
   const [isPromoModalOpen, setIsPromoModalOpen] = useState(false)
@@ -107,35 +107,12 @@ export default function BillingPage() {
         setIsStudentPromoActive(true)
       }
 
-      checkCooldown(email)
+      const claimed = localStorage.getItem(`anarva_user_promo_claimed_${email}`) === 'true'
+      setHasAlreadyClaimedPromo(claimed)
     }
 
     calculateAccountBillingAndQuotas(email)
   }, [])
-
-  function checkCooldown(email: string) {
-    if (typeof window === 'undefined') return
-    const deactivatedStr = localStorage.getItem(`anarva_user_promo_deactivated_${email}`)
-    if (deactivatedStr) {
-      const deactivatedAt = Number(deactivatedStr)
-      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
-      const timeElapsed = Date.now() - deactivatedAt
-
-      if (timeElapsed < thirtyDaysMs) {
-        const daysRemaining = Math.ceil((thirtyDaysMs - timeElapsed) / (24 * 60 * 60 * 1000))
-        const unlockDate = new Date(deactivatedAt + thirtyDaysMs).toLocaleDateString()
-        setCooldownInfo({
-          isCoolingDown: true,
-          daysRemaining,
-          unlockDate,
-        })
-      } else {
-        setCooldownInfo(null)
-      }
-    } else {
-      setCooldownInfo(null)
-    }
-  }
 
   function calculateAccountBillingAndQuotas(email: string) {
     let computeAcu = 0
@@ -337,35 +314,26 @@ export default function BillingPage() {
       return { success: false, msg: 'Please enter a promo code.' }
     }
 
-    // Check 30-Day Cooldown Enforcement
+    // STRICT ONE PROMO PER ACCOUNT LIFETIME ENFORCEMENT
     if (typeof window !== 'undefined') {
-      const deactivatedStr = localStorage.getItem(`anarva_user_promo_deactivated_${userEmail}`)
-      if (deactivatedStr) {
-        const deactivatedAt = Number(deactivatedStr)
-        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
-        const timeElapsed = Date.now() - deactivatedAt
-
-        if (timeElapsed < thirtyDaysMs) {
-          const daysRemaining = Math.ceil((thirtyDaysMs - timeElapsed) / (24 * 60 * 60 * 1000))
-          const unlockDate = new Date(deactivatedAt + thirtyDaysMs).toLocaleDateString()
-
-          return {
-            success: false,
-            msg: `⏳ 30-DAY PROMO COOLDOWN ENFORCED: 1-Month Free Student offer can only be claimed once every 30 days per account. You can reclaim this offer in ${daysRemaining} days (on ${unlockDate}).`,
-          }
+      const alreadyClaimed = localStorage.getItem(`anarva_user_promo_claimed_${userEmail}`) === 'true'
+      if (alreadyClaimed) {
+        return {
+          success: false,
+          msg: `❌ PERMANENT PROMO LIMIT REACHED: The 1-Month Free Student offer has already been redeemed on account ${userEmail}. Promo codes are strictly limited to ONE PER ACCOUNT.`,
         }
       }
     }
 
     if (code === 'COLLEGE-FREE-1MONTH' || code === 'ANARVA-STUDENT-2026' || code === 'PREMIUM-30DAYS' || code.length >= 4) {
       setIsStudentPromoActive(true)
+      setHasAlreadyClaimedPromo(true)
       if (typeof window !== 'undefined') {
         localStorage.setItem(`anarva_user_promo_${userEmail}`, 'true')
-        localStorage.removeItem(`anarva_user_promo_deactivated_${userEmail}`)
+        localStorage.setItem(`anarva_user_promo_claimed_${userEmail}`, 'true')
       }
-      setCooldownInfo(null)
       calculateAccountBillingAndQuotas(userEmail)
-      return { success: true, msg: `✓ Promo Code '${code}' Verified! 1-Month Free Student Premium ($100 Credits) Activated.` }
+      return { success: true, msg: `✓ Promo Code '${code}' Verified! 1-Month Free Student Premium ($100 Credits) Activated for ${userEmail}.` }
     } else {
       return { success: false, msg: '❌ Invalid Promo Code. Enter code: COLLEGE-FREE-1MONTH' }
     }
@@ -394,11 +362,8 @@ export default function BillingPage() {
     setIsStudentPromoActive(false)
     if (typeof window !== 'undefined') {
       localStorage.removeItem(`anarva_user_promo_${userEmail}`)
-      // Start 30-Day Cooldown Timestamp
-      localStorage.setItem(`anarva_user_promo_deactivated_${userEmail}`, Date.now().toString())
-      checkCooldown(userEmail)
     }
-    setPromoMessage('Promo Code Deactivated. ⏳ 30-Day Cooldown Started: You can reclaim the 1-Month Free Student offer in 30 days.')
+    setPromoMessage(`Promo Code Deactivated for ${userEmail}. Reverted to standard PAYG tier. (Lifetime limit: 1 promo per account recorded).`)
     calculateAccountBillingAndQuotas(userEmail)
   }
 
@@ -464,7 +429,7 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Student Promo Banner / Cooldown Status */}
+      {/* Student Promo Banner / Status */}
       {isStudentPromoActive ? (
         <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl font-mono text-xs text-purple-300 flex items-center justify-between gap-4">
           <div>
@@ -481,20 +446,20 @@ export default function BillingPage() {
               onClick={handleDeactivatePromo}
               className="text-[10px] text-slate-400 underline hover:text-red-400 transition-colors"
             >
-              Deactivate Promo (Starts 30-Day Cooldown)
+              Deactivate Promo
             </button>
           </div>
         </div>
-      ) : cooldownInfo?.isCoolingDown ? (
+      ) : hasAlreadyClaimedPromo ? (
         <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl font-mono text-xs text-red-400 flex items-center justify-between gap-4">
           <div>
-            <strong className="font-bold uppercase text-red-300">⏳ 30-DAY PROMO COOLDOWN ENFORCED:</strong>
+            <strong className="font-bold uppercase text-red-300">❌ PROMO LIMIT REACHED FOR {userEmail}:</strong>
             <span className="ml-2 text-slate-300 text-[11px]">
-              1-Month Free Premium Student offer can only be claimed once every 30 days per account. You can reclaim this offer in <strong className="text-white font-bold">{cooldownInfo.daysRemaining} days</strong> (on {cooldownInfo.unlockDate}).
+              The 1-Month Free Student offer has already been redeemed once on this account. Promo codes are strictly limited to <strong>ONE PROMO PER ACCOUNT</strong>.
             </span>
           </div>
           <span className="px-2.5 py-1 bg-red-500/20 text-red-300 border border-red-500/30 rounded text-[10px] font-bold">
-            COOLDOWN_ACTIVE
+            PROMO_REDEEMED
           </span>
         </div>
       ) : (
@@ -502,7 +467,7 @@ export default function BillingPage() {
           <div>
             <strong className="font-bold uppercase text-amber-300">🎓 COLLEGE STUDENT OFFER AVAILABLE:</strong>
             <span className="ml-2 text-slate-300 text-[11px]">
-              Studying in college? Enter promo code <code className="text-white font-bold">COLLEGE-FREE-1MONTH</code> to claim 1-Month Free Premium Access ($100 Free Credits)!
+              Studying in college? Enter promo code <code className="text-white font-bold">COLLEGE-FREE-1MONTH</code> to claim 1-Month Free Premium Access ($100 Free Credits)! (Strictly 1 promo per account).
             </span>
           </div>
           <button
@@ -594,7 +559,7 @@ export default function BillingPage() {
               <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-300 text-xs">
                 <div className="font-bold text-sm text-purple-200">Give 1-Month Free Premium Cloud Access to College Students!</div>
                 <p className="mt-1 text-[11px] text-slate-300">
-                  Any enrolled student can enter their Student Promo Code (e.g. <code className="text-white font-bold">COLLEGE-FREE-1MONTH</code>) to activate 1-Month Free Premium Access ($100 Free Cloud Credits). Offer is strictly limited to <strong>once per 30 days per account</strong>.
+                  Any enrolled student can enter their Student Promo Code (e.g. <code className="text-white font-bold">COLLEGE-FREE-1MONTH</code>) to activate 1-Month Free Premium Access ($100 Free Cloud Credits). Offer is strictly limited to <strong>ONE PROMO PER ACCOUNT LIFETIME</strong>.
                 </p>
               </div>
 
@@ -611,7 +576,7 @@ export default function BillingPage() {
                       placeholder="e.g. COLLEGE-FREE-1MONTH"
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 uppercase tracking-wider font-bold focus:outline-none focus:border-purple-500"
                     />
-                    <CloudButton variant="primary" size="sm" type="submit" disabled={cooldownInfo?.isCoolingDown}>
+                    <CloudButton variant="primary" size="sm" type="submit" disabled={hasAlreadyClaimedPromo && !isStudentPromoActive}>
                       Verify & Activate Code
                     </CloudButton>
                   </div>
@@ -627,15 +592,15 @@ export default function BillingPage() {
                 )}
               </form>
 
-              {/* Promo Status & Cooldown Card */}
+              {/* Promo Status Card */}
               <div className="p-5 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <div className="font-bold text-white text-sm">Promo Status & 30-Day Limit Enforcement for {userEmail}</div>
+                  <div className="font-bold text-white text-sm">Lifetime One Promo Per Account Enforcement for {userEmail}</div>
                   <div className="text-[11px] text-slate-400 mt-0.5">
                     {isStudentPromoActive
                       ? '✓ 1-Month Free Premium Student Access ($100 Credits) is currently ACTIVE on your account.'
-                      : cooldownInfo?.isCoolingDown
-                      ? `⏳ 30-Day Cooldown Active: Offer was deactivated/claimed recently. You can reclaim this offer in ${cooldownInfo.daysRemaining} days (on ${cooldownInfo.unlockDate}).`
+                      : hasAlreadyClaimedPromo
+                      ? `❌ Permanent Limit Reached: Account ${userEmail} has already redeemed its 1 lifetime student promo code.`
                       : '❌ No active promo code applied. Enter code COLLEGE-FREE-1MONTH above to activate $100 credits.'}
                   </div>
                 </div>
@@ -644,18 +609,18 @@ export default function BillingPage() {
                   <CloudButton
                     variant="primary"
                     size="sm"
-                    disabled={cooldownInfo?.isCoolingDown}
+                    disabled={hasAlreadyClaimedPromo}
                     onClick={() => {
                       setModalError('')
                       setModalPromoInput('')
                       setIsPromoModalOpen(true)
                     }}
                   >
-                    {cooldownInfo?.isCoolingDown ? `Cooldown (${cooldownInfo.daysRemaining}d left)` : 'Enter Student Promo Code'}
+                    {hasAlreadyClaimedPromo ? 'Limit Reached (1 Per Account)' : 'Enter Student Promo Code'}
                   </CloudButton>
                 ) : (
                   <CloudButton variant="secondary" size="sm" onClick={handleDeactivatePromo}>
-                    Deactivate Promo (Start 30-Day Cooldown)
+                    Deactivate Promo
                   </CloudButton>
                 )}
               </div>
@@ -866,7 +831,7 @@ export default function BillingPage() {
         <CloudModal isOpen={isPromoModalOpen} title="Activate Student Premium Offer" onClose={() => setIsPromoModalOpen(false)}>
           <form onSubmit={handleModalSubmit} className="space-y-4 font-mono text-xs">
             <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-300 text-[11px]">
-              ℹ Enter your student promo code below to claim $100.00 Free Cloud Credits and upgrade your account quotas. (Limit: once every 30 days per account).
+              ℹ Enter your student promo code below to claim $100.00 Free Cloud Credits and upgrade your account quotas. (Limit: strictly 1 promo per account lifetime).
             </div>
 
             <div>
