@@ -68,29 +68,15 @@ export default function StoragePage() {
       const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
 
-      const bucketKey = `anarva_user_buckets_${email}`
+      const bucketKey = `anarva_user_storage_${email}`
       const stored = localStorage.getItem(bucketKey)
 
       if (stored) {
-        setBuckets(JSON.parse(stored))
-      } else if (email === 'lokeshashapu@gmail.com') {
-        const defaults: BucketItem[] = [
-          {
-            id: 'res-s3-assets-1',
-            resourceId: 'arnv:s3:ap-hyderabad-1:proj-default:storage/anarva-media-assets',
-            name: 'anarva-media-assets',
-            regionId: 'ap-hyderabad-1',
-            status: 'AVAILABLE',
-            storageClass: 'STANDARD',
-            versioningEnabled: true,
-            publicAccessBlocked: true,
-            objectCount: 4,
-            sizeBytes: 14589000,
-            createdAt: new Date().toISOString(),
-          },
-        ]
-        setBuckets(defaults)
-        localStorage.setItem(bucketKey, JSON.stringify(defaults))
+        try {
+          setBuckets(JSON.parse(stored))
+        } catch (e) {
+          setBuckets([])
+        }
       } else {
         setBuckets([])
       }
@@ -100,7 +86,7 @@ export default function StoragePage() {
   const saveUserBuckets = (updated: BucketItem[]) => {
     setBuckets(updated)
     if (typeof window !== 'undefined') {
-      localStorage.setItem(`anarva_user_buckets_${userEmail}`, JSON.stringify(updated))
+      localStorage.setItem(`anarva_user_storage_${userEmail}`, JSON.stringify(updated))
     }
   }
 
