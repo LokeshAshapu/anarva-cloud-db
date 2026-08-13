@@ -311,7 +311,7 @@ export default function BillingPage() {
   const validateAndActivatePromoCode = (inputCode: string) => {
     const code = inputCode.trim().toUpperCase()
     if (!code) {
-      return { success: false, msg: 'Please enter a promo code.' }
+      return { success: false, msg: 'Please enter your promo code.' }
     }
 
     // STRICT ONE PROMO PER ACCOUNT LIFETIME ENFORCEMENT
@@ -333,9 +333,9 @@ export default function BillingPage() {
         localStorage.setItem(`anarva_user_promo_claimed_${userEmail}`, 'true')
       }
       calculateAccountBillingAndQuotas(userEmail)
-      return { success: true, msg: `✓ Promo Code '${code}' Verified! 1-Month Free Student Premium ($100 Credits) Activated for ${userEmail}.` }
+      return { success: true, msg: `✓ Student Promo Code Verified! 1-Month Free Student Premium ($100 Credits) Activated for ${userEmail}.` }
     } else {
-      return { success: false, msg: '❌ Invalid Promo Code. Enter code: COLLEGE-FREE-1MONTH' }
+      return { success: false, msg: '❌ Invalid Promo Code. Please enter a valid promo code.' }
     }
   }
 
@@ -467,7 +467,7 @@ export default function BillingPage() {
           <div>
             <strong className="font-bold uppercase text-amber-300">🎓 COLLEGE STUDENT OFFER AVAILABLE:</strong>
             <span className="ml-2 text-slate-300 text-[11px]">
-              Studying in college? Enter promo code <code className="text-white font-bold">COLLEGE-FREE-1MONTH</code> to claim 1-Month Free Premium Access ($100 Free Credits)! (Strictly 1 promo per account).
+              Studying in college? Enter your secret promo code to claim 1-Month Free Premium Access ($100 Free Credits)! (Strictly 1 promo per account).
             </span>
           </div>
           <button
@@ -557,23 +557,23 @@ export default function BillingPage() {
           <CloudCard title="🎓 College Student & Developer 1-Month Free Premium Offer Engine">
             <div className="space-y-5">
               <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-300 text-xs">
-                <div className="font-bold text-sm text-purple-200">Give 1-Month Free Premium Cloud Access to College Students!</div>
+                <div className="font-bold text-sm text-purple-200">1-Month Free Premium Cloud Access for Enrolled Students</div>
                 <p className="mt-1 text-[11px] text-slate-300">
-                  Any enrolled student can enter their Student Promo Code (e.g. <code className="text-white font-bold">COLLEGE-FREE-1MONTH</code>) to activate 1-Month Free Premium Access ($100 Free Cloud Credits). Offer is strictly limited to <strong>ONE PROMO PER ACCOUNT LIFETIME</strong>.
+                  Enrolled students can enter their confidential Student Promo Code to activate 1-Month Free Premium Access ($100 Free Cloud Credits). Offer is strictly limited to <strong>ONE PROMO PER ACCOUNT LIFETIME</strong>.
                 </p>
               </div>
 
               {/* Promo Code Entry Form */}
               <form onSubmit={handleApplyPromoCode} className="space-y-4">
                 <div>
-                  <label className="block text-slate-300 mb-1">Enter Student Promo Code (Required)</label>
+                  <label className="block text-slate-300 mb-1">Enter Secret Student Promo Code (Required)</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       required
                       value={promoCodeInput}
                       onChange={(e) => setPromoCodeInput(e.target.value)}
-                      placeholder="e.g. COLLEGE-FREE-1MONTH"
+                      placeholder="Enter secret promo code..."
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 uppercase tracking-wider font-bold focus:outline-none focus:border-purple-500"
                     />
                     <CloudButton variant="primary" size="sm" type="submit" disabled={hasAlreadyClaimedPromo && !isStudentPromoActive}>
@@ -581,7 +581,7 @@ export default function BillingPage() {
                     </CloudButton>
                   </div>
                   <div className="text-[10px] text-slate-400 mt-1">
-                    Valid Promo Code required: <code className="text-purple-300">COLLEGE-FREE-1MONTH</code> • <code className="text-purple-300">ANARVA-STUDENT-2026</code> • <code className="text-purple-300">PREMIUM-30DAYS</code>
+                    Enter the confidential promo code issued personally to your account or institution.
                   </div>
                 </div>
 
@@ -601,7 +601,7 @@ export default function BillingPage() {
                       ? '✓ 1-Month Free Premium Student Access ($100 Credits) is currently ACTIVE on your account.'
                       : hasAlreadyClaimedPromo
                       ? `❌ Permanent Limit Reached: Account ${userEmail} has already redeemed its 1 lifetime student promo code.`
-                      : '❌ No active promo code applied. Enter code COLLEGE-FREE-1MONTH above to activate $100 credits.'}
+                      : '❌ No active promo code applied. Enter your secret promo code above to activate $100 credits.'}
                   </div>
                 </div>
 
@@ -831,21 +831,21 @@ export default function BillingPage() {
         <CloudModal isOpen={isPromoModalOpen} title="Activate Student Premium Offer" onClose={() => setIsPromoModalOpen(false)}>
           <form onSubmit={handleModalSubmit} className="space-y-4 font-mono text-xs">
             <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-300 text-[11px]">
-              ℹ Enter your student promo code below to claim $100.00 Free Cloud Credits and upgrade your account quotas. (Limit: strictly 1 promo per account lifetime).
+              ℹ Enter your secret student promo code below to claim $100.00 Free Cloud Credits and upgrade your account quotas. (Limit: strictly 1 promo per account lifetime).
             </div>
 
             <div>
-              <label className="block text-slate-300 mb-1 font-bold">Student Promo Code (Required)</label>
+              <label className="block text-slate-300 mb-1 font-bold">Secret Student Promo Code (Required)</label>
               <input
                 type="text"
                 required
                 value={modalPromoInput}
                 onChange={(e) => setModalPromoInput(e.target.value)}
-                placeholder="Enter promo code (e.g. COLLEGE-FREE-1MONTH)"
+                placeholder="Enter secret promo code..."
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 uppercase font-bold tracking-wider focus:outline-none focus:border-purple-500"
               />
               <div className="text-[10px] text-slate-400 mt-1">
-                Try using promo code: <code className="text-purple-300 font-bold">COLLEGE-FREE-1MONTH</code>
+                Enter the confidential promo code issued personally to your account.
               </div>
             </div>
 

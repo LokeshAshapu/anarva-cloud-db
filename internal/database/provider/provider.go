@@ -27,7 +27,7 @@ type DatabaseCluster struct {
 	Environment         string     `json:"environment"`
 	Status              string     `json:"status"` // CREATING, AVAILABLE, UPDATING, STOPPING, STOPPED, FAILED
 	ComputeUnits        float64    `json:"computeUnits"`
-	StorageGB font        int        `json:"storageGb"`
+	StorageGB           int        `json:"storageGb"`
 	MaxStorageGB        int        `json:"maxStorageGb"`
 	AutoScalingEnabled  bool       `json:"autoScalingEnabled"`
 	BackupEnabled       bool       `json:"backupEnabled"`
