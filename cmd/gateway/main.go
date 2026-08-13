@@ -33,6 +33,9 @@ import (
 	computeHttp "github.com/anarva-cloud/anarva-cloud-db/internal/compute/delivery/http"
 	computeProvider "github.com/anarva-cloud/anarva-cloud-db/internal/compute/provider"
 	computeUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/compute/usecase"
+	devHttp "github.com/anarva-cloud/anarva-cloud-db/internal/developer/delivery/http"
+	devUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/developer/usecase"
+	gwMiddleware "github.com/anarva-cloud/anarva-cloud-db/internal/gateway/middleware"
 	iamHttp "github.com/anarva-cloud/anarva-cloud-db/internal/iam/delivery/http"
 	iamService "github.com/anarva-cloud/anarva-cloud-db/internal/iam/service"
 	networkHttp "github.com/anarva-cloud/anarva-cloud-db/internal/network/delivery/http"
@@ -40,14 +43,15 @@ import (
 	networkUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/network/usecase"
 	observabilityHttp "github.com/anarva-cloud/anarva-cloud-db/internal/observability/delivery/http"
 	observabilityService "github.com/anarva-cloud/anarva-cloud-db/internal/observability/service"
+	postgresHandler "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/handler"
+	postgresProvider "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/provider"
+	postgresService "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/service"
 	storageProvider "github.com/anarva-cloud/anarva-cloud-db/internal/storage/provider"
 
 	provHttp "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/delivery/http"
 	provProvider "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/provider"
 	provUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/usecase"
 
-	devHttp "github.com/anarva-cloud/anarva-cloud-db/internal/developer/delivery/http"
-	devUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/developer/usecase"
 	whUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/webhook/usecase"
 
 	billHttp "github.com/anarva-cloud/anarva-cloud-db/internal/billing/delivery/http"
@@ -55,8 +59,6 @@ import (
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/resource"
 	resourceHttp "github.com/anarva-cloud/anarva-cloud-db/internal/resource/delivery/http"
-
-	gwMiddleware "github.com/anarva-cloud/anarva-cloud-db/internal/gateway/middleware"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/query"
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/config"
 	pkgDatabase "github.com/anarva-cloud/anarva-cloud-db/pkg/database"
@@ -239,10 +241,16 @@ func main() {
 	// Phase 15 Billing Service & Quotas Engine
 	billUC := billUsecase.NewBillingUseCase()
 
+	// Phase 17 Managed PostgreSQL Platform
+	pgProvider := postgresProvider.NewLocalDockerPostgresProvider()
+	pgService := postgresService.NewPostgresService(pgProvider)
+	sqlService := postgresService.NewSQLService()
+
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
 	databaseHttp.NewDatabaseHandler(dUC).RegisterRoutes(mux)
+	postgresHandler.NewPostgresHandler(pgService, sqlService).RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bakProv, actStream).RegisterRoutes(mux)
 	computeHttp.NewComputeHandler(compUC, actStream).RegisterRoutes(mux)
 	networkHttp.NewNetworkHandler(netUC, actStream).RegisterRoutes(mux)

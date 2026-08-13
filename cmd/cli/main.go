@@ -35,6 +35,7 @@ func main() {
 	rootCmd.AddCommand(newWhoamiCmd())
 	rootCmd.AddCommand(newProjectsCmd())
 	rootCmd.AddCommand(newDBCmd())
+	rootCmd.AddCommand(newDatabaseCmd())
 	rootCmd.AddCommand(newComputeCmd())
 	rootCmd.AddCommand(newBucketCmd())
 	rootCmd.AddCommand(newNetworkCmd())
@@ -295,6 +296,36 @@ func newDBCmd() *cobra.Command {
 	createCmd.Flags().StringVarP(&projectID, "project", "P", "proj-default", "Parent project ID")
 
 	cmd.AddCommand(createCmd)
+	return cmd
+}
+
+func newDatabaseCmd() *cobra.Command {
+	var jsonOutput bool
+	cmd := &cobra.Command{
+		Use:   "database",
+		Short: "Manage Managed PostgreSQL Platform instances, health, and backups",
+	}
+
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all PostgreSQL database instances",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			instances := []map[string]interface{}{
+				{"id": "res-db-prod-1", "name": "production-db", "engine": "PostgreSQL 17.2", "status": "AVAILABLE", "host": "localhost", "port": 5432, "realityLabel": "LOCAL_POSTGRES"},
+			}
+			if jsonOutput {
+				b, _ := json.MarshalIndent(instances, "", "  ")
+				fmt.Println(string(b))
+				return nil
+			}
+			fmt.Println("ID             NAME          ENGINE           STATUS    PORT  REALITY_LABEL")
+			fmt.Println("res-db-prod-1  production-db PostgreSQL 17.2 AVAILABLE 5432  LOCAL_POSTGRES")
+			return nil
+		},
+	}
+	listCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output machine-readable JSON")
+
+	cmd.AddCommand(listCmd)
 	return cmd
 }
 
