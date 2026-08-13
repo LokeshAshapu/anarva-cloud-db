@@ -199,25 +199,31 @@ export default function CloudConsoleHome() {
           </CloudCard>
         </div>
 
-        {/* Audit Activity Stream */}
+        {/* Audit Activity Stream Summary Card */}
         <div className="space-y-4">
-          <CloudCard title="Recent Activity Stream" subtitle={`Activity event log for ${userEmail}`}>
-            {activities.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-500 font-mono">No recent activity events recorded.</div>
-            ) : (
-              <div className="space-y-3 text-xs">
-                {activities.map((act) => (
-                  <div key={act.id} className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-blue-400 text-[10px]">{act.action}</span>
-                      <span className="text-[10px] text-slate-500">{act.time}</span>
-                    </div>
-                    <div className="font-bold text-white">{act.resource}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">Actor: {act.actor}</div>
-                  </div>
-                ))}
+          <CloudCard title="Audit Activity Trail" subtitle="Security & Audit Event History">
+            <div className="space-y-4 font-mono text-xs">
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                    {activities[0]?.action || 'NETWORK_DELETED'}
+                  </span>
+                  <span className="text-[10px] text-slate-500">{activities[0]?.time || 'Just now'}</span>
+                </div>
+                <div className="font-bold text-white text-xs">{activities[0]?.resource || 'Primary Production VPC'}</div>
+                <div className="text-[10px] text-slate-400">Actor: {activities[0]?.actor || userEmail}</div>
               </div>
-            )}
+
+              <div className="pt-2 border-t border-slate-800 flex justify-between items-center text-[11px]">
+                <span className="text-slate-400">{activities.length} Audit Events Recorded</span>
+                <Link
+                  href="/console/audit"
+                  className="px-3 py-1.5 bg-blue-600/10 text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-600/20 font-bold transition-colors"
+                >
+                  View Full Audit History ➔
+                </Link>
+              </div>
+            </div>
           </CloudCard>
         </div>
       </div>

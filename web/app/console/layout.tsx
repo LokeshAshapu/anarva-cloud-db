@@ -25,6 +25,7 @@ export default function CloudConsoleLayout({
     { name: 'IAM & Access Control', href: '/console/iam' },
     { name: 'Observability & Metrics', href: '/console/monitoring' },
     { name: 'Backups & Recovery', href: '/console/backups' },
+    { name: 'Audit Logs & Activity History', href: '/console/audit' },
     { name: 'Billing & Usage Costs', href: '/console/billing' },
     { name: 'Developer Tools & CLI', href: '/console/devtools' },
     { name: 'Platform Settings', href: '/console/settings' },
