@@ -31,6 +31,15 @@ interface WALSegment {
   status: string
 }
 
+interface RetentionPolicyConfig {
+  dailySnapshotDays: number
+  walSegmentDays: number
+  manualSnapshotDays: number
+  autoPruneEnabled: boolean
+  coldStorageTiering: boolean
+  wormVaultLock: boolean
+}
+
 export default function BackupsPage() {
   const [activeTab, setActiveTab] = useState('backups')
   const [userEmail, setUserEmail] = useState('user@anarva.io')
@@ -82,6 +91,18 @@ export default function BackupsPage() {
   const [pitrStep, setPitrStep] = useState(0)
   const [pitrSuccessResult, setPitrSuccessResult] = useState<string | null>(null)
 
+  // Retention Policy Config State
+  const [retentionConfig, setRetentionConfig] = useState<RetentionPolicyConfig>({
+    dailySnapshotDays: 7,
+    walSegmentDays: 7,
+    manualSnapshotDays: 30,
+    autoPruneEnabled: true,
+    coldStorageTiering: true,
+    wormVaultLock: false,
+  })
+  const [isSavingRetention, setIsSavingRetention] = useState(false)
+  const [retentionSaveSuccess, setRetentionSaveSuccess] = useState(false)
+
   const [walSegments] = useState<WALSegment[]>([
     {
       segmentId: '0000000100000000000000A1',
@@ -116,6 +137,13 @@ export default function BackupsPage() {
         try {
           const parsed = JSON.parse(storedBackups)
           if (Array.isArray(parsed)) setBackups(parsed)
+        } catch (e) {}
+      }
+
+      const storedRetention = localStorage.getItem(`anarva_user_retention_${email}`)
+      if (storedRetention) {
+        try {
+          setRetentionConfig(JSON.parse(storedRetention))
         } catch (e) {}
       }
     }
@@ -183,9 +211,25 @@ export default function BackupsPage() {
     }, 3200)
   }
 
+  const handleSaveRetentionConfig = (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSavingRetention(true)
+    setRetentionSaveSuccess(false)
+
+    setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`anarva_user_retention_${userEmail}`, JSON.stringify(retentionConfig))
+      }
+      setIsSavingRetention(false)
+      setRetentionSaveSuccess(true)
+      setTimeout(() => setRetentionSaveSuccess(false), 3000)
+    }, 300)
+  }
+
   const tabs: TabItem[] = [
     { id: 'backups', label: 'Database Snapshots' },
     { id: 'pitr', label: 'Point-in-Time Recovery (PITR)' },
+    { id: 'retention', label: 'Retention Policy' },
     { id: 'readiness', label: 'Disaster Recovery Signals' },
   ]
 
@@ -202,7 +246,7 @@ export default function BackupsPage() {
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1">Backup & Recovery Engine</h1>
           <p className="text-slate-400 text-xs sm:text-sm mt-0.5">
-            Manage automated snapshot backups, WAL continuous archival, and second-by-second Point-in-Time Recovery (PITR).
+            Manage automated snapshot backups, WAL continuous archival, retention lifecycle rules, and Point-in-Time Recovery (PITR).
           </p>
         </div>
 
@@ -218,7 +262,7 @@ export default function BackupsPage() {
         <CloudMetric label="Total Snapshots" value={backups.length} subtext="SHA-256 Verified" trend="HEALTHY" trendType="positive" />
         <CloudMetric label="WAL Segment Stream" value="ARCHIVED" subtext="AOS S3 Storage Bucket" trend="ACTIVE" trendType="positive" />
         <CloudMetric label="PITR Granularity" value="Second-by-Second" subtext="WAL Replay Delta Engine" trend="CONFIGURED" trendType="positive" />
-        <CloudMetric label="Retention Window" value="7 Days" subtext="Automated Cleanup Policy" trend="ENFORCED" trendType="positive" />
+        <CloudMetric label="Active Retention Window" value={`${retentionConfig.dailySnapshotDays} Days`} subtext="Automated Cleanup Cron" trend="ENFORCED" trendType="positive" />
       </div>
 
       {/* Tabs */}
@@ -393,6 +437,129 @@ export default function BackupsPage() {
         </div>
       )}
 
+      {/* Retention Policy Tab */}
+      {activeTab === 'retention' && (
+        <div className="space-y-6 font-mono text-xs">
+          <CloudCard title="Backup Retention & Lifecycle Management Policy">
+            <form onSubmit={handleSaveRetentionConfig} className="space-y-6">
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-bold">
+                    AUTOMATED LIFECYCLE ENGINE ACTIVE
+                  </span>
+                  <span className="text-[10px] text-slate-400">Enforced by Daily Expiration Cron Job</span>
+                </div>
+                <p className="text-slate-300 text-xs">
+                  Configure automated snapshot expiration windows, Write-Ahead Log (WAL) archive retention, and cold storage tiering rules for <strong className="text-white">{userEmail}</strong>.
+                </p>
+              </div>
+
+              {/* Form Controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-slate-300 mb-1.5 font-bold">Daily Snapshot Retention</label>
+                  <select
+                    value={retentionConfig.dailySnapshotDays}
+                    onChange={(e) => setRetentionConfig({ ...retentionConfig, dailySnapshotDays: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value={7}>7 Days (Standard)</option>
+                    <option value={14}>14 Days (Extended)</option>
+                    <option value={30}>30 Days (Monthly)</option>
+                    <option value={90}>90 Days (Quarterly)</option>
+                    <option value={365}>365 Days (1 Year Compliance)</option>
+                  </select>
+                  <span className="text-[10px] text-slate-500 mt-1 block">Automated daily snapshot retention window</span>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 mb-1.5 font-bold">WAL Archive Retention (PITR)</label>
+                  <select
+                    value={retentionConfig.walSegmentDays}
+                    onChange={(e) => setRetentionConfig({ ...retentionConfig, walSegmentDays: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value={3}>3 Days</option>
+                    <option value={7}>7 Days (Recommended)</option>
+                    <option value={14}>14 Days</option>
+                  </select>
+                  <span className="text-[10px] text-slate-500 mt-1 block">Continuous WAL delta replay window</span>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 mb-1.5 font-bold">Manual Snapshot Retention</label>
+                  <select
+                    value={retentionConfig.manualSnapshotDays}
+                    onChange={(e) => setRetentionConfig({ ...retentionConfig, manualSnapshotDays: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value={14}>14 Days</option>
+                    <option value={30}>30 Days</option>
+                    <option value={90}>90 Days</option>
+                    <option value={0}>Indefinite (Until Deleted)</option>
+                  </select>
+                  <span className="text-[10px] text-slate-500 mt-1 block">On-demand manual snapshot retention</span>
+                </div>
+              </div>
+
+              {/* Toggles */}
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-bold text-white">Automated Expiration Cleanup</div>
+                    <div className="text-[10px] text-slate-400">Automatically delete expired snapshots past the retention window</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={retentionConfig.autoPruneEnabled}
+                    onChange={(e) => setRetentionConfig({ ...retentionConfig, autoPruneEnabled: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-800 text-blue-600 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-800/60 pt-3">
+                  <div>
+                    <div className="font-bold text-white">Automated AOS S3 Cold Storage Tiering</div>
+                    <div className="text-[10px] text-slate-400">Archive snapshots older than 7 days to Glacier cold storage tier for cost reduction</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={retentionConfig.coldStorageTiering}
+                    onChange={(e) => setRetentionConfig({ ...retentionConfig, coldStorageTiering: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-800 text-blue-600 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-800/60 pt-3">
+                  <div>
+                    <div className="font-bold text-white">Compliance WORM Vault Lock</div>
+                    <div className="text-[10px] text-slate-400">Enforce Write-Once-Read-Many immutable backup lock against accidental deletion</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={retentionConfig.wormVaultLock}
+                    onChange={(e) => setRetentionConfig({ ...retentionConfig, wormVaultLock: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-800 text-blue-600 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                {retentionSaveSuccess ? (
+                  <span className="text-emerald-400 font-bold text-xs">✓ Retention Policy settings saved successfully!</span>
+                ) : (
+                  <span />
+                )}
+
+                <CloudButton variant="primary" size="sm" type="submit" disabled={isSavingRetention}>
+                  {isSavingRetention ? 'Saving Policy...' : 'Save Retention Policy'}
+                </CloudButton>
+              </div>
+            </form>
+          </CloudCard>
+        </div>
+      )}
+
       {/* Disaster Recovery Signals Tab */}
       {activeTab === 'readiness' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -417,15 +584,23 @@ export default function BackupsPage() {
             </div>
           </CloudCard>
 
-          <CloudCard title="Backup Retention Policy">
+          <CloudCard title="Backup Retention Policy Summary">
             <div className="space-y-3 text-xs font-mono">
               <div className="flex justify-between py-1.5 border-b border-slate-800">
-                <span className="text-slate-400">Default Retention Window:</span>
-                <span className="text-white font-bold">7 Days</span>
+                <span className="text-slate-400">Daily Snapshot Retention:</span>
+                <span className="text-white font-bold">{retentionConfig.dailySnapshotDays} Days</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-800">
+                <span className="text-slate-400">WAL Segment Retention (PITR):</span>
+                <span className="text-emerald-400 font-bold">{retentionConfig.walSegmentDays} Days</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-800">
                 <span className="text-slate-400">Automated Expire Cleanup:</span>
-                <span className="text-emerald-400 font-bold">ACTIVE</span>
+                <span className="text-emerald-400 font-bold">{retentionConfig.autoPruneEnabled ? 'ACTIVE' : 'DISABLED'}</span>
+              </div>
+              <div className="flex justify-between py-1.5">
+                <span className="text-slate-400">Cold Storage Tiering:</span>
+                <span className="text-blue-400 font-bold">{retentionConfig.coldStorageTiering ? 'ENABLED (GLACIER)' : 'DISABLED'}</span>
               </div>
             </div>
           </CloudCard>
