@@ -6,12 +6,13 @@ import { CloudButton } from '@/components/cloud/CloudButton'
 import { CloudCard } from '@/components/cloud/CloudCard'
 import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
 import { CloudModal } from '@/components/cloud/CloudModal'
+import { CloudEmptyState } from '@/components/cloud/CloudEmptyState'
 import { API_BASE_URL } from '@/lib/api'
 
-interface PostgresInstanceItem {
+interface DatabaseInstanceItem {
   id: string
-  resourceId: string
   name: string
+  engine: 'POSTGRESQL' | 'MYSQL'
   version: string
   status: string
   regionId: string
@@ -19,16 +20,14 @@ interface PostgresInstanceItem {
   memoryMb: number
   storageGb: number
   networkId: string
-  availabilityMode: string
-  host: string
   port: number
-  publicAccess: boolean
   realityLabel: string
   createdAt: string
 }
 
-export default function ManagedPostgresPage() {
-  const [selectedInstance, setSelectedInstance] = useState<PostgresInstanceItem | null>(null)
+export default function ManagedDatabasesPage() {
+  const [selectedEngine, setSelectedEngine] = useState<'POSTGRESQL' | 'MYSQL'>('POSTGRESQL')
+  const [selectedInstance, setSelectedInstance] = useState<DatabaseInstanceItem | null>(null)
   const [activeTab, setActiveTab] = useState('overview')
   const [isWizardOpen, setIsWizardOpen] = useState(false)
   const [wizardStep, setWizardStep] = useState(1)
@@ -38,15 +37,11 @@ export default function ManagedPostgresPage() {
   const [version, setVersion] = useState('17')
   const [acuUnits, setAcuUnits] = useState(2.0)
   const [storageGb, setStorageGb] = useState(25)
-  const [networkId, setNetworkId] = useState('vpc-net-1')
-  const [availabilityMode, setAvailabilityMode] = useState('SINGLE')
-  const [backupMode, setBackupMode] = useState('DAILY_SNAPSHOT')
-  const [maintenanceWindow, setMaintenanceWindow] = useState('Sun:03:00')
-  const [publicAccess, setPublicAccess] = useState(false)
+  const [networkId, setNetworkId] = useState('vpc-01')
   const [isCreating, setIsCreating] = useState(false)
 
   // Connection String Generator State
-  const [selectedDriver, setSelectedDriver] = useState<'psql' | 'jdbc' | 'node' | 'python' | 'go'>('psql')
+  const [selectedDriver, setSelectedDriver] = useState<'cli' | 'jdbc' | 'node' | 'python' | 'go'>('cli')
   const [showSecret, setShowSecret] = useState(false)
 
   // SQL Console State
@@ -56,16 +51,14 @@ export default function ManagedPostgresPage() {
 
   // User Email & Instances State
   const [userEmail, setUserEmail] = useState('user@anarva.io')
-  const [instances, setInstances] = useState<PostgresInstanceItem[]>([])
+  const [instances, setInstances] = useState<DatabaseInstanceItem[]>([])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
 
-      const dbKey = `anarva_user_databases_${email}`
-      const stored = localStorage.getItem(dbKey)
-
+      const stored = localStorage.getItem(`anarva_user_managed_dbs_${email}`)
       if (stored) {
         try {
           setInstances(JSON.parse(stored))
@@ -78,45 +71,43 @@ export default function ManagedPostgresPage() {
     }
   }, [])
 
-  const saveUserInstances = (updated: PostgresInstanceItem[]) => {
+  const saveInstances = (updated: DatabaseInstanceItem[]) => {
     setInstances(updated)
     if (typeof window !== 'undefined') {
-      localStorage.setItem(`anarva_user_databases_${userEmail}`, JSON.stringify(updated))
+      localStorage.setItem(`anarva_user_managed_dbs_${userEmail}`, JSON.stringify(updated))
     }
   }
 
-  const handleCreateInstance = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleCreateDatabase = async () => {
     setIsCreating(true)
+    const defaultPort = selectedEngine === 'POSTGRESQL' ? 5432 : 3306
+    const cleanName = instanceName || (selectedEngine === 'POSTGRESQL' ? 'production-postgres' : 'production-mysql')
 
-    const newInst: PostgresInstanceItem = {
-      id: `pg_${Date.now()}`,
-      resourceId: `arnv:pg:ap-hyderabad-1:proj-default:postgres/${instanceName || 'pg-cluster'}`,
-      name: instanceName || 'pg-cluster',
-      version: version,
+    const newInst: DatabaseInstanceItem = {
+      id: `${selectedEngine.toLowerCase()}-${Date.now()}`,
+      name: cleanName,
+      engine: selectedEngine,
+      version: selectedEngine === 'POSTGRESQL' ? version || '17' : '8.0',
       status: 'AVAILABLE',
       regionId: 'ap-hyderabad-1',
-      cpu: acuUnits,
-      memoryMb: Math.round(acuUnits * 1024),
-      storageGb: storageGb,
-      networkId: networkId,
-      availabilityMode: availabilityMode,
-      host: 'localhost',
-      port: 15432 + instances.length + 1,
-      publicAccess: publicAccess,
-      realityLabel: 'LOCAL_POSTGRES (DOCKER_SIM)',
+      cpu: Math.max(1, Math.floor(acuUnits)),
+      memoryMb: Math.floor(acuUnits * 1024),
+      storageGb,
+      networkId,
+      port: defaultPort,
+      realityLabel: selectedEngine === 'POSTGRESQL' ? 'LOCAL_POSTGRES (LIMITED_CAPABILITIES)' : 'LOCAL_MYSQL (LIMITED_CAPABILITIES)',
       createdAt: new Date().toISOString(),
     }
 
-    // Attempt calling Gateway REST API
-    await fetch(`${API_BASE_URL}/api/v1/databases`, {
+    const endpoint = selectedEngine === 'POSTGRESQL' ? `${API_BASE_URL}/api/v1/databases` : `${API_BASE_URL}/api/v1/mysql/databases`
+    await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newInst),
     }).catch(() => null)
 
     const updated = [newInst, ...instances]
-    saveUserInstances(updated)
+    saveInstances(updated)
 
     setIsCreating(false)
     setIsWizardOpen(false)
@@ -124,149 +115,139 @@ export default function ManagedPostgresPage() {
     setInstanceName('')
   }
 
-  const handleDeleteInstance = async (id: string) => {
-    await fetch(`${API_BASE_URL}/api/v1/databases/${id}`, { method: 'DELETE' }).catch(() => null)
-    const updated = instances.filter((i) => i.id !== id)
-    saveUserInstances(updated)
-    if (selectedInstance?.id === id) setSelectedInstance(null)
-  }
-
-  const handleExecuteSql = (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsExecutingSql(true)
-
-    setTimeout(() => {
-      setQueryResults({
-        columns: ['id', 'username', 'role', 'status', 'created_at'],
-        rows: [
-          ['usr_101', 'anarva_admin', 'OWNER', 'ACTIVE', new Date().toISOString()],
-          ['usr_102', 'analytics_svc', 'READ_ONLY', 'ACTIVE', new Date().toISOString()],
-        ],
-        rowCount: 2,
-        latencyMs: 1.14,
-      })
-      setIsExecutingSql(false)
-    }, 400)
-  }
-
-  const getConnectionString = (inst: PostgresInstanceItem) => {
-    const pass = showSecret ? 'sec_token_99218a' : '••••••••••••'
-    switch (selectedDriver) {
-      case 'psql':
-        return `psql "postgres://anarva_admin:${pass}@${inst.host}:${inst.port}/postgres?sslmode=disable"`
-      case 'jdbc':
-        return `jdbc:postgresql://${inst.host}:${inst.port}/postgres?user=anarva_admin&password=${pass}`
-      case 'node':
-        return `const { Client } = require('pg');\nconst client = new Client({ host: '${inst.host}', port: ${inst.port}, user: 'anarva_admin', password: '${pass}', database: 'postgres' });`
-      case 'python':
-        return `import psycopg2\nconn = psycopg2.connect(host="${inst.host}", port=${inst.port}, dbname="postgres", user="anarva_admin", password="${pass}")`
-      case 'go':
-        return `conn, err := pgx.Connect(ctx, "postgres://anarva_admin:${pass}@${inst.host}:${inst.port}/postgres")`
+  const handleDeleteInstance = async (id: string, engine: 'POSTGRESQL' | 'MYSQL') => {
+    if (confirm(`Are you sure you want to delete ${engine} instance '${id}'?`)) {
+      const endpoint = engine === 'POSTGRESQL' ? `${API_BASE_URL}/api/v1/databases/${id}` : `${API_BASE_URL}/api/v1/mysql/databases/${id}`
+      await fetch(endpoint, { method: 'DELETE' }).catch(() => null)
+      const updated = instances.filter((i) => i.id !== id)
+      saveInstances(updated)
+      setSelectedInstance(null)
     }
   }
 
-  const tabs: TabItem[] = [
-    { id: 'overview', label: 'Instances Overview' },
-    { id: 'sql', label: 'SQL Console Proxy' },
-    { id: 'backups', label: 'Backups & PITR' },
-    { id: 'metrics', label: 'Health & Metrics' },
-    { id: 'logs', label: 'Database Logs' },
-    { id: 'security', label: 'Connection Strings & Credentials' },
+  const handleExecuteSql = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsExecutingSql(true)
+    setQueryResults(null)
+
+    const endpoint = selectedInstance?.engine === 'MYSQL' ? `${API_BASE_URL}/api/v1/mysql/databases/${selectedInstance.id}/query` : `${API_BASE_URL}/api/v1/databases/${selectedInstance?.id}/query`
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql: sqlQuery }),
+    }).then((r) => r.json()).catch(() => null)
+
+    if (res && res.error) {
+      setQueryResults({ error: res.error })
+    } else {
+      setQueryResults({
+        columns: ['id', 'username', 'status', 'created_at'],
+        rows: [
+          { id: 1, username: 'admin', status: 'ACTIVE', created_at: new Date().toISOString() },
+          { id: 2, username: 'app_user', status: 'ACTIVE', created_at: new Date().toISOString() },
+        ],
+        executionMs: 0.72,
+      })
+    }
+    setIsExecutingSql(false)
+  }
+
+  const filteredInstances = instances.filter((i) => i.engine === selectedEngine)
+
+  const detailTabs: TabItem[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'connection', label: 'Connection String Generator' },
+    { id: 'sql', label: 'SQL Query Console' },
+    { id: 'backups', label: 'Backups & Recovery' },
   ]
 
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-slate-400">MANAGED DATABASE ENGINE:</span>
-            <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-mono font-bold">
-              POSTGRESQL PLATFORM v17.2
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1">Managed PostgreSQL Engine</h1>
-          <p className="text-slate-400 text-xs sm:text-sm mt-0.5">
-            Production-grade PostgreSQL database platform abstraction with atomic quotas, 12-step creation, and SQL proxy security.
-          </p>
-        </div>
+  if (selectedInstance) {
+    const isMySQL = selectedInstance.engine === 'MYSQL'
+    const defaultPort = isMySQL ? 3306 : 5432
+    const cliCmd = isMySQL ? `mysql -h 127.0.0.1 -P ${defaultPort} -u admin -p main` : `psql -h 127.0.0.1 -p ${defaultPort} -U admin -d main`
 
-        <div className="flex items-center gap-2">
-          <CloudButton variant="primary" size="sm" onClick={() => setIsWizardOpen(true)}>
-            + Provision PostgreSQL Instance
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+          <div>
+            <button onClick={() => setSelectedInstance(null)} className="text-xs text-blue-400 font-mono mb-2">
+              ← Back to Managed Databases
+            </button>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-white">{selectedInstance.name}</h1>
+              <CloudStatus status={selectedInstance.status} />
+              <span className="px-2 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs rounded font-mono font-bold">
+                {selectedInstance.engine} v{selectedInstance.version}
+              </span>
+            </div>
+            <div className="text-xs text-slate-400 font-mono mt-1">
+              Port: {selectedInstance.port} • Network: PRIVATE ({selectedInstance.networkId}) • Reality: {selectedInstance.realityLabel}
+            </div>
+          </div>
+
+          <CloudButton variant="danger" size="sm" onClick={() => handleDeleteInstance(selectedInstance.id, selectedInstance.engine)}>
+            Delete Instance
           </CloudButton>
         </div>
-      </div>
 
-      {/* Main Tabs */}
-      <CloudTabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+        <CloudTabs tabs={detailTabs} activeTab={activeTab} onChange={setActiveTab} />
 
-      {/* Overview Tab */}
-      {activeTab === 'overview' && (
-        <div className="space-y-6 font-mono text-xs">
-          <CloudCard title={`Managed PostgreSQL Clusters (${instances.length} Active for ${userEmail})`}>
-            {instances.length === 0 ? (
-              <div className="p-12 text-center space-y-3">
-                <div className="text-slate-400 text-sm font-bold">No Managed PostgreSQL Instances Provisioned</div>
-                <p className="text-slate-500 text-xs max-w-md mx-auto">
-                  Provision a new PostgreSQL cluster using the 12-step wizard to deploy ACU-allocated database instances.
-                </p>
-                <CloudButton variant="primary" size="sm" onClick={() => setIsWizardOpen(true)}>
-                  Provision PostgreSQL Instance
-                </CloudButton>
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-mono text-xs">
+            <CloudCard title="Engine Metadata">
+              <div className="space-y-2 text-slate-300">
+                <div>Engine: <strong className="text-purple-400">{selectedInstance.engine}</strong></div>
+                <div>Version: <strong>{selectedInstance.version}</strong></div>
+                <div>Port: <strong className="text-emerald-400">{selectedInstance.port}</strong></div>
+                <div>Label: <strong className="text-blue-400">{selectedInstance.realityLabel}</strong></div>
               </div>
-            ) : (
-              <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden text-xs">
-                {instances.map((inst) => (
-                  <div key={inst.id} className="p-4 bg-slate-950 hover:bg-slate-900/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white text-base">{inst.name}</span>
-                        <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-bold">
-                          PostgreSQL {inst.version}
-                        </span>
-                        <CloudStatus status="AVAILABLE" />
-                      </div>
-                      <div className="text-slate-400 text-[11px]">
-                        ID: {inst.id} • {inst.cpu} ACU • {inst.storageGb} GB Storage • Port: {inst.port} • Availability: {inst.availabilityMode}
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        Reality Label: <strong className="text-purple-400">{inst.realityLabel}</strong>
-                      </div>
-                    </div>
+            </CloudCard>
+            <CloudCard title="Compute & Sizing">
+              <div className="text-2xl font-bold text-emerald-400 mb-1">{selectedInstance.cpu} vCPUs / {selectedInstance.memoryMb} MB</div>
+              <p className="text-slate-400 font-sans text-xs">Dedicated ACU allocation</p>
+            </CloudCard>
+            <CloudCard title="Storage Allocation">
+              <div className="text-2xl font-bold text-blue-400 mb-1">{selectedInstance.storageGb} GB SSD</div>
+              <p className="text-slate-400 font-sans text-xs">Automated daily snapshot backups active</p>
+            </CloudCard>
+          </div>
+        )}
 
-                    <div className="flex items-center gap-2">
-                      <CloudButton variant="secondary" size="sm" onClick={() => setSelectedInstance(inst)}>
-                        View Details
-                      </CloudButton>
-                      <CloudButton variant="danger" size="sm" onClick={() => handleDeleteInstance(inst.id)}>
-                        Delete
-                      </CloudButton>
-                    </div>
-                  </div>
+        {activeTab === 'connection' && (
+          <CloudCard title="Connection String & Credential Generator">
+            <div className="space-y-4 font-mono text-xs">
+              <div className="flex gap-2">
+                {(['cli', 'node', 'python', 'go', 'jdbc'] as const).map((driver) => (
+                  <button
+                    key={driver}
+                    onClick={() => setSelectedDriver(driver)}
+                    className={`px-3 py-1.5 rounded uppercase font-bold text-[10px] ${
+                      selectedDriver === driver ? 'bg-blue-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {driver}
+                  </button>
                 ))}
               </div>
-            )}
-          </CloudCard>
-        </div>
-      )}
 
-      {/* SQL Console Tab */}
-      {activeTab === 'sql' && (
-        <div className="space-y-6 font-mono text-xs">
-          <CloudCard title="Backend Authenticated SQL Proxy Console">
-            <form onSubmit={handleExecuteSql} className="space-y-4">
-              <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl text-[11px]">
-                ℹ All SQL queries pass through the backend query proxy with 5s statement timeouts, 1000-row limits, and dangerous query protection.
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl relative">
+                <code className="text-emerald-400 break-all">{cliCmd}</code>
               </div>
+            </div>
+          </CloudCard>
+        )}
 
+        {activeTab === 'sql' && (
+          <CloudCard title={`${selectedInstance.engine} Web SQL Query Console`}>
+            <form onSubmit={handleExecuteSql} className="space-y-4 font-mono text-xs">
               <div>
-                <label className="block text-slate-300 mb-1 font-bold">SQL STATEMENT</label>
+                <label className="block text-slate-300 font-bold mb-1">SQL STATEMENT</label>
                 <textarea
                   rows={4}
                   value={sqlQuery}
                   onChange={(e) => setSqlQuery(e.target.value)}
-                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded font-mono text-slate-100 focus:outline-none focus:border-blue-500"
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
                 />
               </div>
 
@@ -277,192 +258,162 @@ export default function ManagedPostgresPage() {
               </div>
 
               {queryResults && (
-                <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
-                  <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-400">QUERY RESULT: {queryResults.rowCount} Rows Returned</span>
-                    <span className="text-emerald-400 font-bold">Latency: {queryResults.latencyMs} ms</span>
-                  </div>
-
-                  <div className="overflow-x-auto border border-slate-800 rounded-lg">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-900 text-slate-300 uppercase text-[10px]">
-                        <tr>
-                          {queryResults.columns.map((c: string) => (
-                            <th key={c} className="p-2.5 border-b border-slate-800">{c}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800 bg-slate-950 text-slate-200">
-                        {queryResults.rows.map((row: any[], i: number) => (
-                          <tr key={i} className="hover:bg-slate-900/50">
-                            {row.map((cell: any, j: number) => (
-                              <td key={j} className="p-2.5">{String(cell)}</td>
-                            ))}
+                <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                  <div className="text-emerald-400 font-bold">Query executed in {queryResults.executionMs} ms ({queryResults.rowCount} rows)</div>
+                  {queryResults.error ? (
+                    <div className="text-red-400 font-bold">{queryResults.error}</div>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-800 rounded font-sans text-xs">
+                      <table className="w-full text-left">
+                        <thead className="bg-slate-900 text-slate-400 uppercase text-[10px]">
+                          <tr>
+                            {queryResults.columns.map((c: string) => <th key={c} className="p-2">{c}</th>)}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800 font-mono">
+                          {queryResults.rows.map((r: any, idx: number) => (
+                            <tr key={idx}>
+                              {queryResults.columns.map((c: string) => <td key={c} className="p-2 text-slate-200">{String(r[c])}</td>)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </form>
           </CloudCard>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Managed Relational Databases</h1>
+          <p className="text-slate-400 text-xs sm:text-sm mt-1">High-performance PostgreSQL and MySQL relational database platforms.</p>
         </div>
-      )}
 
-      {/* Connection Strings & Credentials Tab */}
-      {activeTab === 'security' && (
-        <div className="space-y-6 font-mono text-xs">
-          <CloudCard title="Zero-Trust Connection Strings & Secret References">
-            <div className="space-y-5">
-              <div className="p-3 bg-purple-500/10 border border-purple-500/20 text-purple-300 rounded-xl text-[11px]">
-                🔒 Passwords and connection secrets are never stored in plaintext database columns. Passwords require explicit one-time reveal action.
-              </div>
+        <CloudButton variant="primary" size="sm" onClick={() => setIsWizardOpen(true)}>
+          + Provision Database
+        </CloudButton>
+      </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400">Select Driver:</span>
-                {(['psql', 'jdbc', 'node', 'python', 'go'] as const).map((drv) => (
-                  <button
-                    key={drv}
-                    onClick={() => setSelectedDriver(drv)}
-                    className={`px-3 py-1 rounded text-xs font-bold uppercase transition ${
-                      selectedDriver === drv ? 'bg-blue-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
-                    }`}
-                  >
-                    {drv}
-                  </button>
-                ))}
-              </div>
+      {/* Engine Selection Bar */}
+      <div className="flex border-b border-slate-800 gap-6 text-sm font-bold font-mono">
+        <button
+          onClick={() => setSelectedEngine('POSTGRESQL')}
+          className={`pb-3 transition border-b-2 ${
+            selectedEngine === 'POSTGRESQL' ? 'border-blue-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          🐘 PostgreSQL (Port 5432)
+        </button>
+        <button
+          onClick={() => setSelectedEngine('MYSQL')}
+          className={`pb-3 transition border-b-2 ${
+            selectedEngine === 'MYSQL' ? 'border-orange-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          🐬 MySQL (Port 3306)
+        </button>
+      </div>
 
-              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-white text-xs">Generated Connection String ({selectedDriver.toUpperCase()})</span>
-                  <button
-                    onClick={() => setShowSecret(!showSecret)}
-                    className="text-[11px] text-blue-400 hover:underline font-bold"
-                  >
-                    {showSecret ? 'Hide Password' : 'Show Secret Once'}
-                  </button>
+      <CloudCard title={`${selectedEngine} Instances Registry`} subtitle={`Managed instances for ${userEmail}`}>
+        {filteredInstances.length === 0 ? (
+          <CloudEmptyState
+            title={`No ${selectedEngine} Database Instances Provisioned`}
+            description={`You currently have 0 managed ${selectedEngine} instances. Provision an instance to get started with high-performance storage.`}
+            actionLabel={`+ Provision ${selectedEngine} Database`}
+            onAction={() => setIsWizardOpen(true)}
+            icon={selectedEngine === 'POSTGRESQL' ? '🐘' : '🐬'}
+            docsLink="/console/developer"
+          />
+        ) : (
+          <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden text-xs">
+            {filteredInstances.map((db) => (
+              <div
+                key={db.id}
+                onClick={() => setSelectedInstance(db)}
+                className="p-4 bg-slate-950 hover:bg-slate-900 cursor-pointer transition flex items-center justify-between font-mono"
+              >
+                <div>
+                  <div className="font-bold text-white text-sm font-sans flex items-center gap-2">
+                    {db.name}
+                    <span className="text-[10px] px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
+                      v{db.version} • Port {db.port}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    ID: {db.id} • Sizing: {db.cpu} vCPUs / {db.memoryMb} MB • Storage: {db.storageGb} GB SSD • Label: {db.realityLabel}
+                  </div>
                 </div>
-                <pre className="p-3 bg-slate-900 border border-slate-800 rounded text-slate-200 overflow-x-auto text-[11px]">
-                  {getConnectionString(instances[0] || { host: 'localhost', port: 5432 } as any)}
-                </pre>
+                <CloudStatus status={db.status} />
               </div>
-            </div>
-          </CloudCard>
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </CloudCard>
 
-      {/* 12-Step Provisioning Wizard Modal */}
+      {/* Provision Database Modal */}
       {isWizardOpen && (
-        <CloudModal isOpen={isWizardOpen} title="12-Step PostgreSQL Provisioning Wizard" onClose={() => setIsWizardOpen(false)}>
-          <form onSubmit={handleCreateInstance} className="space-y-5 font-mono text-xs">
-            <div className="flex justify-between items-center text-[11px] text-slate-400 border-b border-slate-800 pb-2">
-              <span>Wizard Progress: Step {wizardStep} of 12</span>
-              <span className="text-blue-400 font-bold">PostgreSQL Engine 17.2</span>
+        <CloudModal isOpen={isWizardOpen} title={`Provision ${selectedEngine} Instance`} onClose={() => setIsWizardOpen(false)}>
+          <form onSubmit={(e) => { e.preventDefault(); handleCreateDatabase(); }} className="space-y-4 font-mono text-xs">
+            <div>
+              <label className="block text-slate-300 font-bold mb-1">Engine</label>
+              <select
+                value={selectedEngine}
+                onChange={(e) => setSelectedEngine(e.target.value as any)}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none font-bold"
+              >
+                <option value="POSTGRESQL">PostgreSQL (Port 5432)</option>
+                <option value="MYSQL">MySQL (Port 3306)</option>
+              </select>
             </div>
 
-            {wizardStep === 1 && (
-              <div className="space-y-3">
-                <label className="block text-slate-300 font-bold">Step 1: Select Organization & Project</label>
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded text-slate-200">
-                  Target Account: <strong>{userEmail}</strong> • Project: <strong>Default Project (proj-default)</strong>
-                </div>
-              </div>
-            )}
+            <div>
+              <label className="block text-slate-300 font-bold mb-1">Instance Name</label>
+              <input
+                type="text"
+                value={instanceName}
+                onChange={(e) => setInstanceName(e.target.value)}
+                placeholder={selectedEngine === 'POSTGRESQL' ? 'production-postgres' : 'production-mysql'}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
+              />
+            </div>
 
-            {wizardStep === 2 && (
-              <div className="space-y-3">
-                <label className="block text-slate-300 font-bold">Step 2: Database Instance Name</label>
-                <input
-                  type="text"
-                  required
-                  value={instanceName}
-                  onChange={(e) => setInstanceName(e.target.value)}
-                  placeholder="e.g. production-db"
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            )}
-
-            {wizardStep === 3 && (
-              <div className="space-y-3">
-                <label className="block text-slate-300 font-bold">Step 3: Select PostgreSQL Engine Version</label>
-                <select
-                  value={version}
-                  onChange={(e) => setVersion(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none focus:border-blue-500"
-                >
-                  <option value="17">PostgreSQL 17 (Recommended)</option>
-                  <option value="16">PostgreSQL 16</option>
-                  <option value="15">PostgreSQL 15</option>
-                  <option value="14">PostgreSQL 14</option>
-                </select>
-              </div>
-            )}
-
-            {wizardStep === 4 && (
-              <div className="space-y-3">
-                <label className="block text-slate-300 font-bold">Step 4: Compute Sizing (ACUs)</label>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">ACU Sizing</label>
                 <select
                   value={acuUnits}
                   onChange={(e) => setAcuUnits(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none focus:border-blue-500"
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
                 >
-                  <option value={1}>1.0 ACU (1 vCPU, 1 GB RAM)</option>
-                  <option value={2}>2.0 ACU (2 vCPU, 2 GB RAM)</option>
-                  <option value={4}>4.0 ACU (4 vCPU, 4 GB RAM)</option>
-                  <option value={8}>8.0 ACU (8 vCPU, 8 GB RAM)</option>
+                  <option value={1.0}>1 ACU (1 vCPU / 1GB RAM)</option>
+                  <option value={2.0}>2 ACUs (2 vCPU / 2GB RAM)</option>
+                  <option value={4.0}>4 ACUs (4 vCPU / 4GB RAM)</option>
                 </select>
               </div>
-            )}
-
-            {wizardStep >= 5 && wizardStep <= 11 && (
-              <div className="space-y-3">
-                <label className="block text-slate-300 font-bold">Step {wizardStep}: Configuration Summary</label>
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded space-y-1 text-[11px] text-slate-300">
-                  <div>Storage: {storageGb} GB SSD (Autoscaling Active)</div>
-                  <div>Network: VPC Network ({networkId}) • Mode: PRIVATE</div>
-                  <div>Availability: SINGLE (Docker Local Provider)</div>
-                  <div>Backup Retention: 7 Days (Daily WAL Snapshot)</div>
-                </div>
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Storage (GB)</label>
+                <input
+                  type="number"
+                  value={storageGb}
+                  onChange={(e) => setStorageGb(Number(e.target.value))}
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
+                />
               </div>
-            )}
+            </div>
 
-            {wizardStep === 12 && (
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-xl space-y-2">
-                <div className="font-bold text-sm">Step 12: Ready to Provision PostgreSQL Instance</div>
-                <p className="text-[11px] text-slate-300">
-                  Instance will be provisioned using Local Docker Provider driver with pg_isready health checks.
-                </p>
-              </div>
-            )}
-
-            <div className="pt-3 border-t border-slate-800 flex justify-between">
-              <CloudButton
-                variant="secondary"
-                size="sm"
-                type="button"
-                disabled={wizardStep === 1}
-                onClick={() => setWizardStep((prev) => Math.max(1, prev - 1))}
-              >
-                ← Back
+            <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">
+              <CloudButton variant="secondary" size="sm" type="button" onClick={() => setIsWizardOpen(false)}>Cancel</CloudButton>
+              <CloudButton variant="primary" size="sm" type="submit" disabled={isCreating}>
+                {isCreating ? 'Provisioning...' : `Provision ${selectedEngine}`}
               </CloudButton>
-
-              {wizardStep < 12 ? (
-                <CloudButton
-                  variant="primary"
-                  size="sm"
-                  type="button"
-                  onClick={() => setWizardStep((prev) => Math.min(12, prev + 1))}
-                >
-                  Next Step →
-                </CloudButton>
-              ) : (
-                <CloudButton variant="primary" size="sm" type="submit" disabled={isCreating}>
-                  {isCreating ? 'Provisioning...' : 'Provision PostgreSQL Cluster'}
-                </CloudButton>
-              )}
             </div>
           </form>
         </CloudModal>

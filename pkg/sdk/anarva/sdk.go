@@ -18,6 +18,7 @@ type Client struct {
 	Compute      *ComputeService
 	Database     *DatabaseService
 	Databases    *PostgresService
+	MySQL        *MySQLService
 	Storage      *StorageService
 	Network      *NetworkService
 	Networks     *NetworksService
@@ -56,6 +57,7 @@ func NewClient(apiKey string, baseURLs ...string) *Client {
 	c.Compute = &ComputeService{client: c}
 	c.Database = &DatabaseService{client: c}
 	c.Databases = &PostgresService{client: c}
+	c.MySQL = &MySQLService{client: c}
 	c.Storage = &StorageService{client: c}
 	c.Network = &NetworkService{client: c}
 	c.Networks = &NetworksService{client: c}

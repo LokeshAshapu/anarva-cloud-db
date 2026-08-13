@@ -47,6 +47,11 @@ import (
 	postgresService "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/service"
 	storageProvider "github.com/anarva-cloud/anarva-cloud-db/internal/storage/provider"
 
+	mysqlHandler "github.com/anarva-cloud/anarva-cloud-db/internal/database/mysql/handler"
+	mysqlProvider "github.com/anarva-cloud/anarva-cloud-db/internal/database/mysql/provider"
+	mysqlRepo "github.com/anarva-cloud/anarva-cloud-db/internal/database/mysql/repository"
+	mysqlService "github.com/anarva-cloud/anarva-cloud-db/internal/database/mysql/service"
+
 	networkingConn "github.com/anarva-cloud/anarva-cloud-db/internal/networking/connectivity"
 	networkingDns "github.com/anarva-cloud/anarva-cloud-db/internal/networking/dns"
 	networkingFw "github.com/anarva-cloud/anarva-cloud-db/internal/networking/firewall"
@@ -286,11 +291,19 @@ func main() {
 	lbServiceSvc := lbService.NewLoadBalancerService(lbRepository, lbProv, lbRoutingSvc, lbHealthSvc, lbTlsSvc, lbDnsSvc, lbSsrfSvc, actStream)
 	lbDeliveryHandler := lbHandler.NewLoadBalancerHandler(lbServiceSvc)
 
+	// Phase 20 Managed MySQL Database Platform
+	myRepository := mysqlRepo.NewMySQLRepository()
+	myProv := mysqlProvider.NewLocalDockerMySQLProvider()
+	myServiceSvc := mysqlService.NewMySQLService(myRepository, myProv, actStream)
+	mySqlSvc := mysqlService.NewSQLService()
+	myDeliveryHandler := mysqlHandler.NewMySQLHandler(myServiceSvc, mySqlSvc)
+
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
 	databaseHttp.NewDatabaseHandler(dUC).RegisterRoutes(mux)
 	postgresHandler.NewPostgresHandler(pgService, sqlService).RegisterRoutes(mux)
+	myDeliveryHandler.RegisterRoutes(mux)
 	vNetHandler.RegisterRoutes(mux)
 	lbDeliveryHandler.RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bakProv, actStream).RegisterRoutes(mux)
