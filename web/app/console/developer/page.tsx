@@ -89,8 +89,11 @@ export default function DeveloperCenterPage() {
       const stored = localStorage.getItem(storageKey)
       if (stored) {
         try {
-          setApiKeys(JSON.parse(stored))
-          return
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed)) {
+            setApiKeys(parsed)
+            return
+          }
         } catch (e) {}
       }
     }
@@ -141,8 +144,11 @@ export default function DeveloperCenterPage() {
       const stored = localStorage.getItem(storageKey)
       if (stored) {
         try {
-          setServiceAccounts(JSON.parse(stored))
-          return
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed)) {
+            setServiceAccounts(parsed)
+            return
+          }
         } catch (e) {}
       }
     }
@@ -189,8 +195,11 @@ export default function DeveloperCenterPage() {
       const stored = localStorage.getItem(storageKey)
       if (stored) {
         try {
-          setWebhooks(JSON.parse(stored))
-          return
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed)) {
+            setWebhooks(parsed)
+            return
+          }
         } catch (e) {}
       }
     }
@@ -262,6 +271,16 @@ export default function DeveloperCenterPage() {
     })
   }
 
+  const handleDeleteKey = (id: string) => {
+    setApiKeys((prev) => {
+      const updated = prev.filter((k) => k.id !== id)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`anarva_user_apikeys_${userEmail}`, JSON.stringify(updated))
+      }
+      return updated
+    })
+  }
+
   const handleCreateServiceAccount = (e: React.FormEvent) => {
     e.preventDefault()
     if (!saName) return
@@ -289,6 +308,16 @@ export default function DeveloperCenterPage() {
     setSaDesc('')
   }
 
+  const handleDeleteServiceAccount = (id: string) => {
+    setServiceAccounts((prev) => {
+      const updated = prev.filter((sa) => sa.id !== id)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`anarva_user_sa_${userEmail}`, JSON.stringify(updated))
+      }
+      return updated
+    })
+  }
+
   const handleCreateWebhook = (e: React.FormEvent) => {
     e.preventDefault()
     if (!whUrl) return
@@ -307,6 +336,16 @@ export default function DeveloperCenterPage() {
 
     setWebhooks((prev) => {
       const updated = [mockEp, ...prev]
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`anarva_user_webhooks_${userEmail}`, JSON.stringify(updated))
+      }
+      return updated
+    })
+  }
+
+  const handleDeleteWebhook = (id: string) => {
+    setWebhooks((prev) => {
+      const updated = prev.filter((wh) => wh.id !== id)
       if (typeof window !== 'undefined') {
         localStorage.setItem(`anarva_user_webhooks_${userEmail}`, JSON.stringify(updated))
       }
@@ -402,36 +441,45 @@ export default function DeveloperCenterPage() {
               </div>
 
               <div className="space-y-2">
-                {apiKeys.map((key) => (
-                  <div key={key.id} className="p-4 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white text-sm">{key.name}</span>
-                        <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">{key.keyPrefix}</span>
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            key.status === 'ACTIVE'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                          }`}
-                        >
-                          {key.status}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-1">
-                        Owner: {key.createdBy} • Created: {new Date(key.createdAt).toLocaleDateString()} • Scopes: {key.permissions.join(', ')}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {key.status === 'ACTIVE' && (
-                        <CloudButton variant="danger" size="sm" onClick={() => handleRevokeKey(key.id)}>
-                          Revoke Key
-                        </CloudButton>
-                      )}
-                    </div>
+                {apiKeys.length === 0 ? (
+                  <div className="p-6 bg-slate-950 border border-slate-800 rounded-xl text-center text-slate-400">
+                    No API keys found. Click "+ Create API Key" to generate a new key.
                   </div>
-                ))}
+                ) : (
+                  apiKeys.map((key) => (
+                    <div key={key.id} className="p-4 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-sm">{key.name}</span>
+                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">{key.keyPrefix}</span>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              key.status === 'ACTIVE'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                            }`}
+                          >
+                            {key.status}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-1">
+                          Owner: {key.createdBy} • Created: {new Date(key.createdAt).toLocaleDateString()} • Scopes: {key.permissions.join(', ')}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {key.status === 'ACTIVE' && (
+                          <CloudButton variant="secondary" size="sm" onClick={() => handleRevokeKey(key.id)}>
+                            Revoke Key
+                          </CloudButton>
+                        )}
+                        <CloudButton variant="danger" size="sm" onClick={() => handleDeleteKey(key.id)}>
+                          Delete
+                        </CloudButton>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </CloudCard>
@@ -457,9 +505,14 @@ export default function DeveloperCenterPage() {
                     <div className="text-[11px] text-slate-400 mt-0.5">{sa.description}</div>
                     <div className="text-[10px] text-slate-500 mt-1">ID: {sa.id} • Role: {sa.role} • Owner: {sa.createdBy}</div>
                   </div>
-                  <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-xs font-bold">
-                    {sa.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-xs font-bold">
+                      {sa.status}
+                    </span>
+                    <CloudButton variant="danger" size="sm" onClick={() => handleDeleteServiceAccount(sa.id)}>
+                      Delete
+                    </CloudButton>
+                  </div>
                 </div>
               ))}
             </div>
@@ -539,9 +592,14 @@ export default function DeveloperCenterPage() {
                     <div className="text-[11px] text-slate-400 mt-0.5">{wh.description}</div>
                     <div className="text-[10px] text-slate-500 mt-1">Events: {wh.events.join(', ')} • Secret: {wh.secretPrefix}</div>
                   </div>
-                  <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-xs font-bold">
-                    {wh.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-xs font-bold">
+                      {wh.status}
+                    </span>
+                    <CloudButton variant="danger" size="sm" onClick={() => handleDeleteWebhook(wh.id)}>
+                      Delete
+                    </CloudButton>
+                  </div>
                 </div>
               ))}
             </div>
@@ -642,7 +700,7 @@ func main() {
                 </div>
 
                 <div className="pt-2 flex justify-end">
-                  <CloudButton variant="primary" size="sm" onClick={() => setIsKeyModalOpen(false)}>
+                  <CloudButton variant="primary" size="sm" onClick={() => { setIsKeyModalOpen(false); setKeyName(''); setCreatedSecret(''); }}>
                     I Have Saved My Secret Key
                   </CloudButton>
                 </div>
