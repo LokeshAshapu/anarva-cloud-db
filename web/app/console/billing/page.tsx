@@ -194,11 +194,11 @@ export default function BillingPage() {
       finalAmountDue,
     })
 
-    // Account-Scoped Quotas (Upgraded limits for Student Premium)
-    const acuLimit = promoActive ? 128.0 : 32.0
-    const storageLimit = promoActive ? 2000.0 : 500.0
-    const dbLimit = promoActive ? 20.0 : 5.0
-    const vpcLimit = promoActive ? 10.0 : 3.0
+    // Account-Scoped Quotas (5x AWS Free Tier for General Users; 50x AWS Free Tier for Student Premium)
+    const acuLimit = promoActive ? 64.0 : 8.0
+    const storageLimit = promoActive ? 250.0 : 25.0
+    const dbLimit = promoActive ? 10.0 : 2.0
+    const vpcLimit = promoActive ? 5.0 : 2.0
 
     const calculatedQuotas: QuotaItem[] = [
       {
@@ -501,15 +501,15 @@ export default function BillingPage() {
         />
         <CloudMetric
           label="Compute ACU Quota"
-          value={`${accountUsage.computeAcu.toFixed(1)} / ${isStudentPromoActive ? '128.0' : '32.0'} ACU`}
-          subtext={`${((accountUsage.computeAcu / (isStudentPromoActive ? 128 : 32)) * 100).toFixed(1)}% Used`}
+          value={`${accountUsage.computeAcu.toFixed(1)} / ${isStudentPromoActive ? '64.0' : '8.0'} ACU`}
+          subtext={`${((accountUsage.computeAcu / (isStudentPromoActive ? 64 : 8)) * 100).toFixed(1)}% Used`}
           trend="AVAILABLE"
           trendType="positive"
         />
         <CloudMetric
           label="Storage Quota"
-          value={`${accountUsage.storageGb.toFixed(1)} / ${isStudentPromoActive ? '2000' : '500'} GB`}
-          subtext={`${((accountUsage.storageGb / (isStudentPromoActive ? 2000 : 500)) * 100).toFixed(1)}% Used`}
+          value={`${accountUsage.storageGb.toFixed(1)} / ${isStudentPromoActive ? '250.0' : '25.0'} GB`}
+          subtext={isStudentPromoActive ? `${accountUsage.storageGb.toFixed(1)} / 250.0 GB (50x AWS Free Tier)` : `${accountUsage.storageGb.toFixed(1)} / 25.0 GB (5x AWS Free Tier)`}
           trend="AVAILABLE"
           trendType="positive"
         />
