@@ -61,6 +61,16 @@ import (
 	networkingRepo "github.com/anarva-cloud/anarva-cloud-db/internal/networking/repository"
 	networkingService "github.com/anarva-cloud/anarva-cloud-db/internal/networking/service"
 
+	infraEvac "github.com/anarva-cloud/anarva-cloud-db/internal/infrastructure/evacuation"
+	infraFailover "github.com/anarva-cloud/anarva-cloud-db/internal/infrastructure/failover"
+	infraHandler "github.com/anarva-cloud/anarva-cloud-db/internal/infrastructure/handler"
+	infraHealth "github.com/anarva-cloud/anarva-cloud-db/internal/infrastructure/health"
+	infraPlacement "github.com/anarva-cloud/anarva-cloud-db/internal/infrastructure/placement"
+	infraProvider "github.com/anarva-cloud/anarva-cloud-db/internal/infrastructure/provider"
+	infraRepo "github.com/anarva-cloud/anarva-cloud-db/internal/infrastructure/repository"
+	infraService "github.com/anarva-cloud/anarva-cloud-db/internal/infrastructure/service"
+	infraSim "github.com/anarva-cloud/anarva-cloud-db/internal/infrastructure/simulator"
+
 	lbDns "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/dns"
 	lbEdge "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/edge"
 	lbHandler "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/handler"
@@ -298,6 +308,17 @@ func main() {
 	mySqlSvc := mysqlService.NewSQLService()
 	myDeliveryHandler := mysqlHandler.NewMySQLHandler(myServiceSvc, mySqlSvc)
 
+	// Phase 21 Multi-Region, Availability Zones & High-Availability Control Plane
+	infRepository := infraRepo.NewInfrastructureRepository()
+	infProv := infraProvider.NewLocalSimulationProvider()
+	infPlacementEng := infraPlacement.NewPlacementEngine(infProv)
+	infHealthEng := infraHealth.NewInfrastructureHealthEngine(infProv)
+	infFailoverEng := infraFailover.NewFailoverEngine()
+	infEvacSvc := infraEvac.NewEvacuationService()
+	infSim := infraSim.NewOutageSimulator()
+	infServiceSvc := infraService.NewInfrastructureService(infRepository, infProv, infPlacementEng, infHealthEng, infFailoverEng, infEvacSvc, infSim, actStream)
+	infDeliveryHandler := infraHandler.NewInfrastructureHandler(infServiceSvc)
+
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
@@ -306,6 +327,7 @@ func main() {
 	myDeliveryHandler.RegisterRoutes(mux)
 	vNetHandler.RegisterRoutes(mux)
 	lbDeliveryHandler.RegisterRoutes(mux)
+	infDeliveryHandler.RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bakProv, actStream).RegisterRoutes(mux)
 	computeHttp.NewComputeHandler(compUC, actStream).RegisterRoutes(mux)
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
