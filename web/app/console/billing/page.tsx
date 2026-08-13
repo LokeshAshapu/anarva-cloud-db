@@ -5,6 +5,7 @@ import { CloudCard } from '@/components/cloud/CloudCard'
 import { CloudMetric } from '@/components/cloud/CloudMetric'
 import { CloudButton } from '@/components/cloud/CloudButton'
 import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
+import { CloudModal } from '@/components/cloud/CloudModal'
 
 interface QuotaItem {
   id: string
@@ -57,6 +58,9 @@ export default function BillingPage() {
   const [isStudentPromoActive, setIsStudentPromoActive] = useState(false)
   const [promoCodeInput, setPromoCodeInput] = useState('')
   const [promoMessage, setPromoMessage] = useState('')
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false)
+  const [modalPromoInput, setModalPromoInput] = useState('')
+  const [modalError, setModalError] = useState('')
 
   // Account-Specific Calculated Resource Metrics
   const [accountUsage, setAccountUsage] = useState({
@@ -300,29 +304,49 @@ export default function BillingPage() {
     ])
   }
 
-  const handleApplyPromoCode = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!promoCodeInput) return
+  const validateAndActivatePromoCode = (inputCode: string) => {
+    const code = inputCode.trim().toUpperCase()
+    if (!code) {
+      return { success: false, msg: 'Please enter a promo code.' }
+    }
 
-    const code = promoCodeInput.trim().toUpperCase()
     if (code === 'COLLEGE-FREE-1MONTH' || code === 'ANARVA-STUDENT-2026' || code === 'PREMIUM-30DAYS' || code.length >= 4) {
       setIsStudentPromoActive(true)
       if (typeof window !== 'undefined') {
         localStorage.setItem(`anarva_user_promo_${userEmail}`, 'true')
       }
-      setPromoMessage(`✓ Promo Code '${code}' Applied Successfully! 1-Month Free Student Premium ($100 Credits) Activated.`)
       calculateAccountBillingAndQuotas(userEmail)
+      return { success: true, msg: `✓ Promo Code '${code}' Verified! 1-Month Free Student Premium ($100 Credits) Activated.` }
     } else {
-      setPromoMessage('❌ Invalid Promo Code. Try using code: COLLEGE-FREE-1MONTH')
+      return { success: false, msg: '❌ Invalid Promo Code. Enter code: COLLEGE-FREE-1MONTH' }
     }
   }
 
-  const handleActivateStudentFreeTier = () => {
-    setIsStudentPromoActive(true)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`anarva_user_promo_${userEmail}`, 'true')
+  const handleApplyPromoCode = (e: React.FormEvent) => {
+    e.preventDefault()
+    const res = validateAndActivatePromoCode(promoCodeInput)
+    setPromoMessage(res.msg)
+  }
+
+  const handleModalSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const res = validateAndActivatePromoCode(modalPromoInput)
+    if (res.success) {
+      setIsPromoModalOpen(false)
+      setModalError('')
+      setModalPromoInput('')
+      setPromoMessage(res.msg)
+    } else {
+      setModalError(res.msg)
     }
-    setPromoMessage('✓ 1-Month Free Premium Student Tier ($100 Credits) Activated!')
+  }
+
+  const handleDeactivatePromo = () => {
+    setIsStudentPromoActive(false)
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(`anarva_user_promo_${userEmail}`)
+    }
+    setPromoMessage('Promo Code Deactivated. Account reverted to standard PAYG tier.')
     calculateAccountBillingAndQuotas(userEmail)
   }
 
@@ -397,23 +421,35 @@ export default function BillingPage() {
               $100.00 Free Cloud Credits applied to account {userEmail}. Resource quota limits upgraded to 128 ACUs & 2 TB Storage.
             </span>
           </div>
-          <span className="px-2.5 py-1 bg-purple-500/20 text-purple-200 border border-purple-500/30 rounded text-[10px] font-bold">
-            $0.00 DUE VIA PROMO
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 bg-purple-500/20 text-purple-200 border border-purple-500/30 rounded text-[10px] font-bold">
+              $0.00 DUE VIA PROMO
+            </span>
+            <button
+              onClick={handleDeactivatePromo}
+              className="text-[10px] text-slate-400 underline hover:text-red-400 transition-colors"
+            >
+              Reset / Deactivate Code
+            </button>
+          </div>
         </div>
       ) : (
         <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl font-mono text-xs text-amber-400 flex items-center justify-between gap-4">
           <div>
             <strong className="font-bold uppercase text-amber-300">🎓 COLLEGE STUDENT OFFER AVAILABLE:</strong>
             <span className="ml-2 text-slate-300 text-[11px]">
-              Studying in college? Activate 1-Month Free Student Premium access ($100 Free Credits) using code <code className="text-white font-bold">COLLEGE-FREE-1MONTH</code>!
+              Studying in college? Enter promo code <code className="text-white font-bold">COLLEGE-FREE-1MONTH</code> to claim 1-Month Free Premium Access ($100 Free Credits)!
             </span>
           </div>
           <button
-            onClick={handleActivateStudentFreeTier}
+            onClick={() => {
+              setModalError('')
+              setModalPromoInput('')
+              setIsPromoModalOpen(true)
+            }}
             className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-xs font-bold hover:bg-amber-500/30 transition-colors"
           >
-            Claim 1-Month Free Premium
+            Claim Offer (Enter Promo Code)
           </button>
         </div>
       )}
@@ -494,28 +530,29 @@ export default function BillingPage() {
               <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-300 text-xs">
                 <div className="font-bold text-sm text-purple-200">Give 1-Month Free Premium Cloud Access to College Students!</div>
                 <p className="mt-1 text-[11px] text-slate-300">
-                  Any enrolled student can activate 1-Month Free Premium Access ($100 Free Cloud Credits) to build databases, deploy containers, and learn cloud architecture without incurring charges.
+                  Any enrolled student can enter their Student Promo Code (e.g. <code className="text-white font-bold">COLLEGE-FREE-1MONTH</code>) to activate 1-Month Free Premium Access ($100 Free Cloud Credits) and build databases and container workloads without incurring charges.
                 </p>
               </div>
 
-              {/* Promo Code Form */}
+              {/* Promo Code Entry Form */}
               <form onSubmit={handleApplyPromoCode} className="space-y-4">
                 <div>
-                  <label className="block text-slate-300 mb-1">Enter Student Promo Code</label>
+                  <label className="block text-slate-300 mb-1">Enter Student Promo Code (Required)</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
+                      required
                       value={promoCodeInput}
                       onChange={(e) => setPromoCodeInput(e.target.value)}
                       placeholder="e.g. COLLEGE-FREE-1MONTH"
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 uppercase tracking-wider font-bold focus:outline-none focus:border-purple-500"
                     />
                     <CloudButton variant="primary" size="sm" type="submit">
-                      Apply Promo Code
+                      Verify & Activate Code
                     </CloudButton>
                   </div>
                   <div className="text-[10px] text-slate-400 mt-1">
-                    Valid Codes: <code className="text-purple-300">COLLEGE-FREE-1MONTH</code> • <code className="text-purple-300">ANARVA-STUDENT-2026</code> • <code className="text-purple-300">PREMIUM-30DAYS</code>
+                    Valid Promo Code required: <code className="text-purple-300">COLLEGE-FREE-1MONTH</code> • <code className="text-purple-300">ANARVA-STUDENT-2026</code> • <code className="text-purple-300">PREMIUM-30DAYS</code>
                   </div>
                 </div>
 
@@ -526,18 +563,34 @@ export default function BillingPage() {
                 )}
               </form>
 
-              {/* Quick Activation Card */}
+              {/* Promo Status Card */}
               <div className="p-5 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <div className="font-bold text-white text-sm">1-Click Instant Student Free Tier Activation</div>
+                  <div className="font-bold text-white text-sm">Promo Activation Status for {userEmail}</div>
                   <div className="text-[11px] text-slate-400 mt-0.5">
-                    Click to instantly grant $100.00 Free Credits and upgrade compute limits to 128 ACUs for account: <strong className="text-white">{userEmail}</strong>.
+                    {isStudentPromoActive
+                      ? '✓ 1-Month Free Premium Student Access ($100 Credits) is currently ACTIVE on your account.'
+                      : '❌ No active promo code applied. Enter code COLLEGE-FREE-1MONTH above to activate $100 credits.'}
                   </div>
                 </div>
 
-                <CloudButton variant={isStudentPromoActive ? 'secondary' : 'primary'} size="sm" onClick={handleActivateStudentFreeTier}>
-                  {isStudentPromoActive ? '✓ Student Premium Active' : 'Activate 1-Month Free Premium ($100)'}
-                </CloudButton>
+                {!isStudentPromoActive ? (
+                  <CloudButton
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setModalError('')
+                      setModalPromoInput('')
+                      setIsPromoModalOpen(true)
+                    }}
+                  >
+                    Enter Student Promo Code
+                  </CloudButton>
+                ) : (
+                  <CloudButton variant="secondary" size="sm" onClick={handleDeactivatePromo}>
+                    Reset / Deactivate Promo Code
+                  </CloudButton>
+                )}
               </div>
             </div>
           </CloudCard>
@@ -739,6 +792,47 @@ export default function BillingPage() {
             </div>
           </CloudCard>
         </div>
+      )}
+
+      {/* Modal: Enter Promo Code */}
+      {isPromoModalOpen && (
+        <CloudModal isOpen={isPromoModalOpen} title="Activate Student Premium Offer" onClose={() => setIsPromoModalOpen(false)}>
+          <form onSubmit={handleModalSubmit} className="space-y-4 font-mono text-xs">
+            <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-300 text-[11px]">
+              ℹ Enter your student promo code below to claim $100.00 Free Cloud Credits and upgrade your account quotas.
+            </div>
+
+            <div>
+              <label className="block text-slate-300 mb-1 font-bold">Student Promo Code (Required)</label>
+              <input
+                type="text"
+                required
+                value={modalPromoInput}
+                onChange={(e) => setModalPromoInput(e.target.value)}
+                placeholder="Enter promo code (e.g. COLLEGE-FREE-1MONTH)"
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-100 uppercase font-bold tracking-wider focus:outline-none focus:border-purple-500"
+              />
+              <div className="text-[10px] text-slate-400 mt-1">
+                Try using promo code: <code className="text-purple-300 font-bold">COLLEGE-FREE-1MONTH</code>
+              </div>
+            </div>
+
+            {modalError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[11px] font-bold">
+                {modalError}
+              </div>
+            )}
+
+            <div className="pt-2 flex justify-end gap-2">
+              <CloudButton variant="secondary" size="sm" onClick={() => setIsPromoModalOpen(false)}>
+                Cancel
+              </CloudButton>
+              <CloudButton variant="primary" size="sm" type="submit">
+                Verify Code & Activate
+              </CloudButton>
+            </div>
+          </form>
+        </CloudModal>
       )}
     </div>
   )
