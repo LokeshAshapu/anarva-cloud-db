@@ -56,6 +56,16 @@ import (
 	networkingRepo "github.com/anarva-cloud/anarva-cloud-db/internal/networking/repository"
 	networkingService "github.com/anarva-cloud/anarva-cloud-db/internal/networking/service"
 
+	lbDns "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/dns"
+	lbEdge "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/edge"
+	lbHandler "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/handler"
+	lbHealth "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/health"
+	lbProvider "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/provider"
+	lbRepo "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/repository"
+	lbRouting "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/routing"
+	lbService "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/service"
+	lbTls "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/tls"
+
 	provHttp "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/delivery/http"
 	provProvider "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/provider"
 	provUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/usecase"
@@ -265,12 +275,24 @@ func main() {
 	vNetSvc := networkingService.NewNetworkingService(vNetRepo, vNetProv, vNetIpam, vNetFw, vNetDnsProv, vNetConn, actStream)
 	vNetHandler := networkingHandler.NewNetworkingHandler(vNetSvc)
 
+	// Phase 19 Load Balancing, TLS, DNS & Edge Delivery Platform
+	lbRepository := lbRepo.NewLoadBalancerRepository()
+	lbProv := lbProvider.NewLocalDockerLoadBalancerProvider()
+	lbRoutingSvc := lbRouting.NewRoutingService()
+	lbHealthSvc := lbHealth.NewHealthService()
+	lbTlsSvc := lbTls.NewTLSService()
+	lbDnsSvc := lbDns.NewDNSIntegrationService()
+	lbSsrfSvc := lbEdge.NewSSRFValidationService()
+	lbServiceSvc := lbService.NewLoadBalancerService(lbRepository, lbProv, lbRoutingSvc, lbHealthSvc, lbTlsSvc, lbDnsSvc, lbSsrfSvc, actStream)
+	lbDeliveryHandler := lbHandler.NewLoadBalancerHandler(lbServiceSvc)
+
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
 	databaseHttp.NewDatabaseHandler(dUC).RegisterRoutes(mux)
 	postgresHandler.NewPostgresHandler(pgService, sqlService).RegisterRoutes(mux)
 	vNetHandler.RegisterRoutes(mux)
+	lbDeliveryHandler.RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bakProv, actStream).RegisterRoutes(mux)
 	computeHttp.NewComputeHandler(compUC, actStream).RegisterRoutes(mux)
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
