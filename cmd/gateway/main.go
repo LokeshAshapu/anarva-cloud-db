@@ -50,6 +50,9 @@ import (
 	devUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/developer/usecase"
 	whUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/webhook/usecase"
 
+	billHttp "github.com/anarva-cloud/anarva-cloud-db/internal/billing/delivery/http"
+	billUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/billing/usecase"
+
 	"github.com/anarva-cloud/anarva-cloud-db/internal/resource"
 	resourceHttp "github.com/anarva-cloud/anarva-cloud-db/internal/resource/delivery/http"
 
@@ -233,6 +236,9 @@ func main() {
 	devUC := devUsecase.NewDeveloperUseCase()
 	whUC := whUsecase.NewWebhookUseCase()
 
+	// Phase 15 Billing Service & Quotas Engine
+	billUC := billUsecase.NewBillingUseCase()
+
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
@@ -245,6 +251,7 @@ func main() {
 	observabilityHttp.NewObservabilityHandler(obsSvc).RegisterRoutes(mux)
 	provHttp.NewProvisioningHandler(provUC, provRegistry, actStream).RegisterRoutes(mux)
 	devHttp.NewDeveloperHandler(devUC, whUC, actStream).RegisterRoutes(mux)
+	billHttp.NewBillingHandler(billUC, actStream).RegisterRoutes(mux)
 
 	// Register Query Handler
 	qh := &queryHandler{

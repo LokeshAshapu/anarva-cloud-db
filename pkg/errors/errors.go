@@ -21,6 +21,7 @@ const (
 	CodeTimeout            ErrorCode = "TIMEOUT"
 	CodeServiceUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
 	CodeDatabaseError      ErrorCode = "DATABASE_ERROR"
+	CodeQuotaExceeded      ErrorCode = "QUOTA_EXCEEDED"
 )
 
 // AppError is the standard error struct for the entire platform.
