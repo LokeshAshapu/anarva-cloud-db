@@ -38,7 +38,6 @@ import (
 	gwMiddleware "github.com/anarva-cloud/anarva-cloud-db/internal/gateway/middleware"
 	iamHttp "github.com/anarva-cloud/anarva-cloud-db/internal/iam/delivery/http"
 	iamService "github.com/anarva-cloud/anarva-cloud-db/internal/iam/service"
-	networkHttp "github.com/anarva-cloud/anarva-cloud-db/internal/network/delivery/http"
 	networkProvider "github.com/anarva-cloud/anarva-cloud-db/internal/network/provider"
 	networkUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/network/usecase"
 	observabilityHttp "github.com/anarva-cloud/anarva-cloud-db/internal/observability/delivery/http"
@@ -236,6 +235,7 @@ func main() {
 	compUC := computeUsecase.NewComputeUseCase(newMemComputeRepo(), nil, compProv)
 	netProv := networkProvider.NewLocalDockerNetworkProvider()
 	netUC := networkUsecase.NewNetworkUseCase(newMemNetworkRepo(), nil, nil, nil, nil, nil, netProv)
+	_ = netUC
 
 	// Phase 13 Provisioning Engine & Provider Registry
 	provRegistry := provProvider.NewProviderRegistry()
@@ -273,7 +273,6 @@ func main() {
 	vNetHandler.RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bakProv, actStream).RegisterRoutes(mux)
 	computeHttp.NewComputeHandler(compUC, actStream).RegisterRoutes(mux)
-	networkHttp.NewNetworkHandler(netUC, actStream).RegisterRoutes(mux)
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
 	iamHttp.NewIAMHandler(authSvc, actStream).RegisterRoutes(mux)
 	observabilityHttp.NewObservabilityHandler(obsSvc).RegisterRoutes(mux)
