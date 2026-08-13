@@ -69,42 +69,18 @@ export default function CloudConsoleHome() {
 
       if (storedDbs) {
         dbs = JSON.parse(storedDbs)
-      } else if (email === 'lokeshashapu@gmail.com') {
-        // Initial seed only for primary admin
-        dbs = [
-          { id: 'res-db-prod-1', name: 'production-db', resourceId: 'arnv:db:ap-hyderabad-1:proj-default:database/production-db', type: 'DATABASE', status: 'AVAILABLE' },
-          { id: 'res-db-analytics-1', name: 'analytics-db', resourceId: 'arnv:db:ap-mumbai-1:proj-default:database/analytics-db', type: 'DATABASE', status: 'AVAILABLE' },
-        ]
-        localStorage.setItem(dbKey, JSON.stringify(dbs))
       }
 
       if (storedBuckets) {
         buckets = JSON.parse(storedBuckets)
-      } else if (email === 'lokeshashapu@gmail.com') {
-        buckets = [
-          { id: 'res-s3-assets-1', name: 'anarva-media-assets', resourceId: 'arnv:s3:ap-hyderabad-1:proj-default:storage/anarva-media-assets', type: 'STORAGE_BUCKET', status: 'AVAILABLE' },
-        ]
-        localStorage.setItem(bucketKey, JSON.stringify(buckets))
       }
 
       if (storedCompute) {
         compute = JSON.parse(storedCompute)
-      } else if (email === 'lokeshashapu@gmail.com') {
-        compute = [
-          { id: 'acu-1', name: 'ace-worker-node-01', resourceId: 'arnv:vm:ap-hyderabad-1:proj-default:compute/ace-worker-node-01', type: 'COMPUTE', status: 'AVAILABLE' },
-        ]
-        localStorage.setItem(computeKey, JSON.stringify(compute))
       }
 
       if (storedActs) {
         acts = JSON.parse(storedActs)
-      } else if (email === 'lokeshashapu@gmail.com') {
-        acts = [
-          { id: 'act-1', action: 'RESOURCE_CREATED', resource: 'production-db', actor: email, time: '10 mins ago' },
-          { id: 'act-2', action: 'RESOURCE_CREATED', resource: 'anarva-media-assets', actor: email, time: '45 mins ago' },
-          { id: 'act-3', action: 'RESOURCE_STARTED', resource: 'ace-worker-node-01', actor: email, time: '2 hours ago' },
-        ]
-        localStorage.setItem(actKey, JSON.stringify(acts))
       }
 
       const combined: ResourceItem[] = [

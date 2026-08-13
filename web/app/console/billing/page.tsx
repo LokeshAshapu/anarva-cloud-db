@@ -133,8 +133,6 @@ export default function BillingPage() {
             computeAcu = instances.reduce((acc: number, inst: any) => acc + (inst.acu || 1.0), 0)
           }
         } catch (e) {}
-      } else if (email === 'lokeshashapu@gmail.com') {
-        computeAcu = 1.0
       }
 
       // 2. Account Database Count
@@ -144,8 +142,6 @@ export default function BillingPage() {
           const dbs = JSON.parse(storedDBs)
           if (Array.isArray(dbs)) dbCount = dbs.length
         } catch (e) {}
-      } else if (email === 'lokeshashapu@gmail.com') {
-        dbCount = 1
       }
 
       // 3. Account Storage Capacity in GB
@@ -157,8 +153,6 @@ export default function BillingPage() {
             storageGb = buckets.reduce((acc: number, b: any) => acc + (b.sizeGb || 10.0), 0)
           }
         } catch (e) {}
-      } else if (email === 'lokeshashapu@gmail.com') {
-        storageGb = 20.0
       }
 
       // 4. Account VPC Count
@@ -168,8 +162,6 @@ export default function BillingPage() {
           const nets = JSON.parse(storedNetworks)
           if (Array.isArray(nets)) vpcCount = nets.length
         } catch (e) {}
-      } else if (email === 'lokeshashapu@gmail.com') {
-        vpcCount = 1
       }
     }
 
