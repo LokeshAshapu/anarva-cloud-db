@@ -284,11 +284,7 @@ export default function BackupsPage() {
                 actionLabel="+ Create Manual Snapshot"
                 onAction={() => setCreateSnapshotModalOpen(true)}
                 icon="💾"
-                features={[
-                  { title: "Point-in-Time Recovery", desc: "Continuous WAL archiving enables second-by-second transaction replay.", icon: "⏪" },
-                  { title: "AES-256 Storage Encryption", desc: "Snapshots are automatically encrypted and stored in Anarva Object Storage (AOS).", icon: "🔒" },
-                  { title: "Automated Lifecycle Retention", desc: "Custom retention windows automatically purge old snapshots according to policy.", icon: "🕒" },
-                ]}
+                docsLink="https://docs.anarva.cloud/backups"
               />
             ) : (
               <div className="overflow-x-auto">

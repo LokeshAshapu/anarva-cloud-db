@@ -7,6 +7,7 @@ import { CloudButton } from '@/components/cloud/CloudButton'
 import { CloudCard } from '@/components/cloud/CloudCard'
 import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
 import { CloudModal } from '@/components/cloud/CloudModal'
+import { CloudEmptyState } from '@/components/cloud/CloudEmptyState'
 import { generateARNV } from '@/lib/arnv'
 
 interface BucketItem {
@@ -515,86 +516,16 @@ export default function StoragePage() {
         </CloudButton>
       </div>
 
-      {/* Bucket List Cards / Rich Empty State Hero */}
+      {/* Bucket List Cards / Enterprise Empty State */}
       {buckets.length === 0 ? (
-        <div className="space-y-8">
-          {/* Storage Summary Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 font-mono text-xs">
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-1">
-              <div className="text-slate-400 text-[10px] uppercase font-bold">TOTAL STORAGE USED</div>
-              <div className="text-2xl font-extrabold text-white">0.0 / 25.0 GB</div>
-              <div className="text-[10px] text-emerald-400 font-bold">5x AWS Free Tier Included</div>
-            </div>
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-1">
-              <div className="text-slate-400 text-[10px] uppercase font-bold">ACTIVE BUCKETS</div>
-              <div className="text-2xl font-extrabold text-white">0 Buckets</div>
-              <div className="text-[10px] text-slate-500">Ready to Provision</div>
-            </div>
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-1">
-              <div className="text-slate-400 text-[10px] uppercase font-bold">DATA DURABILITY SLA</div>
-              <div className="text-2xl font-extrabold text-emerald-400">99.999999999%</div>
-              <div className="text-[10px] text-emerald-400/80 font-bold">11 9s Durability Standard</div>
-            </div>
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-1">
-              <div className="text-slate-400 text-[10px] uppercase font-bold">SECURITY ENCRYPTION</div>
-              <div className="text-2xl font-extrabold text-blue-400">AES-256</div>
-              <div className="text-[10px] text-blue-400/80 font-bold">SSE-S3 Default Locked</div>
-            </div>
-          </div>
-
-          {/* Hero Action Card */}
-          <div className="p-8 bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950/40 border border-slate-800 rounded-3xl space-y-6 text-center sm:text-left relative overflow-hidden shadow-2xl">
-            <div className="max-w-2xl space-y-3 relative z-10">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-xs font-mono font-bold">
-                ⚡ ANARVA OBJECT STORAGE (AOS) S3 ENGINE
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                High-Performance S3-Compatible Object Storage
-              </h2>
-              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-                Deploy scalable object storage buckets with instant signed URL generation, automated multi-region replication, and zero egress fees within the same region.
-              </p>
-              <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
-                <CloudButton variant="primary" size="sm" onClick={() => setIsWizardOpen(true)}>
-                  + Provision Storage Bucket Now
-                </CloudButton>
-              </div>
-            </div>
-          </div>
-
-          {/* Feature Highlights Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 font-mono text-xs">
-            <div className="p-5 bg-slate-900/60 border border-slate-800 rounded-2xl space-y-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center font-bold text-sm">
-                📦
-              </div>
-              <h3 className="font-bold text-white text-sm">S3 API Protocol Compatible</h3>
-              <p className="text-slate-400 text-[11px] font-sans leading-relaxed">
-                Connect seamlessly using standard AWS SDKs, AWS CLI, Rclone, or MinIO client libraries without code modifications.
-              </p>
-            </div>
-
-            <div className="p-5 bg-slate-900/60 border border-slate-800 rounded-2xl space-y-2">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold text-sm">
-                🔑
-              </div>
-              <h3 className="font-bold text-white text-sm">Signed URL Architecture</h3>
-              <p className="text-slate-400 text-[11px] font-sans leading-relaxed">
-                Generate secure, time-limited presigned upload and download URLs for client-side uploads without exposing master API keys.
-              </p>
-            </div>
-
-            <div className="p-5 bg-slate-900/60 border border-slate-800 rounded-2xl space-y-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-bold text-sm">
-                🔒
-              </div>
-              <h3 className="font-bold text-white text-sm">Default Private Security</h3>
-              <p className="text-slate-400 text-[11px] font-sans leading-relaxed">
-                All buckets block public access by default with SSE-S3 AES-256 server-side encryption locked out of the box.
-              </p>
-            </div>
-          </div>
-        </div>
+        <CloudEmptyState
+          title="No Storage Buckets Provisioned"
+          description="You currently have 0 S3-compatible storage buckets. Provision a storage bucket to upload assets, media, or database backups."
+          actionLabel="+ Create Storage Bucket"
+          onAction={() => setIsWizardOpen(true)}
+          icon="📦"
+          docsLink="https://docs.anarva.cloud/storage"
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {buckets.map((b) => (
