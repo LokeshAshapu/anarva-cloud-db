@@ -71,6 +71,14 @@ import (
 	infraService "github.com/anarva-cloud/anarva-cloud-db/internal/infrastructure/service"
 	infraSim "github.com/anarva-cloud/anarva-cloud-db/internal/infrastructure/simulator"
 
+	prvDrift "github.com/anarva-cloud/anarva-cloud-db/internal/providers/drift"
+	prvHandler "github.com/anarva-cloud/anarva-cloud-db/internal/providers/handler"
+	prvImport "github.com/anarva-cloud/anarva-cloud-db/internal/providers/import"
+	prvMapping "github.com/anarva-cloud/anarva-cloud-db/internal/providers/mapping"
+	prvRegistry "github.com/anarva-cloud/anarva-cloud-db/internal/providers/registry"
+	prvSecurity "github.com/anarva-cloud/anarva-cloud-db/internal/providers/security"
+	prvService "github.com/anarva-cloud/anarva-cloud-db/internal/providers/service"
+
 	lbDns "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/dns"
 	lbEdge "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/edge"
 	lbHandler "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/handler"
@@ -319,6 +327,15 @@ func main() {
 	infServiceSvc := infraService.NewInfrastructureService(infRepository, infProv, infPlacementEng, infHealthEng, infFailoverEng, infEvacSvc, infSim, actStream)
 	infDeliveryHandler := infraHandler.NewInfrastructureHandler(infServiceSvc)
 
+	// Phase 22 Real Cloud Provider Integration & Infrastructure Execution Layer
+	prvReg := prvRegistry.NewProviderRegistry()
+	prvMapRepo := prvMapping.NewMappingRepository()
+	prvDriftEng := prvDrift.NewDriftEngine(prvMapRepo)
+	prvImportEng := prvImport.NewImportEngine(prvMapRepo)
+	prvSsrfEng := prvSecurity.NewSSRFProtectionEngine()
+	prvServiceSvc := prvService.NewProviderService(prvReg, prvMapRepo, prvDriftEng, prvImportEng, prvSsrfEng, actStream)
+	prvDeliveryHandler := prvHandler.NewProviderHandler(prvServiceSvc)
+
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
@@ -328,6 +345,7 @@ func main() {
 	vNetHandler.RegisterRoutes(mux)
 	lbDeliveryHandler.RegisterRoutes(mux)
 	infDeliveryHandler.RegisterRoutes(mux)
+	prvDeliveryHandler.RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bakProv, actStream).RegisterRoutes(mux)
 	computeHttp.NewComputeHandler(compUC, actStream).RegisterRoutes(mux)
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
