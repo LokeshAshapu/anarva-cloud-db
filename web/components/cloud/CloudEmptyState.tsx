@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import Link from 'next/link'
 import { CloudButton } from './CloudButton'
 
 export interface CloudEmptyStateProps {
@@ -40,14 +41,12 @@ export function CloudEmptyState({ title, description, actionLabel, onAction, ico
           </CloudButton>
         )}
         {docsLink && (
-          <a
+          <Link
             href={docsLink}
-            target="_blank"
-            rel="noopener noreferrer"
             className="text-xs font-mono text-slate-400 hover:text-blue-400 transition flex items-center gap-1 py-1 px-2"
           >
-            Documentation ↗
-          </a>
+            Developer Platform ↗
+          </Link>
         )}
       </div>
     </div>

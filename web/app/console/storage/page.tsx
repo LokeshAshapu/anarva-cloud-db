@@ -524,7 +524,7 @@ export default function StoragePage() {
           actionLabel="+ Create Storage Bucket"
           onAction={() => setIsWizardOpen(true)}
           icon="📦"
-          docsLink="https://docs.anarva.cloud/storage"
+          docsLink="/console/developer"
         />
       ) : (
         <div className="grid grid-cols-1 gap-4">

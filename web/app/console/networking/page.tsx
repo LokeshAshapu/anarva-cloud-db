@@ -547,7 +547,7 @@ export default function NetworkingPage() {
             actionLabel="+ Create VPC Network"
             onAction={() => setIsWizardOpen(true)}
             icon="🌐"
-            docsLink="https://docs.anarva.cloud/networking"
+            docsLink="/console/developer"
           />
         ) : (
           <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden text-xs">

@@ -284,7 +284,7 @@ export default function BackupsPage() {
                 actionLabel="+ Create Manual Snapshot"
                 onAction={() => setCreateSnapshotModalOpen(true)}
                 icon="💾"
-                docsLink="https://docs.anarva.cloud/backups"
+                docsLink="/console/developer"
               />
             ) : (
               <div className="overflow-x-auto">

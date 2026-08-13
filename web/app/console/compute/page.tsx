@@ -490,7 +490,7 @@ export default function ComputeEnginePage() {
             actionLabel="+ Provision Compute Instance"
             onAction={() => setIsWizardOpen(true)}
             icon="🖥️"
-            docsLink="https://docs.anarva.cloud/compute"
+            docsLink="/console/developer"
           />
         ) : (
           <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden text-xs">
