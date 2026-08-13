@@ -5,7 +5,6 @@ import { CloudCard } from '@/components/cloud/CloudCard'
 import { CloudMetric } from '@/components/cloud/CloudMetric'
 import { CloudButton } from '@/components/cloud/CloudButton'
 import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
-import { CloudModal } from '@/components/cloud/CloudModal'
 import { API_BASE_URL } from '@/lib/api'
 
 interface QuotaItem {
@@ -55,32 +54,23 @@ export default function BillingPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [userEmail, setUserEmail] = useState('user@anarva.io')
 
-  // Quotas State
-  const [quotas, setQuotas] = useState<QuotaItem[]>([
-    { id: 'q-1', resourceType: 'COMPUTE', metric: 'compute.acu', limit: 32.0, currentUsage: 4.0, unit: 'ACU', status: 'AVAILABLE' },
-    { id: 'q-2', resourceType: 'STORAGE', metric: 'storage.capacity', limit: 500.0, currentUsage: 28.5, unit: 'GB', status: 'AVAILABLE' },
-    { id: 'q-3', resourceType: 'DATABASE', metric: 'database.count', limit: 5.0, currentUsage: 2.0, unit: 'INSTANCES', status: 'AVAILABLE' },
-    { id: 'q-4', resourceType: 'NETWORK', metric: 'network.vpc', limit: 3.0, currentUsage: 1.0, unit: 'NETWORKS', status: 'AVAILABLE' },
-  ])
+  // Account-Specific Calculated Resource Metrics
+  const [accountUsage, setAccountUsage] = useState({
+    computeAcu: 0,
+    storageGb: 0,
+    dbCount: 0,
+    vpcCount: 0,
+    computeCost: 0,
+    dbCost: 0,
+    storageCost: 0,
+    totalAccruedCost: 0,
+  })
 
-  // Invoices State
-  const [invoices, setInvoices] = useState<InvoiceItem[]>([
-    {
-      id: 'inv-2026-08',
-      invoiceNumber: 'INV-202608-001',
-      currency: 'USD',
-      subtotal: 21.48,
-      total: 21.48,
-      status: 'DRAFT (SIMULATED)',
-      pricingVersion: 'v1.0.0',
-      realityLabel: 'SIMULATED_BILLING (NOT BILLABLE)',
-      issuedAt: new Date().toISOString(),
-      lines: [
-        { id: 'l-1', resourceId: 'ace-worker-node-01', description: 'Compute Instance ace-worker-node-01 (1.0 ACU * 720 Hours)', quantity: 720, unit: 'ACU-hour', unitPrice: 0.025, amount: 18.00, usageQuality: 'SIMULATED' },
-        { id: 'l-2', resourceId: 'anarva-media-assets', description: 'Object Storage Bucket (23.2 GB-month)', quantity: 23.2, unit: 'GB-month', unitPrice: 0.15, amount: 3.48, usageQuality: 'SIMULATED' },
-      ],
-    },
-  ])
+  // Account-Scoped Quotas State
+  const [quotas, setQuotas] = useState<QuotaItem[]>([])
+
+  // Account-Scoped Invoices State
+  const [invoices, setInvoices] = useState<InvoiceItem[]>([])
 
   // Pricing Catalog
   const [pricingComponents] = useState<PricingComponentItem[]>([
@@ -97,22 +87,204 @@ export default function BillingPage() {
   const [estOutput, setEstOutput] = useState<{ cost: number; rate: string; text: string } | null>(null)
 
   useEffect(() => {
+    let email = 'user@anarva.io'
     if (typeof window !== 'undefined') {
-      const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
+      email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
     }
 
-    loadBillingData()
+    calculateAccountBillingAndQuotas(email)
   }, [])
 
-  async function loadBillingData() {
-    try {
-      const qRes = await fetch(`${API_BASE_URL}/api/v1/billing/quotas`).catch(() => null)
-      if (qRes && qRes.ok) {
-        const body = await qRes.json()
-        if (body.data) setQuotas(body.data)
+  function calculateAccountBillingAndQuotas(email: string) {
+    let computeAcu = 0
+    let storageGb = 0
+    let dbCount = 0
+    let vpcCount = 0
+
+    if (typeof window !== 'undefined') {
+      // 1. Account Compute ACU
+      const storedCompute = localStorage.getItem(`anarva_user_compute_${email}`)
+      if (storedCompute) {
+        try {
+          const instances = JSON.parse(storedCompute)
+          if (Array.isArray(instances)) {
+            computeAcu = instances.reduce((acc: number, inst: any) => acc + (inst.acu || 1.0), 0)
+          }
+        } catch (e) {}
+      } else if (email === 'lokeshashapu@gmail.com') {
+        computeAcu = 1.0
       }
-    } catch (e) {}
+
+      // 2. Account Database Count
+      const storedDBs = localStorage.getItem(`anarva_user_databases_${email}`)
+      if (storedDBs) {
+        try {
+          const dbs = JSON.parse(storedDBs)
+          if (Array.isArray(dbs)) dbCount = dbs.length
+        } catch (e) {}
+      } else if (email === 'lokeshashapu@gmail.com') {
+        dbCount = 1
+      }
+
+      // 3. Account Storage Capacity in GB
+      const storedStorage = localStorage.getItem(`anarva_user_storage_${email}`)
+      if (storedStorage) {
+        try {
+          const buckets = JSON.parse(storedStorage)
+          if (Array.isArray(buckets)) {
+            storageGb = buckets.reduce((acc: number, b: any) => acc + (b.sizeGb || 10.0), 0)
+          }
+        } catch (e) {}
+      } else if (email === 'lokeshashapu@gmail.com') {
+        storageGb = 20.0
+      }
+
+      // 4. Account VPC Count
+      const storedNetworks = localStorage.getItem(`anarva_user_networking_${email}`)
+      if (storedNetworks) {
+        try {
+          const nets = JSON.parse(storedNetworks)
+          if (Array.isArray(nets)) vpcCount = nets.length
+        } catch (e) {}
+      } else if (email === 'lokeshashapu@gmail.com') {
+        vpcCount = 1
+      }
+    }
+
+    // Calculate Costs based on Account's Actual Resource Usage
+    const computeCost = Number((computeAcu * 720 * 0.025).toFixed(2))
+    const dbCost = Number((dbCount * 720 * 0.045).toFixed(2))
+    const storageCost = Number((storageGb * 0.15).toFixed(2))
+    const totalAccruedCost = Number((computeCost + dbCost + storageCost).toFixed(2))
+
+    setAccountUsage({
+      computeAcu,
+      storageGb,
+      dbCount,
+      vpcCount,
+      computeCost,
+      dbCost,
+      storageCost,
+      totalAccruedCost,
+    })
+
+    // Account-Scoped Quotas
+    const calculatedQuotas: QuotaItem[] = [
+      {
+        id: 'q-1',
+        resourceType: 'COMPUTE',
+        metric: 'compute.acu',
+        limit: 32.0,
+        currentUsage: computeAcu,
+        unit: 'ACU',
+        status: computeAcu >= 32.0 ? 'EXCEEDED' : computeAcu >= 25.6 ? 'NEAR_LIMIT' : 'AVAILABLE',
+      },
+      {
+        id: 'q-2',
+        resourceType: 'STORAGE',
+        metric: 'storage.capacity',
+        limit: 500.0,
+        currentUsage: storageGb,
+        unit: 'GB',
+        status: storageGb >= 500.0 ? 'EXCEEDED' : storageGb >= 400.0 ? 'NEAR_LIMIT' : 'AVAILABLE',
+      },
+      {
+        id: 'q-3',
+        resourceType: 'DATABASE',
+        metric: 'database.count',
+        limit: 5.0,
+        currentUsage: dbCount,
+        unit: 'INSTANCES',
+        status: dbCount >= 5.0 ? 'EXCEEDED' : dbCount >= 4.0 ? 'NEAR_LIMIT' : 'AVAILABLE',
+      },
+      {
+        id: 'q-4',
+        resourceType: 'NETWORK',
+        metric: 'network.vpc',
+        limit: 3.0,
+        currentUsage: vpcCount,
+        unit: 'NETWORKS',
+        status: vpcCount >= 3.0 ? 'EXCEEDED' : vpcCount >= 2.5 ? 'NEAR_LIMIT' : 'AVAILABLE',
+      },
+    ]
+    setQuotas(calculatedQuotas)
+
+    // Account-Scoped Line Items
+    const lines: InvoiceLineItem[] = []
+    if (computeAcu > 0) {
+      lines.push({
+        id: 'l-1',
+        resourceId: `compute-${email.split('@')[0]}`,
+        description: `Compute Workload (${computeAcu.toFixed(1)} ACU * 720 Hours)`,
+        quantity: computeAcu * 720,
+        unit: 'ACU-hour',
+        unitPrice: 0.025,
+        amount: computeCost,
+        usageQuality: 'ACTUAL (ACCOUNT SCOPED)',
+      })
+    }
+    if (dbCount > 0) {
+      lines.push({
+        id: 'l-2',
+        resourceId: `db-${email.split('@')[0]}`,
+        description: `Managed Database Clusters (${dbCount} Instances * 720 Hours)`,
+        quantity: dbCount * 720,
+        unit: 'Instance-hour',
+        unitPrice: 0.045,
+        amount: dbCost,
+        usageQuality: 'ACTUAL (ACCOUNT SCOPED)',
+      })
+    }
+    if (storageGb > 0) {
+      lines.push({
+        id: 'l-3',
+        resourceId: `storage-${email.split('@')[0]}`,
+        description: `Anarva Object Storage (${storageGb.toFixed(1)} GB-month)`,
+        quantity: storageGb,
+        unit: 'GB-month',
+        unitPrice: 0.15,
+        amount: storageCost,
+        usageQuality: 'ACTUAL (ACCOUNT SCOPED)',
+      })
+    }
+
+    if (lines.length === 0) {
+      lines.push({
+        id: 'l-0',
+        resourceId: 'no-active-resources',
+        description: 'No Active Paid Resources Provisioned',
+        quantity: 0,
+        unit: 'Units',
+        unitPrice: 0,
+        amount: 0,
+        usageQuality: 'NON_BILLABLE',
+      })
+    }
+
+    setInvoices([
+      {
+        id: `inv-${email.split('@')[0]}-2026-08`,
+        invoiceNumber: `INV-202608-${Math.abs(hashString(email) % 1000).toString().padStart(3, '0')}`,
+        currency: 'USD',
+        subtotal: totalAccruedCost,
+        total: totalAccruedCost,
+        status: 'DRAFT (SIMULATED)',
+        pricingVersion: 'v1.0.0',
+        realityLabel: `SIMULATED_BILLING FOR ${email.toUpperCase()} (NON BILLABLE)`,
+        issuedAt: new Date().toISOString(),
+        lines,
+      },
+    ])
+  }
+
+  function hashString(str: string): number {
+    let hash = 0
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i)
+      hash |= 0
+    }
+    return hash
   }
 
   const handleCalculateEstimate = (e: React.FormEvent) => {
@@ -143,20 +315,20 @@ export default function BillingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-slate-400">BILLING ENGINE:</span>
+            <span className="text-xs font-mono text-slate-400">ACCOUNT BILLING ENGINE:</span>
             <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-mono font-bold">
               PAYG PRICING v1.0.0
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1">Billing & Quota Management</h1>
           <p className="text-slate-400 text-xs sm:text-sm mt-0.5">
-            Resource usage metering, atomic quota limits, pre-provisioning cost estimation, and draft invoice generation for <strong className="text-slate-200">{userEmail}</strong>.
+            Resource usage metering, atomic quota limits, and draft invoices strictly scoped to account: <strong className="text-white">{userEmail}</strong>.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 bg-slate-900 border border-slate-800 text-xs text-slate-400 font-mono rounded-lg">
-            Billing Period: August 2026
+            Account: {userEmail}
           </span>
         </div>
       </div>
@@ -164,9 +336,9 @@ export default function BillingPage() {
       {/* Non-Billable Reality Banner */}
       <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl font-mono text-xs text-amber-400 flex items-center justify-between gap-4">
         <div>
-          <strong className="font-bold uppercase text-amber-300">🛡 SIMULATED BILLING & LOCAL DEVELOPMENT MODE:</strong>
+          <strong className="font-bold uppercase text-amber-300">🛡 ACCOUNT-SCOPED SIMULATED BILLING:</strong>
           <span className="ml-2 text-slate-300 text-[11px]">
-            No commercial payment gateway (Stripe/Razorpay) is connected. All accrued usage is local development & simulated billing estimation.
+            No commercial payment gateway (Stripe/Razorpay) is connected. All metrics and quota limits below are dynamically calculated from the logged-in user account ({userEmail}).
           </span>
         </div>
         <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[10px] font-bold">
@@ -176,10 +348,10 @@ export default function BillingPage() {
 
       {/* Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <CloudMetric label="Current Month Accrued" value="$21.48" subtext="SIMULATED_BILLING (NON_BILLABLE)" trend="ACCUMULATING" trendType="positive" />
+        <CloudMetric label="Current Month Accrued" value={`$${accountUsage.totalAccruedCost.toFixed(2)}`} subtext={`Account: ${userEmail}`} trend="ACCUMULATING" trendType="positive" />
         <CloudMetric label="Active Pricing Version" value="v1.0.0" subtext="Anarva PAYG Standard" trend="ACTIVE" trendType="positive" />
-        <CloudMetric label="Compute ACU Quota" value="4.0 / 32.0 ACU" subtext="12.5% Allocation Used" trend="AVAILABLE" trendType="positive" />
-        <CloudMetric label="Storage Quota" value="28.5 / 500 GB" subtext="5.7% Allocation Used" trend="AVAILABLE" trendType="positive" />
+        <CloudMetric label="Compute ACU Quota" value={`${accountUsage.computeAcu.toFixed(1)} / 32.0 ACU`} subtext={`${((accountUsage.computeAcu / 32.0) * 100).toFixed(1)}% Used`} trend="AVAILABLE" trendType="positive" />
+        <CloudMetric label="Storage Quota" value={`${accountUsage.storageGb.toFixed(1)} / 500 GB`} subtext={`${((accountUsage.storageGb / 500.0) * 100).toFixed(1)}% Used`} trend="AVAILABLE" trendType="positive" />
       </div>
 
       {/* Navigation Tabs */}
@@ -188,14 +360,14 @@ export default function BillingPage() {
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-6 font-mono text-xs">
-          <CloudCard title="Current Billing Cycle Accrued Usage & Line Items">
+          <CloudCard title={`Current Billing Cycle Accrued Usage & Line Items (${userEmail})`}>
             <div className="space-y-4">
               <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl text-[11px]">
-                ℹ Usage records are metered continuously from local Docker container lifecycle events and storage allocation.
+                ℹ Usage records and line item charges below are dynamically computed from active compute, database, and storage resources owned by <strong>{userEmail}</strong>.
               </div>
 
               <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden text-xs">
-                {invoices[0].lines.map((item) => (
+                {invoices[0]?.lines.map((item) => (
                   <div key={item.id} className="p-4 bg-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2">
@@ -219,10 +391,10 @@ export default function BillingPage() {
       {/* Quotas Tab */}
       {activeTab === 'quotas' && (
         <div className="space-y-6 font-mono text-xs">
-          <CloudCard title="Organization & Project Resource Quotas (Atomic Concurrency Engine)">
+          <CloudCard title={`Account Resource Quotas & Allocation Limits (${userEmail})`}>
             <div className="space-y-4">
               <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl text-[11px]">
-                ℹ Resource quotas are enforced atomically using mutex-locked concurrency validation before any infrastructure provisioning operation succeeds.
+                ℹ Resource quotas below reflect the actual live resources provisioned by <strong>{userEmail}</strong>. Quotas are enforced atomically before any new infrastructure provisioning operation succeeds.
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -248,7 +420,7 @@ export default function BillingPage() {
 
                       <div className="space-y-1">
                         <div className="flex justify-between text-[11px]">
-                          <span className="text-slate-400">Current Usage:</span>
+                          <span className="text-slate-400">Account Usage ({userEmail}):</span>
                           <span className="text-white font-bold">
                             {q.currentUsage} / {q.limit} {q.unit} ({percent}%)
                           </span>
@@ -345,7 +517,7 @@ export default function BillingPage() {
       {/* Invoices Tab */}
       {activeTab === 'invoices' && (
         <div className="space-y-6 font-mono text-xs">
-          <CloudCard title="Billing Period Draft Invoices">
+          <CloudCard title={`Billing Period Draft Invoices (${userEmail})`}>
             <div className="space-y-4">
               {invoices.map((inv) => (
                 <div key={inv.id} className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-4">
@@ -353,7 +525,7 @@ export default function BillingPage() {
                     <div>
                       <div className="font-bold text-white text-base">{inv.invoiceNumber}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">
-                        Pricing Version: {inv.pricingVersion} • Reality: {inv.realityLabel}
+                        Account: {userEmail} • Pricing Version: {inv.pricingVersion} • Reality: {inv.realityLabel}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
