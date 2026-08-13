@@ -32,6 +32,7 @@ interface InvoiceLineItem {
 interface InvoiceItem {
   id: string
   invoiceNumber: string
+  currency: string
   subtotal: number
   total: number
   status: string
@@ -67,6 +68,7 @@ export default function BillingPage() {
     {
       id: 'inv-2026-08',
       invoiceNumber: 'INV-202608-001',
+      currency: 'USD',
       subtotal: 21.48,
       total: 21.48,
       status: 'DRAFT (SIMULATED)',
