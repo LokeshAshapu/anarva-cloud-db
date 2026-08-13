@@ -542,10 +542,16 @@ export default function NetworkingPage() {
       <CloudCard title="VPC Networks Registry" subtitle={`Account networks for ${userEmail}`}>
         {networks.length === 0 ? (
           <CloudEmptyState
-            title="No VPC networks created yet"
-            description="You currently have 0 isolated VPC networks. Click '+ Create VPC Network' to set up your network boundary."
+            title="No Isolated VPC Networks Provisioned"
+            description="You currently have 0 isolated Virtual Private Cloud (VPC) networks. Provision a VPC to isolate your compute nodes, databases, and load balancers."
             actionLabel="+ Create VPC Network"
             onAction={() => setIsWizardOpen(true)}
+            icon="🌐"
+            features={[
+              { title: "Isolated IPv4/IPv6 CIDR", desc: "Define custom private IP address spaces (e.g., 10.0.0.0/16) with subnet partitioning.", icon: "🗺️" },
+              { title: "Stateful Security Groups", desc: "Enforce port-level ingress and egress firewall filtering rules with micro-segmentation.", icon: "🛡️" },
+              { title: "Private DNS Name Resolution", desc: "Automatic internal domain resolution for seamless service-to-service communication.", icon: "📡" },
+            ]}
           />
         ) : (
           <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden text-xs">

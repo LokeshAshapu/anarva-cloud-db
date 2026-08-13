@@ -6,6 +6,7 @@ import { CloudMetric } from '@/components/cloud/CloudMetric'
 import { CloudButton } from '@/components/cloud/CloudButton'
 import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
 import { CloudModal } from '@/components/cloud/CloudModal'
+import { CloudEmptyState } from '@/components/cloud/CloudEmptyState'
 import { API_BASE_URL } from '@/lib/api'
 
 interface BackupItem {
@@ -276,44 +277,59 @@ export default function BackupsPage() {
               ℹ Database snapshots are encrypted zero-trust backups stored directly in Anarva Object Storage (AOS S3).
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-800 text-[10px] text-slate-400 uppercase">
-                    <th className="py-3 px-4">SNAPSHOT NAME</th>
-                    <th className="py-3 px-4">DATABASE</th>
-                    <th className="py-3 px-4">TYPE</th>
-                    <th className="py-3 px-4">STATUS</th>
-                    <th className="py-3 px-4">SIZE</th>
-                    <th className="py-3 px-4">CREATED</th>
-                    <th className="py-3 px-4">ACTIONS</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {backups.map((bak) => (
-                    <tr key={bak.id} className="hover:bg-slate-900/40">
-                      <td className="py-3 px-4 font-bold text-white">{bak.name}</td>
-                      <td className="py-3 px-4 text-slate-300">{bak.databaseName}</td>
-                      <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-[10px]">{bak.type}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[10px] font-bold">
-                          {bak.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-slate-300">{(bak.sizeBytes / 1024 / 1024).toFixed(2)} MB</td>
-                      <td className="py-3 px-4 text-slate-400 text-[10px]">{new Date(bak.createdAt).toLocaleString()}</td>
-                      <td className="py-3 px-4">
-                        <CloudButton variant="danger" size="sm" onClick={() => handleDeleteBackup(bak.id)}>
-                          Delete
-                        </CloudButton>
-                      </td>
+            {backups.length === 0 ? (
+              <CloudEmptyState
+                title="No Database Snapshots Available"
+                description="You currently have 0 database snapshots stored. Click '+ Create Manual Snapshot' to capture an instant point-in-time backup."
+                actionLabel="+ Create Manual Snapshot"
+                onAction={() => setCreateSnapshotModalOpen(true)}
+                icon="💾"
+                features={[
+                  { title: "Point-in-Time Recovery", desc: "Continuous WAL archiving enables second-by-second transaction replay.", icon: "⏪" },
+                  { title: "AES-256 Storage Encryption", desc: "Snapshots are automatically encrypted and stored in Anarva Object Storage (AOS).", icon: "🔒" },
+                  { title: "Automated Lifecycle Retention", desc: "Custom retention windows automatically purge old snapshots according to policy.", icon: "🕒" },
+                ]}
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] text-slate-400 uppercase">
+                      <th className="py-3 px-4">SNAPSHOT NAME</th>
+                      <th className="py-3 px-4">DATABASE</th>
+                      <th className="py-3 px-4">TYPE</th>
+                      <th className="py-3 px-4">STATUS</th>
+                      <th className="py-3 px-4">SIZE</th>
+                      <th className="py-3 px-4">CREATED</th>
+                      <th className="py-3 px-4">ACTIONS</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {backups.map((bak) => (
+                      <tr key={bak.id} className="hover:bg-slate-900/40">
+                        <td className="py-3 px-4 font-bold text-white">{bak.name}</td>
+                        <td className="py-3 px-4 text-slate-300">{bak.databaseName}</td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-[10px]">{bak.type}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[10px] font-bold">
+                            {bak.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-300">{(bak.sizeBytes / 1024 / 1024).toFixed(2)} MB</td>
+                        <td className="py-3 px-4 text-slate-400 text-[10px]">{new Date(bak.createdAt).toLocaleString()}</td>
+                        <td className="py-3 px-4">
+                          <CloudButton variant="danger" size="sm" onClick={() => handleDeleteBackup(bak.id)}>
+                            Delete
+                          </CloudButton>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </CloudCard>
       )}

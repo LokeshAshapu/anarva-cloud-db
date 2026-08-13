@@ -485,10 +485,16 @@ export default function ComputeEnginePage() {
       <CloudCard title="Active Compute Workloads" subtitle={`Account instances for ${userEmail}`}>
         {instances.length === 0 ? (
           <CloudEmptyState
-            title="No compute instances running"
-            description="You currently have 0 active ACU compute instances. Click '+ Launch Compute Instance' to provision a worker or microservice."
-            actionLabel="+ Launch Compute Instance"
+            title="No Compute Workloads Running"
+            description="You currently have 0 active ACU compute instances. Launch a new worker node, microservice container, or VM to execute compute workloads."
+            actionLabel="+ Provision Compute Instance"
             onAction={() => setIsWizardOpen(true)}
+            icon="🖥️"
+            features={[
+              { title: "Dynamic ACU Scaling", desc: "Scale vCPU and RAM instantly from 0.5 ACU up to 64 ACU on demand.", icon: "⚡" },
+              { title: "Docker Container Driver", desc: "Run standard Linux or Docker registry containers with instant readiness.", icon: "🐳" },
+              { title: "Isolated VPC Subnets", desc: "Private IP allocation and automated security group firewall isolation.", icon: "🔒" },
+            ]}
           />
         ) : (
           <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden text-xs">
