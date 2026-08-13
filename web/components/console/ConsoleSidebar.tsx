@@ -171,9 +171,9 @@ export function ConsoleSidebar() {
   ]
 
   return (
-    <aside className={`hidden lg:flex border-r border-slate-800 bg-slate-950 p-4 flex-col justify-between shrink-0 h-[calc(100vh-64px)] sticky top-16 overflow-hidden select-none transition-all duration-200 ${isCollapsed ? 'w-20' : 'w-64'}`}>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between px-2">
+    <aside className={`hidden lg:flex border-r border-slate-800 bg-slate-950 p-4 flex-col shrink-0 h-[calc(100vh-64px)] sticky top-16 select-none transition-all duration-200 ${isCollapsed ? 'w-20' : 'w-64'}`}>
+      <div className="flex-1 overflow-y-auto space-y-5 pr-0.5 scrollbar-none">
+        <div className="flex items-center justify-between px-2 pb-1">
           {!isCollapsed && <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Navigation</span>}
           <button
             onClick={toggleCollapse}
@@ -212,18 +212,6 @@ export function ConsoleSidebar() {
           </div>
         ))}
       </div>
-
-      {!isCollapsed && (
-        <div className="pt-4 border-t border-slate-900 space-y-2">
-          <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl text-xs space-y-1">
-            <div className="text-[11px] font-bold text-slate-300">Anarva Platform</div>
-            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-              <span>Status:</span>
-              <span className="text-emerald-400 font-bold">100% UP</span>
-            </div>
-          </div>
-        </div>
-      )}
     </aside>
   )
 }
