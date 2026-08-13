@@ -171,7 +171,7 @@ export function ConsoleSidebar() {
   ]
 
   return (
-    <aside className={`hidden lg:flex border-r border-slate-800 bg-slate-950 p-4 flex-col justify-between shrink-0 transition-all duration-200 ${isCollapsed ? 'w-20' : 'w-64'}`}>
+    <aside className={`hidden lg:flex border-r border-slate-800 bg-slate-950 p-4 flex-col justify-between shrink-0 h-[calc(100vh-64px)] sticky top-16 overflow-hidden select-none transition-all duration-200 ${isCollapsed ? 'w-20' : 'w-64'}`}>
       <div className="space-y-6">
         <div className="flex items-center justify-between px-2">
           {!isCollapsed && <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Navigation</span>}

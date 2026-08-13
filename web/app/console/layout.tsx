@@ -80,7 +80,7 @@ export default function CloudConsoleLayout({
   ]
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col font-sans antialiased text-slate-100 selection:bg-blue-500 selection:text-white">
+    <div className="h-screen overflow-hidden bg-slate-950 flex flex-col font-sans antialiased text-slate-100 selection:bg-blue-500 selection:text-white">
       {/* Enterprise Top Navigation Bar */}
       <ConsoleNavbar
         onOpenCommandPalette={() => setCommandPaletteOpen(true)}
