@@ -17,15 +17,15 @@ interface MemberItem {
 }
 
 export default function IAMPage() {
-  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
-  const [userName, setUserName] = useState('Lokesh Ashapu')
+  const [userEmail, setUserEmail] = useState('operator@anarva.internal')
+  const [userName, setUserName] = useState('Cloud Operator')
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('DEVELOPER')
   const [isInviting, setIsInviting] = useState(false)
 
   const [members, setMembers] = useState<MemberItem[]>([
-    { id: 'usr-87a1', name: 'Lokesh Ashapu', email: 'lokeshashapu@gmail.com', role: 'OWNER', status: 'ACTIVE' },
+    { id: 'usr-87a1', name: 'Cloud Operator', email: 'operator@anarva.internal', role: 'OWNER', status: 'ACTIVE' },
   ])
 
   useEffect(() => {

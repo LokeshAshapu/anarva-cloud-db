@@ -16,8 +16,8 @@ export function ConsoleNavbar({ onOpenCommandPalette, onToggleMobileMenu }: Cons
   const router = useRouter()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
-  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
-  const [userName, setUserName] = useState('Lokesh Ashapu')
+  const [userEmail, setUserEmail] = useState('operator@anarva.internal')
+  const [userName, setUserName] = useState('Cloud Operator')
   const [notifications, setNotifications] = useState([
     {
       id: 'notif-1',

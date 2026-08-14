@@ -7,8 +7,8 @@ import { CloudButton } from '@/components/cloud/CloudButton'
 export default function DevToolsPage() {
   const [activeTab, setActiveTab] = useState<'API_KEYS' | 'CLI' | 'SDK'>('CLI')
   const [osTab, setOsTab] = useState<'POWERSHELL' | 'CMD' | 'BASH'>('POWERSHELL')
-  const [userEmail, setUserEmail] = useState('lokeshashapu@gmail.com')
-  const [userName, setUserName] = useState('Lokesh Ashapu')
+  const [userEmail, setUserEmail] = useState('operator@anarva.internal')
+  const [userName, setUserName] = useState('Cloud Operator')
   const [copiedToken, setCopiedToken] = useState(false)
 
   useEffect(() => {

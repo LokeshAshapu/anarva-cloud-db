@@ -9,7 +9,7 @@ export async function GET(request: Request) {
         description: 'Automated deployment service account for GitHub repository',
         status: 'ACTIVE',
         role: 'ADMIN',
-        createdBy: 'lokeshashapu@gmail.com',
+        createdBy: 'operator@anarva.internal',
         createdAt: new Date(Date.now() - 172800000).toISOString(),
       },
       {
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
         description: 'Managed ACU capacity autoscaling automation identity',
         status: 'ACTIVE',
         role: 'DEVELOPER',
-        createdBy: 'lokeshashapu@gmail.com',
+        createdBy: 'operator@anarva.internal',
         createdAt: new Date(Date.now() - 86400000).toISOString(),
       },
       {
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
         description: 'Read-only metrics and observability collector service account',
         status: 'ACTIVE',
         role: 'AUDITOR',
-        createdBy: 'lokeshashapu@gmail.com',
+        createdBy: 'operator@anarva.internal',
         createdAt: new Date(Date.now() - 43200000).toISOString(),
       },
     ],

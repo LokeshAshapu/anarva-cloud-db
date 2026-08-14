@@ -35,6 +35,7 @@ import (
 	computeUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/compute/usecase"
 	devHttp "github.com/anarva-cloud/anarva-cloud-db/internal/developer/delivery/http"
 	devUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/developer/usecase"
+	gwHandler "github.com/anarva-cloud/anarva-cloud-db/internal/gateway/handler"
 	gwMiddleware "github.com/anarva-cloud/anarva-cloud-db/internal/gateway/middleware"
 	iamHttp "github.com/anarva-cloud/anarva-cloud-db/internal/iam/delivery/http"
 	iamService "github.com/anarva-cloud/anarva-cloud-db/internal/iam/service"
@@ -375,6 +376,10 @@ func main() {
 		executor: queryExecutor,
 	}
 	mux.HandleFunc("POST /api/v1/query", qh.ExecuteQuery)
+
+	// Security Status Diagnostics Endpoint
+	secHandler := gwHandler.NewSecurityStatusHandler()
+	mux.HandleFunc("GET /api/v1/security/status", secHandler.GetSecurityStatus)
 
 	// Health and Prometheus Metrics endpoints
 	mux.Handle("/metrics", metrics.Handler())

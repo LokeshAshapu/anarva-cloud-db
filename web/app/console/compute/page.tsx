@@ -86,7 +86,7 @@ export default function ComputeEnginePage() {
 
       if (stored) {
         setInstances(JSON.parse(stored))
-      } else if (email === 'lokeshashapu@gmail.com') {
+      } else if (email === 'operator@anarva.internal') {
         const defaults: ComputeInstanceItem[] = [
           {
             id: 'acu-instance-8f12',

@@ -48,7 +48,7 @@ export function GlobalCommandPalette({ isOpen, onClose }: GlobalCommandPalettePr
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const email = localStorage.getItem('anarva_user_email') || 'lokeshashapu@gmail.com'
+      const email = localStorage.getItem('anarva_user_email') || 'operator@anarva.internal'
       
       const userNets = JSON.parse(localStorage.getItem(`anarva_user_networks_${email}`) || '[]')
       const userDbs = JSON.parse(localStorage.getItem(`anarva_user_databases_${email}`) || '[]')

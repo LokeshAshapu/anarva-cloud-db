@@ -33,7 +33,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
         { id: 'res-bak-snap-1', name: 'prod-daily-snap-01', type: 'BACKUP', region: 'ap-hyderabad-1', status: 'COMPLETED', href: '/console/backups' },
       ]
 
-      const email = localStorage.getItem('anarva_user_email') || 'lokeshashapu@gmail.com'
+      const email = localStorage.getItem('anarva_user_email') || 'operator@anarva.internal'
       const userNetKey = `anarva_user_networks_${email}`
       const userNets = JSON.parse(localStorage.getItem(userNetKey) || '[]')
       const customItems = userNets.map((n: any) => ({
