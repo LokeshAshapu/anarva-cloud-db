@@ -270,7 +270,10 @@ export default function ObjectStoragePage() {
               >
                 <div>
                   <div className="font-bold text-white text-sm font-sans flex items-center gap-2">
-                    🪣 {b.name}
+                    <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                    </svg>
+                    <span>{b.name}</span>
                     <span className="text-[10px] px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
                       {b.storageClass} • {b.region}
                     </span>

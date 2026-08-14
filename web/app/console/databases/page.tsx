@@ -306,19 +306,25 @@ export default function ManagedDatabasesPage() {
       <div className="flex border-b border-slate-800 gap-6 text-sm font-bold font-mono">
         <button
           onClick={() => setSelectedEngine('POSTGRESQL')}
-          className={`pb-3 transition border-b-2 ${
+          className={`pb-3 transition border-b-2 flex items-center gap-2 ${
             selectedEngine === 'POSTGRESQL' ? 'border-blue-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'
           }`}
         >
-          🐘 PostgreSQL (Port 5432)
+          <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+          </svg>
+          <span>PostgreSQL (Port 5432)</span>
         </button>
         <button
           onClick={() => setSelectedEngine('MYSQL')}
-          className={`pb-3 transition border-b-2 ${
+          className={`pb-3 transition border-b-2 flex items-center gap-2 ${
             selectedEngine === 'MYSQL' ? 'border-orange-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'
           }`}
         >
-          🐬 MySQL (Port 3306)
+          <svg className="w-4 h-4 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+          </svg>
+          <span>MySQL (Port 3306)</span>
         </button>
       </div>
 
