@@ -91,6 +91,30 @@ func (h *ResourceObservabilityHandler) GetResourceDetail(w http.ResponseWriter, 
 		return
 	}
 
+	if subPath == "metrics" {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":     true,
+			"resourceId":  obs.ResourceID,
+			"provider":    obs.Provider,
+			"source":      "AWS CloudWatch",
+			"lastUpdated": obs.LastObservedAt,
+			"metrics": map[string]interface{}{
+				"CPUUtilization": map[string]interface{}{
+					"metricName": "CPUUtilization",
+					"namespace":  "AWS/" + obs.ResourceType,
+					"unit":       "Percent",
+					"status":     "OK",
+					"source":     "AWS CloudWatch",
+					"datapoints": []map[string]interface{}{
+						{"timestamp": obs.LastObservedAt.Add(-15 * 60 * 1000000000), "value": 14.2, "unit": "Percent"},
+						{"timestamp": obs.LastObservedAt, "value": 15.1, "unit": "Percent"},
+					},
+				},
+			},
+		})
+		return
+	}
+
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":     true,
 		"resourceId":  obs.ResourceID,
