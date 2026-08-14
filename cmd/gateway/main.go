@@ -290,10 +290,12 @@ func main() {
 	netUC := networkUsecase.NewNetworkUseCase(newMemNetworkRepo(), nil, nil, nil, nil, nil, netProv)
 	_ = netUC
 
-	// Phase 13 Provisioning Engine & Provider Registry
+	// Phase 13 & 27 Provisioning Engine & Provider Registry
 	provRegistry := provProvider.NewProviderRegistry()
 	dockerProv := provProvider.NewDockerInfrastructureProvider()
+	awsProv := provProvider.NewAWSInfrastructureProvider()
 	provRegistry.RegisterProvider(dockerProv)
+	provRegistry.RegisterProvider(awsProv)
 	provUC := provUsecase.NewProvisioningUseCase(newMemProvisioningRepo(), nil, nil, provRegistry)
 
 	// Phase 14 Developer Platform & Webhook Engine

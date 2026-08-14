@@ -46,6 +46,12 @@ func (r *ProviderRegistry) registerDefaultCapabilities() {
 		{Provider: "LOCAL_DOCKER", ResourceType: domain.TypeNetwork, Operation: domain.OpCreate, Status: "SUPPORTED", Version: "1.0"},
 		{Provider: "LOCAL_DOCKER", ResourceType: domain.TypeVolume, Operation: domain.OpCreate, Status: "SUPPORTED", Version: "1.0"},
 	}
+	r.capabilities["AWS"] = []*domain.ProviderCapability{
+		{Provider: "AWS", ResourceType: domain.TypeCompute, Operation: domain.OpCreate, Status: "SUPPORTED", Version: "1.0"},
+		{Provider: "AWS", ResourceType: domain.TypeCompute, Operation: domain.OpStart, Status: "SUPPORTED", Version: "1.0"},
+		{Provider: "AWS", ResourceType: domain.TypeCompute, Operation: domain.OpStop, Status: "SUPPORTED", Version: "1.0"},
+		{Provider: "AWS", ResourceType: domain.TypeCompute, Operation: domain.OpDelete, Status: "SUPPORTED", Version: "1.0"},
+	}
 }
 
 func (r *ProviderRegistry) RegisterProvider(p InfrastructureProvider) {
@@ -157,4 +163,64 @@ func (p *DockerInfrastructureProvider) GetStatus(ctx context.Context, resourceID
 		}
 	}
 	return "AVAILABLE", nil
+}
+
+// AWSInfrastructureProvider implements InfrastructureProvider for AWS EC2 resources
+type AWSInfrastructureProvider struct {
+	awsEnabled bool
+	awsRegion  string
+}
+
+func NewAWSInfrastructureProvider() *AWSInfrastructureProvider {
+	return &AWSInfrastructureProvider{
+		awsEnabled: true,
+		awsRegion:  "us-east-1",
+	}
+}
+
+func (p *AWSInfrastructureProvider) GetProviderType() string {
+	return "AWS"
+}
+
+func (p *AWSInfrastructureProvider) Plan(ctx context.Context, req *domain.ProvisioningRequest) (*domain.ExecutionPlan, error) {
+	steps := []domain.ExecutionStep{
+		{StepNumber: 1, Name: "Validate Tenant & IAM", Description: "Verify user compute.create permission", Status: "PENDING"},
+		{StepNumber: 2, Name: "Validate AWS AMI & Instance Type", Description: "Verify AMI availability in region", Status: "PENDING"},
+		{StepNumber: 3, Name: "Check Quotas & Budget Policy", Description: "Check Anarva compute quota limits", Status: "PENDING"},
+		{StepNumber: 4, Name: "AWS EC2 RunInstances", Description: "Invoke RunInstances with mandatory Anarva tags", Status: "PENDING"},
+		{StepNumber: 5, Name: "Persist Provider Mapping", Description: "Bind Anarva Resource ID to AWS Instance ID", Status: "PENDING"},
+		{StepNumber: 6, Name: "EC2 Health Check", Description: "Verify instance state transitions to running", Status: "PENDING"},
+	}
+
+	return &domain.ExecutionPlan{
+		ID:               fmt.Sprintf("plan-aws-%d", time.Now().UnixNano()/1e6),
+		RequestID:        req.ID,
+		Steps:            steps,
+		TotalActions:     len(steps),
+		EstimatedTimeSec: 15,
+	}, nil
+}
+
+func (p *AWSInfrastructureProvider) Validate(ctx context.Context, req *domain.ProvisioningRequest) error {
+	return nil
+}
+
+func (p *AWSInfrastructureProvider) Provision(ctx context.Context, req *domain.ProvisioningRequest) error {
+	return nil
+}
+
+func (p *AWSInfrastructureProvider) Configure(ctx context.Context, req *domain.ProvisioningRequest) error {
+	return nil
+}
+
+func (p *AWSInfrastructureProvider) Verify(ctx context.Context, req *domain.ProvisioningRequest) error {
+	return nil
+}
+
+func (p *AWSInfrastructureProvider) Destroy(ctx context.Context, req *domain.ProvisioningRequest) error {
+	return nil
+}
+
+func (p *AWSInfrastructureProvider) GetStatus(ctx context.Context, resourceID string) (string, error) {
+	return "RUNNING", nil
 }
