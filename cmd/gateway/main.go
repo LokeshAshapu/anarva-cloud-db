@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -195,8 +196,12 @@ func main() {
 
 	var queryExecutor query.Executor
 
-	// Attempt connecting to database for unified API Gateway service routing
+	// Phase 26 Production Control-Plane PostgreSQL Initialization
 	var dbPool *pkgDatabase.DB
+	appEnv := os.Getenv("APP_ENV")
+	if appEnv == "" {
+		appEnv = cfg.Environment
+	}
 
 	if os.Getenv("DATABASE_URL") != "" || (cfg.Database.Host != "" && cfg.Database.Host != "localhost") {
 		dbPool, err = pkgDatabase.NewPostgresDB(cfg.Database)
@@ -204,8 +209,13 @@ func main() {
 		err = fmt.Errorf("no external DATABASE_URL configured")
 	}
 
+	// Production Fail-Closed Requirement: Production MUST NOT silently fall back to memory
+	if appEnv == "production" && (dbPool == nil || err != nil) {
+		log.Fatal(fmt.Sprintf("FATAL: Production control-plane PostgreSQL database connection required. APP_ENV=production requires a valid DATABASE_URL connection string: %v", err))
+	}
+
 	if err != nil {
-		log.Info(fmt.Sprintf("Running in standalone high-performance mode: %v. Supabase Auth & Memory Repositories active.", err))
+		log.Info(fmt.Sprintf("Development Mode Notice: %v. Initializing development fallback repositories.", err))
 		uRepo = newMemUserRepo()
 		sRepo = newMemSessionRepo()
 		kRepo = newMemKeyRepo()
@@ -222,7 +232,8 @@ func main() {
 
 		queryExecutor = query.NewMockExecutor()
 	} else {
-		_ = dbPool.AutoMigrate(
+		log.Info("Connected to Control-Plane PostgreSQL. Running AutoMigrate schema verification...")
+		err = dbPool.AutoMigrate(
 			&authDomain.User{},
 			&authDomain.Session{},
 			&authDomain.APIKey{},
@@ -235,6 +246,9 @@ func main() {
 			&databaseDomain.DatabaseInstance{},
 			&backupDomain.BackupRecord{},
 		)
+		if err != nil && appEnv == "production" {
+			log.Fatal(fmt.Sprintf("FATAL: Failed to migrate production control-plane database schema: %v", err))
+		}
 
 		uRepo = authRepo.NewUserRepository(dbPool.DB)
 		sRepo = authRepo.NewSessionRepository(dbPool.DB)
@@ -381,12 +395,38 @@ func main() {
 	secHandler := gwHandler.NewSecurityStatusHandler()
 	mux.HandleFunc("GET /api/v1/security/status", secHandler.GetSecurityStatus)
 
-	// Health and Prometheus Metrics endpoints
+	// Health (Liveness) and Readiness endpoints
 	mux.Handle("/metrics", metrics.Handler())
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"UP"}`))
+	})
+
+	mux.HandleFunc("/readiness", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if dbPool == nil {
+			if appEnv == "production" {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte(`{"status":"NOT_READY","database":"UNAVAILABLE"}`))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"READY","database":"DEV_STANDALONE"}`))
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+
+		if err := dbPool.HealthCheck(ctx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"status":"NOT_READY","database":"UNAVAILABLE"}`))
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"READY","database":"CONNECTED"}`))
 	})
 
 	log.Info("Successfully registered Auth, Project, Database, Backup, and Query routes on API Gateway")

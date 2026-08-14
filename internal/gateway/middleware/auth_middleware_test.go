@@ -21,7 +21,7 @@ func TestAuthMiddleware(t *testing.T) {
 	// Sample protected test handler
 	protectedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if path == "/health" || path == "/metrics" || path == "/api/v1/security/status" {
+		if path == "/health" || path == "/readiness" || path == "/metrics" || path == "/api/v1/security/status" {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"status":"PUBLIC"}`))
 			return
@@ -105,7 +105,7 @@ func TestAuthMiddleware(t *testing.T) {
 	})
 
 	t.Run("Public Endpoints Allow Unauthenticated Access", func(t *testing.T) {
-		publicPaths := []string{"/health", "/metrics", "/api/v1/security/status"}
+		publicPaths := []string{"/health", "/readiness", "/metrics", "/api/v1/security/status"}
 		for _, path := range publicPaths {
 			req := httptest.NewRequest("GET", path, nil)
 			rr := httptest.NewRecorder()
