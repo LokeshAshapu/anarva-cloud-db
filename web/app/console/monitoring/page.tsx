@@ -264,9 +264,110 @@ export default function ObservabilityPage() {
       {/* Tab Content */}
       <div className="space-y-6">
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <CloudChart title="API Gateway Response Latency (ms)" data={[12, 14, 18, 15, 14, 13, 16, 12, 14, 15]} />
-            <CloudChart title="Go Memory Allocation (Heap MB)" data={[20, 22, 24, 23, 25, 24, 26, 24, 25, 24]} />
+          <div className="space-y-6">
+            {/* Real-Time Control-Plane Observability Table */}
+            <CloudCard title="Unified Cloud Resource Health & Drift Engine" subtitle="Real-time control-plane observation across EC2, RDS PostgreSQL, and S3 Buckets">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse font-mono text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] text-slate-400 uppercase">
+                      <th className="py-3 px-4">RESOURCE NAME</th>
+                      <th className="py-3 px-4">TYPE</th>
+                      <th className="py-3 px-4">PROVIDER</th>
+                      <th className="py-3 px-4">REGION</th>
+                      <th className="py-3 px-4">STATE</th>
+                      <th className="py-3 px-4">HEALTH</th>
+                      <th className="py-3 px-4">DRIFT STATUS</th>
+                      <th className="py-3 px-4">LAST OBSERVED</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                    <tr className="hover:bg-slate-900/50 transition">
+                      <td className="py-3.5 px-4 font-bold text-white flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                        <span>ace-worker-node-01</span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded text-[10px]">
+                          EC2
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400">AWS</td>
+                      <td className="py-3.5 px-4 text-slate-400">us-east-1</td>
+                      <td className="py-3.5 px-4 text-emerald-400 font-bold">RUNNING</td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[10px] font-bold">
+                          HEALTHY
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 bg-slate-800 text-slate-300 border border-slate-700 rounded text-[10px]">
+                          IN_SYNC
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400">12s ago</td>
+                    </tr>
+
+                    <tr className="hover:bg-slate-900/50 transition">
+                      <td className="py-3.5 px-4 font-bold text-white flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                        <span>anarva-postgres-production</span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded text-[10px]">
+                          RDS_POSTGRESQL
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400">AWS</td>
+                      <td className="py-3.5 px-4 text-slate-400">us-east-1</td>
+                      <td className="py-3.5 px-4 text-emerald-400 font-bold">AVAILABLE</td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[10px] font-bold">
+                          HEALTHY
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 bg-slate-800 text-slate-300 border border-slate-700 rounded text-[10px]">
+                          IN_SYNC
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400">8s ago</td>
+                    </tr>
+
+                    <tr className="hover:bg-slate-900/50 transition">
+                      <td className="py-3.5 px-4 font-bold text-white flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                        <span>anarva-production-media-assets</span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded text-[10px]">
+                          S3_BUCKET
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400">AWS</td>
+                      <td className="py-3.5 px-4 text-slate-400">us-east-1</td>
+                      <td className="py-3.5 px-4 text-emerald-400 font-bold">ACTIVE</td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[10px] font-bold">
+                          HEALTHY
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 bg-slate-800 text-slate-300 border border-slate-700 rounded text-[10px]">
+                          IN_SYNC
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400">14s ago</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </CloudCard>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <CloudChart title="API Gateway Response Latency (ms)" data={[12, 14, 18, 15, 14, 13, 16, 12, 14, 15]} />
+              <CloudChart title="Go Memory Allocation (Heap MB)" data={[20, 22, 24, 23, 25, 24, 26, 24, 25, 24]} />
+            </div>
           </div>
         )}
 

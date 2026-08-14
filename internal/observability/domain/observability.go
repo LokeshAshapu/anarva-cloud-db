@@ -7,12 +7,50 @@ import (
 type HealthState string
 
 const (
-	HealthHealthy     HealthState = "HEALTHY"
-	HealthDegraded    HealthState = "DEGRADED"
-	HealthUnavailable HealthState = "UNAVAILABLE"
-	HealthMaintenance HealthState = "MAINTENANCE"
-	HealthUnknown     HealthState = "UNKNOWN"
+	HealthHealthy           HealthState = "HEALTHY"
+	HealthDegraded          HealthState = "DEGRADED"
+	HealthUnavailable       HealthState = "UNAVAILABLE"
+	HealthProvisioning      HealthState = "PROVISIONING"
+	HealthUpdating          HealthState = "UPDATING"
+	HealthDeleting          HealthState = "DELETING"
+	HealthStopped           HealthState = "STOPPED"
+	HealthDrifted           HealthState = "DRIFTED"
+	HealthUnknown           HealthState = "UNKNOWN"
+	HealthExternallyDeleted HealthState = "EXTERNALLY_DELETED"
 )
+
+type DriftStatus string
+
+const (
+	DriftInSync            DriftStatus = "IN_SYNC"
+	DriftStateDrift        DriftStatus = "STATE_DRIFT"
+	DriftConfigDrift       DriftStatus = "CONFIGURATION_DRIFT"
+	DriftSecurityDrift     DriftStatus = "SECURITY_DRIFT"
+	DriftMissingResource   DriftStatus = "MISSING_RESOURCE"
+	DriftExternalChange    DriftStatus = "EXTERNAL_CHANGE"
+	DriftUnknown           DriftStatus = "UNKNOWN"
+)
+
+type ResourceObservation struct {
+	ResourceID             string            `json:"resourceId"`
+	OrganizationID         string            `json:"organizationId"`
+	ProjectID              string            `json:"projectId"`
+	ResourceName           string            `json:"resourceName"`
+	Provider               string            `json:"provider"`
+	ResourceType           string            `json:"resourceType"` // EC2, RDS_POSTGRESQL, S3_BUCKET
+	ProviderResourceID     string            `json:"providerResourceId"`
+	Region                 string            `json:"region"`
+	DesiredState           string            `json:"desiredState"`
+	ObservedState          string            `json:"observedState"`
+	HealthState            HealthState       `json:"healthState"`
+	DriftStatus            DriftStatus       `json:"driftStatus"`
+	DriftDetails           string            `json:"driftDetails,omitempty"`
+	LastObservedAt         time.Time         `json:"lastObservedAt"`
+	ObservationDurationMs  int64             `json:"observationDurationMs"`
+	ObservationError       string            `json:"observationError,omitempty"`
+	IsStale                bool              `json:"isStale"`
+	ObservedAttributes     map[string]string `json:"observedAttributes,omitempty"`
+}
 
 type AlertSeverity string
 
