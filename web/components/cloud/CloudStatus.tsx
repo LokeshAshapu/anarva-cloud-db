@@ -10,6 +10,7 @@ export interface CloudStatusProps {
 
 export function CloudStatus({ status, className = '' }: CloudStatusProps) {
   let badgeVariant: 'emerald' | 'amber' | 'red' | 'blue' | 'slate' = 'slate'
+  let isPulse = false
 
   switch (status.toUpperCase()) {
     case 'AVAILABLE':
@@ -24,6 +25,7 @@ export function CloudStatus({ status, className = '' }: CloudStatusProps) {
     case 'TESTING':
     case 'MAINTENANCE':
       badgeVariant = 'blue'
+      isPulse = true
       break
     case 'DEGRADED':
     case 'STOPPED':
@@ -39,36 +41,33 @@ export function CloudStatus({ status, className = '' }: CloudStatusProps) {
       badgeVariant = 'slate'
   }
 
-  const dotColors = {
-    emerald: 'bg-emerald-400',
-    blue: 'bg-blue-400',
-    amber: 'bg-amber-400',
-    red: 'bg-red-400',
-    slate: 'bg-slate-400',
-  }
-
   return (
     <span
-      className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase border shadow-sm ${
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
         badgeVariant === 'emerald'
-          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-emerald-500/5'
+          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
           : badgeVariant === 'blue'
-          ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-blue-500/5'
+          ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
           : badgeVariant === 'amber'
-          ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-amber-500/5'
+          ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
           : badgeVariant === 'red'
-          ? 'bg-red-500/10 text-red-400 border-red-500/20 shadow-red-500/5'
-          : 'bg-slate-800/80 text-slate-400 border-slate-700/80'
+          ? 'bg-red-500/10 text-red-400 border-red-500/20'
+          : 'bg-slate-800 text-slate-400 border-slate-700'
       } ${className}`}
     >
-      <span className="relative flex h-2 w-2">
-        <span
-          className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-            dotColors[badgeVariant]
-          }`}
-        />
-        <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColors[badgeVariant]}`} />
-      </span>
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          badgeVariant === 'emerald'
+            ? 'bg-emerald-400'
+            : badgeVariant === 'blue'
+            ? 'bg-blue-400'
+            : badgeVariant === 'amber'
+            ? 'bg-amber-400'
+            : badgeVariant === 'red'
+            ? 'bg-red-400'
+            : 'bg-slate-400'
+        } ${isPulse ? 'animate-ping' : ''}`}
+      />
       <span>{status}</span>
     </span>
   )
