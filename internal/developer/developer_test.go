@@ -23,8 +23,8 @@ func TestDeveloperPlatform_APIKeysAndServiceAccounts(t *testing.T) {
 		t.Errorf("Expected status KeyStatusActive, got %s", key.Status)
 	}
 
-	if !strings.HasPrefix(secretKey, "ank_live_") {
-		t.Errorf("Expected prefix ank_live_, got secret: %s", secretKey)
+	if !strings.HasPrefix(secretKey, "anarva_live_") {
+		t.Errorf("Expected prefix anarva_live_, got secret: %s", secretKey)
 	}
 
 	// Test Key Validation

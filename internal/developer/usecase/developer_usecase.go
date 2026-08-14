@@ -31,7 +31,7 @@ func NewDeveloperUseCase() *DeveloperUseCase {
 func (uc *DeveloperUseCase) seedDefaults() {
 	now := time.Now()
 	// Seed default API Key
-	secret, hash, prefix := domain.GenerateAPIKey(true)
+	secret, hash, prefix, _ := domain.GenerateAPIKey(true)
 	_ = secret // Only stored as hash
 
 	key := &domain.APIKey{
@@ -73,7 +73,7 @@ func (uc *DeveloperUseCase) CreateAPIKey(ctx context.Context, name, orgID, proje
 		return nil, "", appErrors.New(appErrors.CodeInvalidInput, "API key name is required")
 	}
 
-	secretKey, keyHash, keyPrefix := domain.GenerateAPIKey(isLive)
+	secretKey, keyHash, keyPrefix, keyID := domain.GenerateAPIKey(isLive)
 	now := time.Now()
 
 	if len(permissions) == 0 {
@@ -81,7 +81,7 @@ func (uc *DeveloperUseCase) CreateAPIKey(ctx context.Context, name, orgID, proje
 	}
 
 	key := &domain.APIKey{
-		ID:             fmt.Sprintf("ank-%d", now.UnixNano()/1e6),
+		ID:             keyID,
 		OrganizationID: orgID,
 		ProjectID:      projectID,
 		Name:           name,
@@ -140,6 +140,31 @@ func (uc *DeveloperUseCase) RevokeAPIKey(ctx context.Context, id string) error {
 	key.Status = domain.KeyStatusRevoked
 	key.RevokedAt = &now
 	return nil
+}
+
+func (uc *DeveloperUseCase) RotateAPIKey(ctx context.Context, id string, createdBy string) (*domain.APIKey, string, error) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+
+	key, ok := uc.keys[id]
+	if !ok || key.Status == domain.KeyStatusRevoked {
+		return nil, "", appErrors.New(appErrors.CodeNotFound, "API key not found or revoked")
+	}
+
+	// Delete old hash mapping
+	delete(uc.keysByHash, key.KeyHash)
+
+	// Generate new secret
+	isLive := key.Environment == domain.EnvLive
+	secretKey, keyHash, keyPrefix, _ := domain.GenerateAPIKey(isLive)
+
+	now := time.Now()
+	key.KeyPrefix = keyPrefix
+	key.KeyHash = keyHash
+	key.CreatedAt = now
+
+	uc.keysByHash[keyHash] = key
+	return key, secretKey, nil
 }
 
 func (uc *DeveloperUseCase) CreateServiceAccount(ctx context.Context, name, description, role, orgID, projectID, createdBy string) (*domain.ServiceAccount, error) {
