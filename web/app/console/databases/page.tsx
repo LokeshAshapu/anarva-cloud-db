@@ -207,9 +207,29 @@ export default function ManagedDatabasesPage() {
               <div className="text-2xl font-bold text-emerald-400 mb-1">{selectedInstance.cpu} vCPUs / {selectedInstance.memoryMb} MB</div>
               <p className="text-slate-400 font-sans text-xs">Dedicated ACU allocation</p>
             </CloudCard>
-            <CloudCard title="Storage Allocation">
-              <div className="text-2xl font-bold text-blue-400 mb-1">{selectedInstance.storageGb} GB SSD</div>
-              <p className="text-slate-400 font-sans text-xs">Automated daily snapshot backups active</p>
+            <CloudCard title="High Availability & Multi-AZ">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-bold text-white flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-mono">
+                      HA_ENABLED (MULTI-AZ)
+                    </span>
+                    <span className="text-xs font-mono text-slate-400">
+                      Primary: <strong className="text-white">ap-south-1a</strong> | Standby: <strong className="text-white">ap-south-1b</strong>
+                    </span>
+                  </div>
+                  <p className="text-slate-400 font-sans text-xs mt-1">
+                    AWS RDS manages synchronous physical standby replication across independent availability zones.
+                  </p>
+                </div>
+                <CloudButton
+                  variant="outline"
+                  size="sm"
+                  onClick={() => alert('Controlled RDS Multi-AZ Failover Initiated! Swapping primary to ap-south-1b.')}
+                >
+                  ⚡ Trigger Failover
+                </CloudButton>
+              </div>
             </CloudCard>
           </div>
         )}
