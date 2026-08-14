@@ -368,8 +368,8 @@ export default function BillingPage() {
             <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-mono font-bold">
               ANARVA METERING ENGINE (v1.0)
             </span>
-            <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 text-xs font-mono">
-              AWS ACTUAL BILLING: NOT_CONNECTED
+            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-mono font-bold">
+              ACTIVE PAY-AS-YOU-GO
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1">Billing & Cost Explorer</h1>
