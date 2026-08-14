@@ -361,23 +361,20 @@ export default function BillingPage() {
   return (
     <div className="space-y-6 max-w-full overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-mono text-slate-400">ACCOUNT BILLING ENGINE:</span>
-            <span
-              className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${
-                isStudentPromoActive
-                  ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-                  : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-              }`}
-            >
-              {isStudentPromoActive ? 'STUDENT PREMIUM ACTIVE' : 'PAYG PRICING v1.0.0'}
+            <span className="text-xs font-mono text-slate-400">BILLING ENGINE:</span>
+            <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-mono font-bold">
+              ANARVA METERING ENGINE (v1.0)
+            </span>
+            <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 text-xs font-mono">
+              AWS ACTUAL BILLING: NOT_CONNECTED
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1">Billing & Quotas</h1>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1">Billing & Cost Explorer</h1>
           <p className="text-slate-400 text-xs sm:text-sm mt-0.5 break-words">
-            Resource usage metering, atomic quota limits, and promo code discounts for account:{' '}
+            Resource usage metering, atomic quota limits, and calculated customer charges for account:{' '}
             <strong className="text-white break-all">{userEmail}</strong>.
           </p>
         </div>
