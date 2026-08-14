@@ -175,11 +175,11 @@ export default function IAMPage() {
                 onChange={(e) => setInviteRole(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none cursor-pointer"
               >
-                <option value="ADMIN">ADMIN (Full Project Access)</option>
-                <option value="DEVELOPER">DEVELOPER (Database & Storage Read/Write)</option>
-                <option value="DATABASE_ADMIN">DATABASE_ADMIN (Databases Only)</option>
-                <option value="STORAGE_ADMIN">STORAGE_ADMIN (Object Storage Only)</option>
+                <option value="ADMIN">ADMIN (Organization Administration)</option>
+                <option value="DEVELOPER">DEVELOPER (Resource Ops in Authorized Projects)</option>
                 <option value="VIEWER">VIEWER (Read-Only Observer)</option>
+                <option value="BILLING_ADMIN">BILLING_ADMIN (Invoices & Budget Access)</option>
+                <option value="AUDITOR">AUDITOR (Audit & Security Log Access)</option>
               </select>
             </div>
             <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">

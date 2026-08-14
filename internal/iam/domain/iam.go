@@ -11,47 +11,119 @@ import (
 type RoleType string
 
 const (
-	RoleOwner         RoleType = "OWNER"
-	RoleAdmin         RoleType = "ADMIN"
-	RoleDeveloper     RoleType = "DEVELOPER"
-	RoleDatabaseAdmin RoleType = "DATABASE_ADMIN"
-	RoleStorageAdmin  RoleType = "STORAGE_ADMIN"
-	RoleViewer        RoleType = "VIEWER"
-	RoleBillingAdmin  RoleType = "BILLING_ADMIN"
-	RoleSecurityAdmin RoleType = "SECURITY_ADMIN"
+	RoleOwner        RoleType = "OWNER"
+	RoleAdmin        RoleType = "ADMIN"
+	RoleDeveloper    RoleType = "DEVELOPER"
+	RoleViewer       RoleType = "VIEWER"
+	RoleBillingAdmin RoleType = "BILLING_ADMIN"
+	RoleAuditor      RoleType = "AUDITOR"
 )
 
 type Permission string
 
 const (
-	PermOrgRead      Permission = "organization.read"
-	PermOrgUpdate    Permission = "organization.update"
-	PermOrgDelete    Permission = "organization.delete"
-	PermProjRead     Permission = "project.read"
-	PermProjCreate   Permission = "project.create"
-	PermProjUpdate   Permission = "project.update"
-	PermProjDelete   Permission = "project.delete"
-	PermDBRead       Permission = "database.read"
-	PermDBCreate     Permission = "database.create"
-	PermDBUpdate     Permission = "database.update"
-	PermDBDelete     Permission = "database.delete"
-	PermDBQuery      Permission = "database.query"
-	PermStorageRead  Permission = "storage.read"
-	PermStorageCreate Permission = "storage.create"
-	PermStorageUpload Permission = "storage.upload"
-	PermStorageDelete Permission = "storage.delete"
-	PermIAMRead      Permission = "iam.read"
-	PermIAMManage    Permission = "iam.manage"
-	PermSecurityManage Permission = "security.manage"
+	PermOrgRead             Permission = "organization.read"
+	PermOrgUpdate           Permission = "organization.update"
+	PermOrgDelete           Permission = "organization.delete"
+	PermOrgMembersRead      Permission = "organization.members.read"
+	PermOrgMembersInvite    Permission = "organization.members.invite"
+	PermOrgMembersRemove    Permission = "organization.members.remove"
+	PermProjCreate          Permission = "project.create"
+	PermProjRead            Permission = "project.read"
+	PermProjUpdate          Permission = "project.update"
+	PermProjDelete          Permission = "project.delete"
+	PermProjMembersManage   Permission = "project.members.manage"
+	PermComputeRead         Permission = "compute.read"
+	PermComputeCreate       Permission = "compute.create"
+	PermComputeUpdate       Permission = "compute.update"
+	PermComputeDelete       Permission = "compute.delete"
+	PermDatabaseRead        Permission = "database.read"
+	PermDatabaseCreate      Permission = "database.create"
+	PermDatabaseUpdate      Permission = "database.update"
+	PermDatabaseDelete      Permission = "database.delete"
+	PermStorageRead         Permission = "storage.read"
+	PermStorageCreate       Permission = "storage.create"
+	PermStorageUpload       Permission = "storage.upload"
+	PermStorageDelete       Permission = "storage.delete"
+	PermMetricsRead         Permission = "metrics.read"
+	PermBillingRead         Permission = "billing.read"
+	PermBillingManage       Permission = "billing.manage"
+	PermBillingPricingManage Permission = "billing.pricing.manage"
+	PermAuditRead           Permission = "audit.read"
+	PermIAMManage           Permission = "iam.manage"
 )
 
+type Organization struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Slug        string    `json:"slug"`
+	OwnerUserID string    `json:"ownerUserId"`
+	Status      string    `json:"status"` // ACTIVE, SUSPENDED
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type Project struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organizationId"`
+	Name           string    `json:"name"`
+	Slug           string    `json:"slug"`
+	Description    string    `json:"description"`
+	Status         string    `json:"status"` // ACTIVE, ARCHIVED
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+type OrgMember struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organizationId"`
+	UserID         string    `json:"userId"`
+	UserEmail      string    `json:"userEmail"`
+	UserName       string    `json:"userName"`
+	Role           RoleType  `json:"role"`
+	Status         string    `json:"status"` // ACTIVE, INVITED, SUSPENDED, REMOVED
+	JoinedAt       time.Time `json:"joinedAt"`
+}
+
+type Invitation struct {
+	ID             string     `json:"id"`
+	OrganizationID string     `json:"organizationId"`
+	Email          string     `json:"email"`
+	Role           RoleType   `json:"role"`
+	TokenHash      string     `json:"-"` // Never expose in JSON
+	Status         string     `json:"status"` // PENDING, ACCEPTED, EXPIRED, REVOKED
+	ExpiresAt      time.Time  `json:"expiresAt"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	AcceptedAt     *time.Time `json:"acceptedAt,omitempty"`
+}
+
+type PolicyRule struct {
+	Role        RoleType     `json:"role"`
+	Permissions []Permission `json:"permissions"`
+}
+
+// NormalizeSlug converts name to URL-safe slug
+func NormalizeSlug(name string) string {
+	slug := strings.ToLower(strings.TrimSpace(name))
+	slug = strings.ReplaceAll(slug, " ", "-")
+	slug = strings.ReplaceAll(slug, "_", "-")
+	return slug
+}
+
+// HashInvitationToken computes SHA-256 hash of single-use invitation token
+func HashInvitationToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
+// Legacy APIKey stub for Phase 36 compatibility
 type APIKey struct {
 	ID             string     `json:"id"`
 	OrganizationID string     `json:"organizationId"`
 	ProjectID      string     `json:"projectId"`
 	Name           string     `json:"name"`
 	KeyPrefix      string     `json:"keyPrefix"`
-	HashedSecret   string     `json:"-"` // Never exposed in JSON
+	HashedSecret   string     `json:"-"`
 	Permissions    []string   `json:"permissions"`
 	LastUsedAt     *time.Time `json:"lastUsedAt,omitempty"`
 	ExpiresAt      *time.Time `json:"expiresAt,omitempty"`
@@ -65,43 +137,20 @@ type ServiceAccount struct {
 	ProjectID      string    `json:"projectId"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
-	Status         string    `json:"status"` // ACTIVE, DISABLED
+	Status         string    `json:"status"`
 	Role           RoleType  `json:"role"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
-type Team struct {
-	ID             string    `json:"id"`
-	OrganizationID string    `json:"organizationId"`
-	Name           string    `json:"name"`
-	Description    string    `json:"description"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
-}
-
-type OrgMember struct {
-	ID             string    `json:"id"`
-	OrganizationID string    `json:"organizationId"`
-	UserID         string    `json:"userId"`
-	UserEmail      string    `json:"userEmail"`
-	UserName       string    `json:"userName"`
-	Role           RoleType  `json:"role"`
-	Status         string    `json:"status"` // ACTIVE, INVITED, SUSPENDED
-	JoinedAt       time.Time `json:"joinedAt"`
-}
-
-// HashSecret computes SHA-256 hash of API secret
 func HashSecret(secret string) string {
 	h := sha256.Sum256([]byte(secret))
 	return hex.EncodeToString(h[:])
 }
 
-// GenerateRawAPIKey creates key prefix and full secret
-func GenerateRawAPIKey(orgID, name string) (prefix, fullSecret, hash string) {
-	rawToken := fmt.Sprintf("ak_%d_%s", time.Now().UnixNano(), strings.ReplaceAll(name, " ", "_"))
-	prefix = rawToken[:8]
-	fullSecret = fmt.Sprintf("anarva_live_%s", rawToken)
-	hash = HashSecret(fullSecret)
-	return prefix, fullSecret, hash
+func GenerateRawAPIKey(orgID, name string) (string, string, string) {
+	prefix := "anarva_" + strings.ToLower(fmt.Sprintf("%x", time.Now().UnixNano()%10000))
+	secret := fmt.Sprintf("ak_secret_%d", time.Now().UnixNano())
+	hash := HashSecret(secret)
+	return prefix, secret, hash
 }
