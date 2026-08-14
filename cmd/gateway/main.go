@@ -79,6 +79,11 @@ import (
 	prvSecurity "github.com/anarva-cloud/anarva-cloud-db/internal/providers/security"
 	prvService "github.com/anarva-cloud/anarva-cloud-db/internal/providers/service"
 
+	stgHandler "github.com/anarva-cloud/anarva-cloud-db/internal/storage/handler"
+	stgProvider "github.com/anarva-cloud/anarva-cloud-db/internal/storage/provider"
+	stgRepo "github.com/anarva-cloud/anarva-cloud-db/internal/storage/repository"
+	stgService "github.com/anarva-cloud/anarva-cloud-db/internal/storage/service"
+
 	lbDns "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/dns"
 	lbEdge "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/edge"
 	lbHandler "github.com/anarva-cloud/anarva-cloud-db/internal/loadbalancer/handler"
@@ -263,7 +268,7 @@ func main() {
 	actStream := activity.NewStream()
 	authSvc := iamService.NewAuthorizationService()
 	obsSvc := observabilityService.NewObservabilityService()
-	bakProv := backupProvider.NewControlPlaneBackupProvider(storageProvider.NewLocalStorageProvider())
+	bakProv := backupProvider.NewControlPlaneBackupProvider(storageProvider.NewLocalStorageProvider(""))
 	compProv := computeProvider.NewLocalDockerComputeProvider()
 	compUC := computeUsecase.NewComputeUseCase(newMemComputeRepo(), nil, compProv)
 	netProv := networkProvider.NewLocalDockerNetworkProvider()
@@ -336,6 +341,14 @@ func main() {
 	prvServiceSvc := prvService.NewProviderService(prvReg, prvMapRepo, prvDriftEng, prvImportEng, prvSsrfEng, actStream)
 	prvDeliveryHandler := prvHandler.NewProviderHandler(prvServiceSvc)
 
+	// Phase 23 Managed Object Storage Platform (S3 Compatible)
+	stgRepository := stgRepo.NewStorageRepository()
+	stgProv := stgProvider.NewLocalStorageProvider("")
+	stgSignedUrlSvc := stgService.NewSignedURLService(stgProv)
+	stgMpSvc := stgService.NewMultipartService()
+	stgServiceSvc := stgService.NewStorageService(stgRepository, stgProv, stgSignedUrlSvc, stgMpSvc, actStream)
+	stgDeliveryHandler := stgHandler.NewStorageHandler(stgServiceSvc)
+
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
@@ -346,6 +359,7 @@ func main() {
 	lbDeliveryHandler.RegisterRoutes(mux)
 	infDeliveryHandler.RegisterRoutes(mux)
 	prvDeliveryHandler.RegisterRoutes(mux)
+	stgDeliveryHandler.RegisterRoutes(mux)
 	backupHttp.NewBackupHandler(bakProv, actStream).RegisterRoutes(mux)
 	computeHttp.NewComputeHandler(compUC, actStream).RegisterRoutes(mux)
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
