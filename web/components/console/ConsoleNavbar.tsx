@@ -110,7 +110,7 @@ export function ConsoleNavbar({ onOpenCommandPalette, onToggleMobileMenu }: Cons
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Region Selector */}
         <div className="hidden sm:block">
-          <RegionSelector value={selectedRegion} onChange={setSelectedRegion} />
+          <RegionSelector />
         </div>
 
         {/* Notifications Dropdown */}
