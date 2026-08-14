@@ -17,14 +17,14 @@ export interface CloudTabsProps {
 
 export function CloudTabs({ tabs, activeTab, onChange, className = '' }: CloudTabsProps) {
   return (
-    <div className={`flex items-center gap-2 border-b border-slate-800 pb-3 text-xs font-semibold ${className}`}>
+    <div className={`flex items-center gap-2 border-b border-slate-800 pb-3 text-xs font-semibold overflow-x-auto max-w-full flex-nowrap scrollbar-none select-none ${className}`}>
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id
         return (
           <button
             key={tab.id}
             onClick={() => onChange(tab.id)}
-            className={`px-4 py-2 rounded-xl transition flex items-center gap-2 ${
+            className={`px-3.5 py-2 rounded-xl transition flex items-center gap-2 flex-shrink-0 whitespace-nowrap ${
               isActive
                 ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 font-bold shadow-sm'
                 : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
