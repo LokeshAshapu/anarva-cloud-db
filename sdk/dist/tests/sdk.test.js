@@ -35,6 +35,21 @@ describe('@anarva/sdk Unit & Integration Tests', () => {
                 }));
                 return;
             }
+            if (req.url === '/api/v1/feedback' && req.method === 'POST') {
+                res.writeHead(200, { 'Content-Type': 'application/json', 'x-request-id': 'req_fb_101' });
+                res.end(JSON.stringify({
+                    data: {
+                        feedbackId: 'fb-test-101',
+                        rating: 5,
+                        subject: 'Great SDK',
+                        message: 'Phase 40 feedback API test',
+                        status: 'NEW',
+                        targetEmail: '23w61a0506@gmail.com',
+                    },
+                    requestId: 'req_fb_101',
+                }));
+                return;
+            }
             if (req.url === '/api/v1/databases/db-missing') {
                 res.writeHead(404, { 'Content-Type': 'application/json', 'x-request-id': 'req_err_404' });
                 res.end(JSON.stringify({
@@ -123,5 +138,19 @@ describe('@anarva/sdk Unit & Integration Tests', () => {
         finally {
             malformedServer.close();
         }
+    });
+    test('client.feedback.create() creates feedback item successfully', async () => {
+        const client = new AnarvaClient({
+            apiKey: 'anarva_live_testsecret123',
+            apiUrl: serverUrl,
+        });
+        const res = await client.feedback.create({
+            rating: 5,
+            subject: 'Great SDK',
+            message: 'Phase 40 feedback API test',
+        });
+        assert.strictEqual(res.feedbackId, 'fb-test-101');
+        assert.strictEqual(res.rating, 5);
+        assert.strictEqual(res.targetEmail, '23w61a0506@gmail.com');
     });
 });

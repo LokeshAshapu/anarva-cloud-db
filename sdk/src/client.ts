@@ -18,6 +18,7 @@ export class AnarvaClient {
   public readonly metrics: MetricsAPI;
   public readonly billing: BillingAPI;
   public readonly operations: OperationsAPI;
+  public readonly feedback: FeedbackAPI;
 
   constructor(config?: AnarvaClientConfig) {
     this.config = resolveConfig(config);
@@ -30,6 +31,7 @@ export class AnarvaClient {
     this.metrics = new MetricsAPI(this);
     this.billing = new BillingAPI(this);
     this.operations = new OperationsAPI(this);
+    this.feedback = new FeedbackAPI(this);
   }
 
   public async request<T>(method: string, path: string, body?: unknown, options?: RequestOptions): Promise<{ data: T; requestId?: string }> {
@@ -302,5 +304,41 @@ export class OperationsAPI {
     }
 
     throw new AnarvaError({ code: 'WAIT_TIMEOUT', message: `Operation ${id} timed out after ${timeoutMs}ms` });
+  }
+}
+
+export class FeedbackAPI {
+  constructor(private client: AnarvaClient) {}
+
+  public async create(payload: { rating: number; subject?: string; message: string; category?: string }, options?: RequestOptions): Promise<any> {
+    const res = await this.client.request<any>('POST', '/api/v1/feedback', payload, options);
+    return res.data;
+  }
+
+  public async list(query?: { page?: number; pageSize?: number; status?: string; minRating?: number }, options?: RequestOptions): Promise<any> {
+    const params = new URLSearchParams();
+    if (query?.page) params.set('page', query.page.toString());
+    if (query?.pageSize) params.set('pageSize', query.pageSize.toString());
+    if (query?.status) params.set('status', query.status);
+    if (query?.minRating) params.set('minRating', query.minRating.toString());
+
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await this.client.request<any>('GET', `/api/v1/feedback${qs}`, undefined, options);
+    return res.data;
+  }
+
+  public async get(id: string, options?: RequestOptions): Promise<any> {
+    const res = await this.client.request<any>('GET', `/api/v1/feedback/${id}`, undefined, options);
+    return res.data;
+  }
+
+  public async updateStatus(id: string, status: string, options?: RequestOptions): Promise<any> {
+    const res = await this.client.request<any>('PATCH', `/api/v1/feedback/${id}/status`, { status }, options);
+    return res.data;
+  }
+
+  public async getAnalytics(options?: RequestOptions): Promise<any> {
+    const res = await this.client.request<any>('GET', '/api/v1/feedback/analytics', undefined, options);
+    return res.data;
   }
 }

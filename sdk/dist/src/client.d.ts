@@ -14,6 +14,7 @@ export declare class AnarvaClient {
     readonly metrics: MetricsAPI;
     readonly billing: BillingAPI;
     readonly operations: OperationsAPI;
+    readonly feedback: FeedbackAPI;
     constructor(config?: AnarvaClientConfig);
     request<T>(method: string, path: string, body?: unknown, options?: RequestOptions): Promise<{
         data: T;
@@ -83,4 +84,23 @@ export declare class OperationsAPI {
         intervalMs?: number;
         signal?: AbortSignal;
     }): Promise<Types.ControlPlaneOperation>;
+}
+export declare class FeedbackAPI {
+    private client;
+    constructor(client: AnarvaClient);
+    create(payload: {
+        rating: number;
+        subject?: string;
+        message: string;
+        category?: string;
+    }, options?: RequestOptions): Promise<any>;
+    list(query?: {
+        page?: number;
+        pageSize?: number;
+        status?: string;
+        minRating?: number;
+    }, options?: RequestOptions): Promise<any>;
+    get(id: string, options?: RequestOptions): Promise<any>;
+    updateStatus(id: string, status: string, options?: RequestOptions): Promise<any>;
+    getAnalytics(options?: RequestOptions): Promise<any>;
 }

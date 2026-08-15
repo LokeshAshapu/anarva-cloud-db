@@ -10,6 +10,7 @@ export class AnarvaClient {
     metrics;
     billing;
     operations;
+    feedback;
     constructor(config) {
         this.config = resolveConfig(config);
         this.organizations = new OrganizationsAPI(this);
@@ -20,6 +21,7 @@ export class AnarvaClient {
         this.metrics = new MetricsAPI(this);
         this.billing = new BillingAPI(this);
         this.operations = new OperationsAPI(this);
+        this.feedback = new FeedbackAPI(this);
     }
     async request(method, path, body, options) {
         const url = `${this.config.apiUrl}${path}`;
@@ -274,5 +276,41 @@ export class OperationsAPI {
             await new Promise((resolve) => setTimeout(resolve, intervalMs));
         }
         throw new AnarvaError({ code: 'WAIT_TIMEOUT', message: `Operation ${id} timed out after ${timeoutMs}ms` });
+    }
+}
+export class FeedbackAPI {
+    client;
+    constructor(client) {
+        this.client = client;
+    }
+    async create(payload, options) {
+        const res = await this.client.request('POST', '/api/v1/feedback', payload, options);
+        return res.data;
+    }
+    async list(query, options) {
+        const params = new URLSearchParams();
+        if (query?.page)
+            params.set('page', query.page.toString());
+        if (query?.pageSize)
+            params.set('pageSize', query.pageSize.toString());
+        if (query?.status)
+            params.set('status', query.status);
+        if (query?.minRating)
+            params.set('minRating', query.minRating.toString());
+        const qs = params.toString() ? `?${params.toString()}` : '';
+        const res = await this.client.request('GET', `/api/v1/feedback${qs}`, undefined, options);
+        return res.data;
+    }
+    async get(id, options) {
+        const res = await this.client.request('GET', `/api/v1/feedback/${id}`, undefined, options);
+        return res.data;
+    }
+    async updateStatus(id, status, options) {
+        const res = await this.client.request('PATCH', `/api/v1/feedback/${id}/status`, { status }, options);
+        return res.data;
+    }
+    async getAnalytics(options) {
+        const res = await this.client.request('GET', '/api/v1/feedback/analytics', undefined, options);
+        return res.data;
     }
 }
