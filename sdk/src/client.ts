@@ -19,6 +19,7 @@ export class AnarvaClient {
   public readonly billing: BillingAPI;
   public readonly operations: OperationsAPI;
   public readonly feedback: FeedbackAPI;
+  public readonly networking: NetworkingAPI;
 
   constructor(config?: AnarvaClientConfig) {
     this.config = resolveConfig(config);
@@ -32,6 +33,7 @@ export class AnarvaClient {
     this.billing = new BillingAPI(this);
     this.operations = new OperationsAPI(this);
     this.feedback = new FeedbackAPI(this);
+    this.networking = new NetworkingAPI(this);
   }
 
   public async request<T>(method: string, path: string, body?: unknown, options?: RequestOptions): Promise<{ data: T; requestId?: string }> {
@@ -339,6 +341,56 @@ export class FeedbackAPI {
 
   public async getAnalytics(options?: RequestOptions): Promise<any> {
     const res = await this.client.request<any>('GET', '/api/v1/feedback/analytics', undefined, options);
+    return res.data;
+  }
+}
+
+export class NetworkingAPI {
+  constructor(private client: AnarvaClient) {}
+
+  public async listVpcs(query?: { organizationId?: string; projectId?: string }, options?: RequestOptions): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (query?.organizationId) params.set('organizationId', query.organizationId);
+    if (query?.projectId) params.set('projectId', query.projectId);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await this.client.request<any>('GET', `/api/v1/networks${qs}`, undefined, options);
+    return res.data;
+  }
+
+  public async createVpc(payload: { name: string; cidr: string; regionId: string; organizationId?: string; projectId?: string }, options?: RequestOptions): Promise<any> {
+    const res = await this.client.request<any>('POST', '/api/v1/networks', payload, options);
+    return res.data;
+  }
+
+  public async getVpc(id: string, options?: RequestOptions): Promise<any> {
+    const res = await this.client.request<any>('GET', `/api/v1/networks/${id}`, undefined, options);
+    return res.data;
+  }
+
+  public async deleteVpc(id: string, options?: RequestOptions): Promise<any> {
+    const res = await this.client.request<any>('DELETE', `/api/v1/networks/${id}`, undefined, options);
+    return res.data;
+  }
+
+  public async listSubnets(vpcId?: string, options?: RequestOptions): Promise<any[]> {
+    const qs = vpcId ? `?vpcId=${vpcId}` : '';
+    const res = await this.client.request<any>('GET', `/api/v1/subnets${qs}`, undefined, options);
+    return res.data;
+  }
+
+  public async createSubnet(payload: { vpcId: string; name: string; cidr: string; zone: string; type?: string; organizationId?: string; projectId?: string }, options?: RequestOptions): Promise<any> {
+    const res = await this.client.request<any>('POST', '/api/v1/subnets', payload, options);
+    return res.data;
+  }
+
+  public async listSecurityGroups(vpcId?: string, options?: RequestOptions): Promise<any[]> {
+    const qs = vpcId ? `?vpcId=${vpcId}` : '';
+    const res = await this.client.request<any>('GET', `/api/v1/security-groups${qs}`, undefined, options);
+    return res.data;
+  }
+
+  public async createSecurityGroup(payload: { vpcId: string; name: string; description?: string; organizationId?: string; projectId?: string }, options?: RequestOptions): Promise<any> {
+    const res = await this.client.request<any>('POST', '/api/v1/security-groups', payload, options);
     return res.data;
   }
 }

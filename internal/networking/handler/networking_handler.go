@@ -20,8 +20,10 @@ func NewNetworkingHandler(svc *service.NetworkingService) *NetworkingHandler {
 func (h *NetworkingHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/networks", h.handleNetworks)
 	mux.HandleFunc("/api/v1/networks/", h.handleNetworkSubroutes)
+	mux.HandleFunc("/api/v1/subnets", h.handleSubnets)
 	mux.HandleFunc("/api/v1/security-groups", h.handleSecurityGroups)
 	mux.HandleFunc("/api/v1/security-groups/", h.handleSecurityGroupSubroutes)
+	mux.HandleFunc("/api/v1/route-tables", h.handleRouteTables)
 	mux.HandleFunc("/api/v1/network/connectivity-tests", h.handleConnectivityTests)
 }
 
@@ -32,6 +34,12 @@ func (h *NetworkingHandler) handleNetworks(w http.ResponseWriter, r *http.Reques
 	case http.MethodGet:
 		orgID := r.URL.Query().Get("organizationId")
 		projectID := r.URL.Query().Get("projectId")
+		if orgID == "" {
+			orgID = "org-default"
+		}
+		if projectID == "" {
+			projectID = "proj-default"
+		}
 		nets, err := h.svc.ListNetworks(r.Context(), orgID, projectID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -53,6 +61,12 @@ func (h *NetworkingHandler) handleNetworks(w http.ResponseWriter, r *http.Reques
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+		if req.OrganizationID == "" {
+			req.OrganizationID = "org-default"
+		}
+		if req.ProjectID == "" {
+			req.ProjectID = "proj-default"
 		}
 
 		vNet, err := h.svc.CreateNetwork(r.Context(), req.OrganizationID, req.ProjectID, req.Name, req.RegionID, req.CIDR)
@@ -95,10 +109,20 @@ func (h *NetworkingHandler) handleNetworkSubroutes(w http.ResponseWriter, r *htt
 			json.NewEncoder(w).Encode(map[string]interface{}{"data": vNet})
 		} else if r.Method == http.MethodDelete {
 			if err := h.svc.DeleteNetwork(r.Context(), netID); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			json.NewEncoder(w).Encode(map[string]interface{}{"status": "DELETED", "id": netID})
+		}
+
+	case "subnets":
+		if r.Method == http.MethodGet {
+			subnets, err := h.svc.ListSubnets(r.Context(), netID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"data": subnets})
 		}
 
 	default:
@@ -106,21 +130,89 @@ func (h *NetworkingHandler) handleNetworkSubroutes(w http.ResponseWriter, r *htt
 	}
 }
 
-func (h *NetworkingHandler) handleSecurityGroups(w http.ResponseWriter, r *http.Request) {
+func (h *NetworkingHandler) handleSubnets(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	if r.Method == http.MethodPost {
+	switch r.Method {
+	case http.MethodGet:
+		vpcID := r.URL.Query().Get("vpcId")
+		subnets, err := h.svc.ListSubnets(r.Context(), vpcID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"data": subnets})
+
+	case http.MethodPost:
 		var req struct {
-			NetworkID   string `json:"networkId"`
-			Name        string `json:"name"`
-			Description string `json:"description"`
+			OrganizationID string           `json:"organizationId"`
+			ProjectID      string           `json:"projectId"`
+			VPCID          string           `json:"vpcId"`
+			Name           string           `json:"name"`
+			CIDR           string           `json:"cidr"`
+			Zone           string           `json:"zone"`
+			Type           domain.SubnetType `json:"type"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		if req.OrganizationID == "" {
+			req.OrganizationID = "org-default"
+		}
+		if req.ProjectID == "" {
+			req.ProjectID = "proj-default"
+		}
+		if req.Type == "" {
+			req.Type = domain.SubnetPrivate
+		}
 
-		sg, err := h.svc.CreateSecurityGroup(r.Context(), req.NetworkID, req.Name, req.Description)
+		sn, err := h.svc.CreateSubnet(r.Context(), req.OrganizationID, req.ProjectID, req.VPCID, req.Name, req.CIDR, req.Zone, req.Type)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{"data": sn})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *NetworkingHandler) handleSecurityGroups(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		vpcID := r.URL.Query().Get("vpcId")
+		sgs, err := h.svc.ListSecurityGroups(r.Context(), vpcID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"data": sgs})
+
+	case http.MethodPost:
+		var req struct {
+			OrganizationID string `json:"organizationId"`
+			ProjectID      string `json:"projectId"`
+			VPCID          string `json:"vpcId"`
+			Name           string `json:"name"`
+			Description    string `json:"description"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if req.OrganizationID == "" {
+			req.OrganizationID = "org-default"
+		}
+		if req.ProjectID == "" {
+			req.ProjectID = "proj-default"
+		}
+
+		sg, err := h.svc.CreateSecurityGroup(r.Context(), req.OrganizationID, req.ProjectID, req.VPCID, req.Name, req.Description)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -149,6 +241,47 @@ func (h *NetworkingHandler) handleSecurityGroupSubroutes(w http.ResponseWriter, 
 			return
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{"data": sg})
+	}
+}
+
+func (h *NetworkingHandler) handleRouteTables(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		vpcID := r.URL.Query().Get("vpcId")
+		rts, err := h.svc.ListRouteTables(r.Context(), vpcID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"data": rts})
+
+	case http.MethodPost:
+		var req struct {
+			OrganizationID string `json:"organizationId"`
+			ProjectID      string `json:"projectId"`
+			VPCID          string `json:"vpcId"`
+			Name           string `json:"name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if req.OrganizationID == "" {
+			req.OrganizationID = "org-default"
+		}
+		if req.ProjectID == "" {
+			req.ProjectID = "proj-default"
+		}
+
+		rt, err := h.svc.CreateRouteTable(r.Context(), req.OrganizationID, req.ProjectID, req.VPCID, req.Name)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{"data": rt})
 	}
 }
 

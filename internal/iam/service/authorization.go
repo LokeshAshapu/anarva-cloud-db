@@ -42,6 +42,7 @@ func (s *AuthorizationService) setupRolePolicies() {
 		domain.PermStorageRead, domain.PermStorageCreate, domain.PermStorageUpload, domain.PermStorageDelete,
 		domain.PermMetricsRead, domain.PermBillingRead, domain.PermBillingManage, domain.PermBillingPricingManage,
 		domain.PermAuditRead, domain.PermIAMManage,
+		domain.PermNetworkRead, domain.PermNetworkCreate, domain.PermNetworkUpdate, domain.PermNetworkDelete,
 	}
 
 	s.rolePolicies[domain.RoleOwner] = allPerms
@@ -54,6 +55,7 @@ func (s *AuthorizationService) setupRolePolicies() {
 		domain.PermDatabaseRead, domain.PermDatabaseCreate, domain.PermDatabaseUpdate, domain.PermDatabaseDelete,
 		domain.PermStorageRead, domain.PermStorageCreate, domain.PermStorageUpload, domain.PermStorageDelete,
 		domain.PermMetricsRead, domain.PermBillingRead, domain.PermAuditRead, domain.PermIAMManage,
+		domain.PermNetworkRead, domain.PermNetworkCreate, domain.PermNetworkUpdate, domain.PermNetworkDelete,
 	}
 
 	s.rolePolicies[domain.RoleDeveloper] = []domain.Permission{
@@ -62,11 +64,13 @@ func (s *AuthorizationService) setupRolePolicies() {
 		domain.PermDatabaseRead, domain.PermDatabaseCreate, domain.PermDatabaseUpdate, domain.PermDatabaseDelete,
 		domain.PermStorageRead, domain.PermStorageCreate, domain.PermStorageUpload, domain.PermStorageDelete,
 		domain.PermMetricsRead,
+		domain.PermNetworkRead, domain.PermNetworkCreate, domain.PermNetworkUpdate, domain.PermNetworkDelete,
 	}
 
 	s.rolePolicies[domain.RoleViewer] = []domain.Permission{
 		domain.PermOrgRead, domain.PermProjRead,
 		domain.PermComputeRead, domain.PermDatabaseRead, domain.PermStorageRead, domain.PermMetricsRead,
+		domain.PermNetworkRead,
 	}
 
 	s.rolePolicies[domain.RoleBillingAdmin] = []domain.Permission{

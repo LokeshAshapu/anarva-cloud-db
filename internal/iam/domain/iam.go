@@ -51,6 +51,10 @@ const (
 	PermBillingPricingManage Permission = "billing.pricing.manage"
 	PermAuditRead           Permission = "audit.read"
 	PermIAMManage           Permission = "iam.manage"
+	PermNetworkRead         Permission = "network.read"
+	PermNetworkCreate       Permission = "network.create"
+	PermNetworkUpdate       Permission = "network.update"
+	PermNetworkDelete       Permission = "network.delete"
 )
 
 type Organization struct {

@@ -61,6 +61,7 @@ import (
 
 	networkingConn "github.com/anarva-cloud/anarva-cloud-db/internal/networking/connectivity"
 	networkingDns "github.com/anarva-cloud/anarva-cloud-db/internal/networking/dns"
+	networkingDomain "github.com/anarva-cloud/anarva-cloud-db/internal/networking/domain"
 	networkingFw "github.com/anarva-cloud/anarva-cloud-db/internal/networking/firewall"
 	networkingHandler "github.com/anarva-cloud/anarva-cloud-db/internal/networking/handler"
 	networkingIpam "github.com/anarva-cloud/anarva-cloud-db/internal/networking/ipam"
@@ -255,6 +256,12 @@ func main() {
 			&reliabilityDomain.IdempotencyRecord{},
 			&reliabilityDomain.TenantQuota{},
 			&reliabilityDomain.AnarvaAuditEvent{},
+			&networkingDomain.VirtualNetwork{},
+			&networkingDomain.Subnet{},
+			&networkingDomain.SecurityGroup{},
+			&networkingDomain.RouteTable{},
+			&networkingDomain.NetworkInterface{},
+			&networkingDomain.IPAllocation{},
 		)
 		if err != nil && appEnv == "production" {
 			log.Fatal(fmt.Sprintf("FATAL: Failed to migrate production control-plane database schema: %v", err))
@@ -321,7 +328,12 @@ func main() {
 	sqlService := postgresService.NewSQLService()
 
 	// Phase 18 VPC / Networking / Security / DNS Platform
-	vNetRepo := networkingRepo.NewNetworkingRepository()
+	var vNetRepo *networkingRepo.PostgresNetworkingRepository
+	if dbPool != nil {
+		vNetRepo = networkingRepo.NewPostgresNetworkingRepository(dbPool.DB)
+	} else {
+		vNetRepo = networkingRepo.NewPostgresNetworkingRepository(nil)
+	}
 	vNetProv := networkingProvider.NewLocalDockerNetworkProvider()
 	vNetIpam := networkingIpam.NewIPAMService()
 	vNetFw := networkingFw.NewFirewallService()
@@ -403,6 +415,7 @@ func main() {
 	} else {
 		relUC = reliabilityUsecase.NewReliabilityUseCase()
 	}
+	vNetSvc.SetReliabilityUseCase(relUC)
 	reliabilityHttp.NewReliabilityHandler(relUC).RegisterRoutes(mux)
 	devHttp.NewDeveloperHandler(devUC, whUC, actStream).RegisterRoutes(mux)
 	billHttp.NewBillingHandler(billUC, actStream).RegisterRoutes(mux)

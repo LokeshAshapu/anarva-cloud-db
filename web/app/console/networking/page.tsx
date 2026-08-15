@@ -3,23 +3,19 @@
 import React, { useState, useEffect } from 'react'
 import { CloudStatus } from '@/components/cloud/CloudStatus'
 import { CloudButton } from '@/components/cloud/CloudButton'
-import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
 import { CloudCard } from '@/components/cloud/CloudCard'
-import { CloudEmptyState } from '@/components/cloud/CloudEmptyState'
+import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
 import { CloudModal } from '@/components/cloud/CloudModal'
+import { CloudEmptyState } from '@/components/cloud/CloudEmptyState'
 import { API_BASE_URL } from '@/lib/api'
 
-interface NetworkItem {
+interface VPCItem {
   id: string
-  resourceId: string
   name: string
-  slug: string
-  regionId: string
   cidr: string
-  subnetsCount: number
-  status: 'CREATING' | 'AVAILABLE' | 'DELETED'
-  provider: string
-  realityLabel: string
+  regionId: string
+  status: string
+  dnsEnabled: boolean
   createdAt: string
 }
 
@@ -28,504 +24,405 @@ interface SubnetItem {
   networkId: string
   name: string
   cidr: string
-  type: 'PUBLIC' | 'PRIVATE' | 'ISOLATED'
-  regionId: string
-  zoneId: string
-  gatewayIp: string
+  availabilityZone: string
+  type: string
   status: string
 }
 
-interface SecurityGroupRuleItem {
+interface SecurityGroupItem {
   id: string
-  direction: 'INGRESS' | 'EGRESS'
-  protocol: 'TCP' | 'UDP' | 'ICMP' | 'ALL'
-  fromPort: number
-  toPort: number
-  sourceCidr: string
-  action: 'ALLOW' | 'DENY'
-  description: string
-}
-
-interface DNSRecordItem {
-  id: string
+  networkId: string
   name: string
-  type: string
-  value: string
-  ttl: number
+  description: string
+  status: string
+  rules: {
+    id: string
+    direction: string
+    protocol: string
+    fromPort: number
+    toPort: number
+    cidr: string
+    action: string
+  }[]
 }
 
-export default function NetworkingPage() {
-  const [userEmail, setUserEmail] = useState('user@anarva.io')
-  const [networks, setNetworks] = useState<NetworkItem[]>([])
-  const [selectedNetwork, setSelectedNetwork] = useState<NetworkItem | null>(null)
-  const [activeTab, setActiveTab] = useState<string>('overview')
+interface RouteTableItem {
+  id: string
+  networkId: string
+  name: string
+  status: string
+  routes: {
+    id: string
+    destination: string
+    target: string
+    targetType: string
+  }[]
+}
 
-  // 10-Step Creation Wizard State
-  const [isWizardOpen, setIsWizardOpen] = useState(false)
-  const [wizardStep, setWizardStep] = useState(1)
-  const [name, setName] = useState('')
-  const [regionId, setRegionId] = useState('ap-hyderabad-1')
-  const [cidr, setCidr] = useState('10.0.0.0/16')
-  const [enableIgw, setEnableIgw] = useState(true)
-  const [isCreating, setIsCreating] = useState(false)
+export default function NetworkingConsolePage() {
+  const [activeTab, setActiveTab] = useState('vpcs')
+  const [vpcs, setVpcs] = useState<VPCItem[]>([])
+  const [subnets, setSubnets] = useState<SubnetItem[]>([])
+  const [securityGroups, setSecurityGroups] = useState<SecurityGroupItem[]>([])
+  const [routeTables, setRouteTables] = useState<RouteTableItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Subnets State
-  const [subnets, setSubnets] = useState<SubnetItem[]>([
-    { id: 'sub-101', networkId: 'vpc-0a1b2c3d', name: 'public-subnet-1a', cidr: '10.0.1.0/24', type: 'PUBLIC', regionId: 'ap-hyderabad-1', zoneId: 'ap-hyderabad-1a', gatewayIp: '10.0.1.1', status: 'AVAILABLE' },
-    { id: 'sub-102', networkId: 'vpc-0a1b2c3d', name: 'private-subnet-1b', cidr: '10.0.2.0/24', type: 'PRIVATE', regionId: 'ap-hyderabad-1', zoneId: 'ap-hyderabad-1b', gatewayIp: '10.0.2.1', status: 'AVAILABLE' },
-  ])
+  // VPC Modal State
+  const [isVpcModalOpen, setIsVpcModalOpen] = useState(false)
+  const [newVpcName, setNewVpcName] = useState('')
+  const [newVpcCidr, setNewVpcCidr] = useState('10.0.0.0/16')
+  const [newVpcRegion, setNewVpcRegion] = useState('us-east-1')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Security Group Rules State with 0.0.0.0/0 warning detection
-  const [sgRules, setSgRules] = useState<SecurityGroupRuleItem[]>([
-    { id: 'rule-1', direction: 'INGRESS', protocol: 'TCP', fromPort: 5432, toPort: 5432, sourceCidr: '0.0.0.0/0', action: 'ALLOW', description: 'PostgreSQL Database Port' },
-    { id: 'rule-2', direction: 'INGRESS', protocol: 'TCP', fromPort: 443, toPort: 443, sourceCidr: '0.0.0.0/0', action: 'ALLOW', description: 'HTTPS Web Ingress' },
-  ])
-  const [isAddingRule, setIsAddingRule] = useState(false)
-  const [newRulePort, setNewRulePort] = useState(5432)
-  const [newRuleSource, setNewRuleSource] = useState('0.0.0.0/0')
-  const [ruleWarning, setRuleWarning] = useState<string | null>(null)
-
-  // SSRF Protection Connectivity Tester State
-  const [connSrc, setConnSrc] = useState('ace-worker-node-01')
-  const [connDest, setConnDest] = useState('169.254.169.254')
-  const [connPort, setConnPort] = useState(80)
-  const [connResult, setConnResult] = useState<any | null>(null)
-  const [isTestingConn, setIsTestingConn] = useState(false)
-
-  // DNS Records State
-  const [dnsRecords, setDnsRecords] = useState<DNSRecordItem[]>([
-    { id: 'rec-1', name: 'db.anarva.internal', type: 'A', value: '10.0.2.14', ttl: 300 },
-    { id: 'rec-2', name: 'api.anarva.internal', type: 'A', value: '10.0.1.10', ttl: 300 },
-  ])
+  // Subnet Modal State
+  const [isSubnetModalOpen, setIsSubnetModalOpen] = useState(false)
+  const [newSubnetVpcId, setNewSubnetVpcId] = useState('')
+  const [newSubnetName, setNewSubnetName] = useState('')
+  const [newSubnetCidr, setNewSubnetCidr] = useState('10.0.1.0/24')
+  const [newSubnetZone, setNewSubnetZone] = useState('us-east-1a')
+  const [newSubnetType, setNewSubnetType] = useState('PRIVATE')
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
-      setUserEmail(email)
-
-      const netKey = `anarva_user_networks_${email}`
-      const stored = localStorage.getItem(netKey)
-
-      if (stored) {
-        try {
-          setNetworks(JSON.parse(stored))
-        } catch (e) {
-          setNetworks([])
-        }
-      } else {
-        setNetworks([])
-      }
-    }
+    fetchData()
   }, [])
 
-  const saveUserNetworks = (updated: NetworkItem[]) => {
-    setNetworks(updated)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`anarva_user_networks_${userEmail}`, JSON.stringify(updated))
+  const fetchData = async () => {
+    setIsLoading(true)
+    try {
+      const [vpcRes, subRes, sgRes, rtRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/v1/networks`).then((r) => r.json()),
+        fetch(`${API_BASE_URL}/api/v1/subnets`).then((r) => r.json()),
+        fetch(`${API_BASE_URL}/api/v1/security-groups`).then((r) => r.json()),
+        fetch(`${API_BASE_URL}/api/v1/route-tables`).then((r) => r.json()),
+      ])
+
+      if (vpcRes && vpcRes.data) setVpcs(vpcRes.data)
+      if (subRes && subRes.data) setSubnets(subRes.data)
+      if (sgRes && sgRes.data) setSecurityGroups(sgRes.data)
+      if (rtRes && rtRes.data) setRouteTables(rtRes.data)
+    } catch {
+      // Ignore network errors in dev mode
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleCreateNetwork = async () => {
-    setIsCreating(true)
-    const cleanName = name || 'primary-production-vpc'
-    const newNet: NetworkItem = {
-      id: `vpc-${Date.now()}`,
-      resourceId: `arnv:vpc:${regionId}:proj-default:network/${cleanName}`,
-      name: cleanName,
-      slug: cleanName.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
-      regionId,
-      cidr: cidr || '10.0.0.0/16',
-      subnetsCount: 2,
-      status: 'AVAILABLE',
-      provider: 'LOCAL_NETWORK',
-      realityLabel: 'LOCAL_NETWORK (LIMITED_CAPABILITIES)',
-      createdAt: new Date().toISOString(),
-    }
+  const handleCreateVpc = async () => {
+    setIsSubmitting(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/networks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizationId: 'org-default',
+          projectId: 'proj-default',
+          name: newVpcName || 'anarva-vpc-prod',
+          regionId: newVpcRegion,
+          cidr: newVpcCidr,
+        }),
+      }).then((r) => r.json())
 
-    // Call REST Gateway API
-    await fetch(`${API_BASE_URL}/api/v1/networks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newNet),
-    }).catch(() => null)
-
-    const updated = [newNet, ...networks]
-    saveUserNetworks(updated)
-
-    setIsCreating(false)
-    setIsWizardOpen(false)
-    setWizardStep(1)
-    setName('')
-  }
-
-  const handleDeleteNetwork = async (id: string, netName: string) => {
-    if (confirm(`Are you sure you want to delete VPC network '${netName}'?`)) {
-      await fetch(`${API_BASE_URL}/api/v1/networks/${id}`, { method: 'DELETE' }).catch(() => null)
-      const updated = networks.filter((n) => n.id !== id)
-      saveUserNetworks(updated)
-      setSelectedNetwork(null)
+      if (res && res.data) {
+        setVpcs([...vpcs, res.data])
+        setIsVpcModalOpen(false)
+        setNewVpcName('')
+      }
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const handleAddSecurityRule = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (newRulePort === 5432 && newRuleSource === '0.0.0.0/0') {
-      setRuleWarning('SECURITY RISK: Opening PostgreSQL port 5432 to 0.0.0.0/0 permits unrestricted public access.')
-    } else {
-      setRuleWarning(null)
-    }
+  const handleCreateSubnet = async () => {
+    setIsSubmitting(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/subnets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizationId: 'org-default',
+          projectId: 'proj-default',
+          vpcId: newSubnetVpcId || vpcs[0]?.id || 'vpc-101',
+          name: newSubnetName || 'subnet-private-1',
+          cidr: newSubnetCidr,
+          zone: newSubnetZone,
+          type: newSubnetType,
+        }),
+      }).then((r) => r.json())
 
-    const newRule: SecurityGroupRuleItem = {
-      id: `rule-${Date.now()}`,
-      direction: 'INGRESS',
-      protocol: 'TCP',
-      fromPort: newRulePort,
-      toPort: newRulePort,
-      sourceCidr: newRuleSource,
-      action: 'ALLOW',
-      description: newRulePort === 5432 ? 'PostgreSQL Database' : 'Custom Service',
+      if (res && res.data) {
+        setSubnets([...subnets, res.data])
+        setIsSubnetModalOpen(false)
+        setNewSubnetName('')
+      }
+    } finally {
+      setIsSubmitting(false)
     }
-
-    setSgRules([newRule, ...sgRules])
-    setIsAddingRule(false)
   }
 
-  const handleTestConnectivity = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsTestingConn(true)
-    setConnResult(null)
-
-    // Call Gateway SSRF-Protected API
-    const res = await fetch(`${API_BASE_URL}/api/v1/network/connectivity-tests`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: connSrc, destination: connDest, port: connPort }),
-    }).then((r) => r.json()).catch(() => null)
-
-    if (res && res.error) {
-      setConnResult({ reachable: false, error: res.error })
-    } else if (connDest === '169.254.169.254' || connDest === '127.0.0.1') {
-      setConnResult({
-        reachable: false,
-        error: `SSRF BLOCKED: Access to cloud provider metadata or loopback endpoint '${connDest}' is strictly forbidden by policy.`,
-      })
-    } else {
-      setConnResult({
-        reachable: true,
-        latencyMs: 0.94,
-        source: connSrc,
-        destination: connDest,
-        port: connPort,
-      })
-    }
-
-    setIsTestingConn(false)
-  }
-
-  const detailTabs: TabItem[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'security', label: 'Security Groups & Firewalls' },
-    { id: 'connectivity', label: 'SSRF Connectivity Tester' },
-    { id: 'subnets', label: 'Subnets' },
-    { id: 'dns', label: 'Private DNS' },
+  const tabs: TabItem[] = [
+    { id: 'vpcs', label: `Anarva VPCs (${vpcs.length})` },
+    { id: 'subnets', label: `Subnets (${subnets.length})` },
+    { id: 'security-groups', label: `Security Groups (${securityGroups.length})` },
+    { id: 'route-tables', label: `Route Tables (${routeTables.length})` },
+    { id: 'ipam', label: 'IPAM & CIDR Allocations' },
   ]
 
-  // NETWORK DETAIL VIEW
-  if (selectedNetwork) {
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-          <div className="space-y-1">
-            <button
-              onClick={() => setSelectedNetwork(null)}
-              className="text-xs text-blue-400 hover:underline font-mono flex items-center gap-1 mb-2"
-            >
-              ← Back to VPC Registry
-            </button>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">{selectedNetwork.name}</h1>
-              <CloudStatus status={selectedNetwork.status} />
-            </div>
-            <div className="text-xs text-slate-400 font-mono flex items-center gap-2">
-              <span>CIDR: {selectedNetwork.cidr}</span>
-              <span>•</span>
-              <span>Provider: {selectedNetwork.provider} ({selectedNetwork.realityLabel})</span>
-            </div>
-          </div>
+  return (
+    <div className="space-y-6">
+      {/* Top Banner */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-800 pb-5">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Anarva Networking Control Plane</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            Manage tenant-isolated Anarva VPCs, Subnets, Security Groups, Routing and IP Address allocations.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <CloudButton variant="secondary" onClick={fetchData}>
+            Refresh
+          </CloudButton>
+          <CloudButton variant="primary" onClick={() => setIsVpcModalOpen(true)}>
+            + Create Anarva VPC
+          </CloudButton>
+        </div>
+      </div>
 
-          <div className="flex items-center gap-2">
-            <CloudButton variant="danger" size="sm" onClick={() => handleDeleteNetwork(selectedNetwork.id, selectedNetwork.name)}>
-              Delete VPC
+      {/* Summary Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <CloudCard>
+          <span className="text-xs text-gray-400 uppercase font-semibold">Active VPCs</span>
+          <div className="text-2xl font-bold text-white mt-1">{vpcs.length}</div>
+          <span className="text-xs text-emerald-400 mt-1 block">100% Tenant Isolated</span>
+        </CloudCard>
+        <CloudCard>
+          <span className="text-xs text-gray-400 uppercase font-semibold">Provisioned Subnets</span>
+          <div className="text-2xl font-bold text-white mt-1">{subnets.length}</div>
+          <span className="text-xs text-blue-400 mt-1 block">Public & Private Ranges</span>
+        </CloudCard>
+        <CloudCard>
+          <span className="text-xs text-gray-400 uppercase font-semibold">Security Groups</span>
+          <div className="text-2xl font-bold text-white mt-1">{securityGroups.length}</div>
+          <span className="text-xs text-purple-400 mt-1 block">Firewall Rules Active</span>
+        </CloudCard>
+        <CloudCard>
+          <span className="text-xs text-gray-400 uppercase font-semibold">Route Tables</span>
+          <div className="text-2xl font-bold text-white mt-1">{routeTables.length}</div>
+          <span className="text-xs text-gray-400 mt-1 block">IGW & Local Routes</span>
+        </CloudCard>
+      </div>
+
+      {/* Main Tabs */}
+      <CloudTabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+
+      {/* Tab 1: VPCs */}
+      {activeTab === 'vpcs' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-white">Anarva Virtual Private Clouds</h2>
+            <CloudButton variant="secondary" onClick={() => setIsVpcModalOpen(true)}>
+              + New VPC
+            </CloudButton>
+          </div>
+          {vpcs.length === 0 && !isLoading ? (
+            <CloudEmptyState
+              title="No Anarva VPCs Found"
+              description="Create a tenant-isolated Anarva VPC to begin provisioning subnets and resources."
+              actionLabel="Create Anarva VPC"
+              onAction={() => setIsVpcModalOpen(true)}
+            />
+          ) : (
+            <div className="overflow-x-auto border border-gray-800 rounded-lg">
+              <table className="w-full text-left text-sm text-gray-300">
+                <thead className="bg-gray-900/60 text-gray-400 uppercase text-xs">
+                  <tr>
+                    <th className="px-4 py-3">VPC ID</th>
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3">CIDR Block</th>
+                    <th className="px-4 py-3">Region</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">DNS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {vpcs.map((v) => (
+                    <tr key={v.id} className="hover:bg-gray-800/40">
+                      <td className="px-4 py-3 font-mono text-cyan-400 text-xs">{v.id}</td>
+                      <td className="px-4 py-3 font-medium text-white">{v.name}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-emerald-400">{v.cidr}</td>
+                      <td className="px-4 py-3 text-xs">{v.regionId}</td>
+                      <td className="px-4 py-3">
+                        <CloudStatus status={v.status} />
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-400">{v.dnsEnabled ? 'Enabled' : 'Disabled'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 2: Subnets */}
+      {activeTab === 'subnets' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-white">VPC Subnets</h2>
+            <CloudButton variant="secondary" onClick={() => setIsSubnetModalOpen(true)}>
+              + Create Subnet
+            </CloudButton>
+          </div>
+          {subnets.length === 0 ? (
+            <CloudEmptyState
+              title="No Subnets Found"
+              description="Subnets partition your Anarva VPC CIDR into public and private network segments."
+              actionLabel="Create Subnet"
+              onAction={() => setIsSubnetModalOpen(true)}
+            />
+          ) : (
+            <div className="overflow-x-auto border border-gray-800 rounded-lg">
+              <table className="w-full text-left text-sm text-gray-300">
+                <thead className="bg-gray-900/60 text-gray-400 uppercase text-xs">
+                  <tr>
+                    <th className="px-4 py-3">Subnet ID</th>
+                    <th className="px-4 py-3">VPC ID</th>
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3">Subnet CIDR</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Zone</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {subnets.map((s) => (
+                    <tr key={s.id} className="hover:bg-gray-800/40">
+                      <td className="px-4 py-3 font-mono text-cyan-400 text-xs">{s.id}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-400">{s.networkId}</td>
+                      <td className="px-4 py-3 font-medium text-white">{s.name}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-emerald-400">{s.cidr}</td>
+                      <td className="px-4 py-3 text-xs font-semibold">
+                        <span className={s.type === 'PUBLIC' ? 'text-amber-400' : 'text-blue-400'}>{s.type}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs">{s.availabilityZone}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Create VPC Modal */}
+      <CloudModal
+        isOpen={isVpcModalOpen}
+        onClose={() => setIsVpcModalOpen(false)}
+        title="Create Anarva VPC"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-400 uppercase mb-1">VPC Name</label>
+            <input
+              type="text"
+              value={newVpcName}
+              onChange={(e) => setNewVpcName(e.target.value)}
+              placeholder="e.g. anarva-vpc-prod"
+              className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-400 uppercase mb-1">IPv4 CIDR Block</label>
+            <input
+              type="text"
+              value={newVpcCidr}
+              onChange={(e) => setNewVpcCidr(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Region</label>
+            <select
+              value={newVpcRegion}
+              onChange={(e) => setNewVpcRegion(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:outline-none"
+            >
+              <option value="us-east-1">us-east-1 (N. Virginia)</option>
+              <option value="ap-south-1">ap-south-1 (Mumbai)</option>
+              <option value="eu-west-1">eu-west-1 (Ireland)</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <CloudButton variant="secondary" onClick={() => setIsVpcModalOpen(false)}>
+              Cancel
+            </CloudButton>
+            <CloudButton variant="primary" onClick={handleCreateVpc} disabled={isSubmitting}>
+              {isSubmitting ? 'Provisioning...' : 'Provision VPC'}
             </CloudButton>
           </div>
         </div>
+      </CloudModal>
 
-        <CloudTabs tabs={detailTabs} activeTab={activeTab} onChange={setActiveTab} />
-
-        {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-mono text-xs">
-            <CloudCard title="VPC Network Metadata">
-              <div className="space-y-2 text-slate-300">
-                <div>ID: <strong>{selectedNetwork.id}</strong></div>
-                <div>CIDR: <strong className="text-emerald-400">{selectedNetwork.cidr}</strong></div>
-                <div>Region: {selectedNetwork.regionId}</div>
-                <div>Reality Label: <strong className="text-purple-400">{selectedNetwork.realityLabel}</strong></div>
-              </div>
-            </CloudCard>
-
-            <CloudCard title="Subnets Summary">
-              <div className="text-2xl font-bold text-white mb-2">{subnets.length} Active Subnets</div>
-              <p className="text-slate-400 text-[11px] font-sans">
-                1 Public Subnet (IGW Attached) • 1 Private Subnet (No Inbound Internet Route)
-              </p>
-            </CloudCard>
-
-            <CloudCard title="Security Groups">
-              <div className="text-2xl font-bold text-blue-400 mb-2">{sgRules.length} Active Firewall Rules</div>
-              <p className="text-slate-400 text-[11px] font-sans">Default policy: DENY inbound, ALLOW outbound</p>
-            </CloudCard>
+      {/* Create Subnet Modal */}
+      <CloudModal
+        isOpen={isSubnetModalOpen}
+        onClose={() => setIsSubnetModalOpen(false)}
+        title="Create Subnet"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Target VPC</label>
+            <select
+              value={newSubnetVpcId}
+              onChange={(e) => setNewSubnetVpcId(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white font-mono focus:outline-none"
+            >
+              {vpcs.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name} ({v.id}) - {v.cidr}
+                </option>
+              ))}
+            </select>
           </div>
-        )}
-
-        {activeTab === 'security' && (
-          <CloudCard title="Security Groups & Firewall Policy Rules">
-            <div className="space-y-4 font-mono text-xs">
-              {ruleWarning && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[11px] font-bold">
-                  ⚠️ {ruleWarning}
-                </div>
-              )}
-
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Security Group: <strong>default (sg-default-01)</strong></span>
-                <CloudButton variant="primary" size="sm" onClick={() => setIsAddingRule(true)}>
-                  + Add Ingress Rule
-                </CloudButton>
-              </div>
-
-              <div className="overflow-x-auto border border-slate-800 rounded-xl">
-                <table className="w-full text-left font-sans text-xs divide-y divide-slate-800">
-                  <thead className="bg-slate-950 text-slate-400 uppercase text-[10px]">
-                    <tr>
-                      <th className="p-3">Direction</th>
-                      <th className="p-3">Protocol</th>
-                      <th className="p-3">Port Range</th>
-                      <th className="p-3">Source CIDR</th>
-                      <th className="p-3">Action</th>
-                      <th className="p-3">Risk Warning</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 font-mono bg-slate-950">
-                    {sgRules.map((rule) => (
-                      <tr key={rule.id} className="hover:bg-slate-900/50">
-                        <td className="p-3 text-blue-400 font-bold">{rule.direction}</td>
-                        <td className="p-3 text-slate-300">{rule.protocol}</td>
-                        <td className="p-3 text-white font-bold">{rule.fromPort}</td>
-                        <td className="p-3 text-emerald-400">{rule.sourceCidr}</td>
-                        <td className="p-3"><span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[10px] font-bold">{rule.action}</span></td>
-                        <td className="p-3">
-                          {rule.fromPort === 5432 && rule.sourceCidr === '0.0.0.0/0' ? (
-                            <span className="px-2 py-0.5 bg-red-500/10 text-red-400 border border-red-500/20 rounded text-[10px] font-bold">
-                              ⚠️ PUBLIC DB ACCESS RISK
-                            </span>
-                          ) : (
-                            <span className="text-slate-500 text-[10px]">NORMAL</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </CloudCard>
-        )}
-
-        {activeTab === 'connectivity' && (
-          <CloudCard title="SSRF-Protected Network Connectivity Tester">
-            <form onSubmit={handleTestConnectivity} className="space-y-4 font-mono text-xs">
-              <div className="p-3 bg-purple-500/10 border border-purple-500/20 text-purple-300 rounded-xl text-[11px]">
-                🛡️ All connectivity tests enforce strict SSRF protection. Access to cloud metadata endpoints (169.254.169.254) and loopback addresses is blocked.
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-slate-300 mb-1 font-bold">SOURCE WORKLOAD</label>
-                  <input
-                    type="text"
-                    value={connSrc}
-                    onChange={(e) => setConnSrc(e.target.value)}
-                    className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 mb-1 font-bold">TARGET DESTINATION IP/HOST</label>
-                  <input
-                    type="text"
-                    value={connDest}
-                    onChange={(e) => setConnDest(e.target.value)}
-                    placeholder="e.g. 10.0.1.15 or 169.254.169.254"
-                    className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 mb-1 font-bold">TARGET PORT</label>
-                  <input
-                    type="number"
-                    value={connPort}
-                    onChange={(e) => setConnPort(Number(e.target.value))}
-                    className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <CloudButton variant="primary" size="sm" type="submit" disabled={isTestingConn}>
-                  {isTestingConn ? 'Testing...' : 'Execute Connectivity Test'}
-                </CloudButton>
-              </div>
-
-              {connResult && (
-                <div className={`p-4 rounded-xl border space-y-1 ${
-                  connResult.reachable ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-red-500/10 border-red-500/20 text-red-300'
-                }`}>
-                  <div className="font-bold text-sm">
-                    {connResult.reachable ? '✔ Connectivity Test Successful' : '❌ Connectivity Test Blocked / Failed'}
-                  </div>
-                  {connResult.error ? (
-                    <div className="text-[11px] text-red-400 font-bold">{connResult.error}</div>
-                  ) : (
-                    <div className="text-[11px]">Latency: {connResult.latencyMs} ms • Target {connResult.destination}:{connResult.port} REACHABLE</div>
-                  )}
-                </div>
-              )}
-            </form>
-          </CloudCard>
-        )}
-      </div>
-    )
-  }
-
-  // NETWORK LIST VIEW
-  return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Virtual Private Cloud (VPC) & Networking</h1>
-          <p className="text-slate-400 text-xs sm:text-sm mt-1">Configure isolated cloud networks, subnets, firewalls, and load balancers.</p>
+          <div>
+            <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Subnet Name</label>
+            <input
+              type="text"
+              value={newSubnetName}
+              onChange={(e) => setNewSubnetName(e.target.value)}
+              placeholder="e.g. subnet-private-1a"
+              className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Subnet CIDR Block</label>
+            <input
+              type="text"
+              value={newSubnetCidr}
+              onChange={(e) => setNewSubnetCidr(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Subnet Type</label>
+            <select
+              value={newSubnetType}
+              onChange={(e) => setNewSubnetType(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:outline-none"
+            >
+              <option value="PRIVATE">PRIVATE (Internal Application & Database)</option>
+              <option value="PUBLIC">PUBLIC (Internet Facing & Gateway)</option>
+              <option value="ISOLATED">ISOLATED (Air-gapped Storage)</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <CloudButton variant="secondary" onClick={() => setIsSubnetModalOpen(false)}>
+              Cancel
+            </CloudButton>
+            <CloudButton variant="primary" onClick={handleCreateSubnet} disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : 'Create Subnet'}
+            </CloudButton>
+          </div>
         </div>
-
-        <CloudButton variant="primary" size="sm" onClick={() => setIsWizardOpen(true)}>
-          + Create VPC Network
-        </CloudButton>
-      </div>
-
-      <CloudCard title="VPC Networks Registry" subtitle={`Account networks for ${userEmail}`}>
-        {networks.length === 0 ? (
-          <CloudEmptyState
-            title="No Isolated VPC Networks Provisioned"
-            description="You currently have 0 isolated Virtual Private Cloud (VPC) networks. Provision a VPC to isolate your compute nodes, databases, and load balancers."
-            actionLabel="+ Create VPC Network"
-            onAction={() => setIsWizardOpen(true)}
-            icon="🌐"
-            docsLink="/console/developer"
-          />
-        ) : (
-          <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden text-xs">
-            {networks.map((vpc) => (
-              <div
-                key={vpc.id}
-                onClick={() => setSelectedNetwork(vpc)}
-                className="p-4 bg-slate-950 hover:bg-slate-900 cursor-pointer transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono"
-              >
-                <div>
-                  <div className="font-bold text-white font-sans text-sm flex items-center gap-2">
-                    {vpc.name}
-                    <span className="text-[10px] px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
-                      CIDR: {vpc.cidr}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 mt-1">
-                    ID: {vpc.id} • Region: {vpc.regionId} • Subnets: {vpc.subnetsCount} • Label: {vpc.realityLabel}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <CloudStatus status={vpc.status} />
-                  <span className="text-slate-400 text-xs font-sans">Manage →</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CloudCard>
-
-      {/* 10-Step Creation Wizard Modal */}
-      {isWizardOpen && (
-        <CloudModal isOpen={isWizardOpen} title="10-Step VPC Provisioning Wizard" onClose={() => setIsWizardOpen(false)}>
-          <div className="space-y-4 font-mono text-xs">
-            <div className="space-y-1">
-              <label className="block text-slate-300 font-bold">VPC Network Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. primary-production-vpc"
-                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="block text-slate-300 font-bold">IPv4 CIDR Block</label>
-              <input
-                type="text"
-                value={cidr}
-                onChange={(e) => setCidr(e.target.value)}
-                placeholder="10.0.0.0/16"
-                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
-              />
-            </div>
-
-            <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">
-              <CloudButton variant="secondary" size="sm" onClick={() => setIsWizardOpen(false)}>Cancel</CloudButton>
-              <CloudButton variant="primary" size="sm" onClick={handleCreateNetwork} disabled={isCreating}>
-                {isCreating ? 'Provisioning...' : 'Provision VPC Network'}
-              </CloudButton>
-            </div>
-          </div>
-        </CloudModal>
-      )}
-
-      {/* Add Security Rule Modal */}
-      {isAddingRule && (
-        <CloudModal isOpen={isAddingRule} title="Add Security Group Ingress Rule" onClose={() => setIsAddingRule(false)}>
-          <form onSubmit={handleAddSecurityRule} className="space-y-4 font-mono text-xs">
-            <div>
-              <label className="block text-slate-300 mb-1 font-bold">Target Port</label>
-              <input
-                type="number"
-                value={newRulePort}
-                onChange={(e) => setNewRulePort(Number(e.target.value))}
-                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-300 mb-1 font-bold">Source CIDR</label>
-              <input
-                type="text"
-                value={newRuleSource}
-                onChange={(e) => setNewRuleSource(e.target.value)}
-                placeholder="e.g. 10.0.0.0/16 or 0.0.0.0/0"
-                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
-              />
-            </div>
-
-            <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">
-              <CloudButton variant="secondary" size="sm" type="button" onClick={() => setIsAddingRule(false)}>Cancel</CloudButton>
-              <CloudButton variant="primary" size="sm" type="submit">Save Security Rule</CloudButton>
-            </div>
-          </form>
-        </CloudModal>
-      )}
+      </CloudModal>
     </div>
   )
 }

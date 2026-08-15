@@ -3,7 +3,6 @@ package anarva
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 )
 
 type Region struct {

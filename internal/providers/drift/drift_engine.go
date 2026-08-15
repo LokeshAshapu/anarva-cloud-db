@@ -72,3 +72,20 @@ func (e *DriftEngine) DetectDrift(ctx context.Context, anarvaResourceID, desired
 func (e *DriftEngine) RepairDrift(ctx context.Context, driftID string) error {
 	return nil
 }
+
+func (e *DriftEngine) InspectNetworkSecurityDrift(ctx context.Context, sgID string, isPublicIngress bool) (*DriftRecord, error) {
+	if isPublicIngress {
+		return &DriftRecord{
+			ID:               fmt.Sprintf("drift-sec-%d", time.Now().UnixNano()/1e6),
+			AnarvaResourceID: sgID,
+			Provider:         "AWS",
+			DesiredState:     "PRIVATE_INGRESS",
+			ObservedState:    "PUBLIC_INGRESS_0.0.0.0/0",
+			DriftType:        "SECURITY_DRIFT",
+			Severity:         "HIGH",
+			DetectedAt:       time.Now(),
+			Status:           "ACTIVE",
+		}, nil
+	}
+	return nil, nil
+}

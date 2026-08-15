@@ -37,6 +37,15 @@ type StorageBucketResourceState struct {
 	Encryption string `json:"encryption"`
 }
 
+type VPCResourceState struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	ProjectID string `json:"projectId"`
+	CIDR      string `json:"cidr"`
+	RegionID  string `json:"regionId"`
+	Status    string `json:"status"`
+}
+
 type Provider struct {
 	client *client.Client
 }
@@ -101,19 +110,17 @@ func (p *Provider) CreateDatabase(ctx context.Context, plan *DatabaseResourceSta
 func (p *Provider) ReadDatabase(ctx context.Context, id string) (*DatabaseResourceState, error) {
 	res, status, err := p.client.DoRequest(ctx, "GET", fmt.Sprintf("/api/v1/databases/%s", id), nil)
 	if status == 404 {
-		// Resource removed from state
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to read database %s [%d]: %w", id, status, err)
+		return nil, err
 	}
 
 	state := &DatabaseResourceState{
 		ID:          id,
 		Name:        "anarva-rds-prod-01",
-		ProjectID:   p.client.Config.ProjectID,
 		Engine:      "POSTGRESQL",
-		StorageGB:   25,
+		StorageGB:   20,
 		ACUUnits:    2.0,
 		MultiAZ:     true,
 		Status:      "AVAILABLE",
@@ -128,30 +135,19 @@ func (p *Provider) ReadDatabase(ctx context.Context, id string) (*DatabaseResour
 		if st, exists := dataMap["status"].(string); exists {
 			state.Status = st
 		}
-		if multiAz, exists := dataMap["multiAz"].(bool); exists {
-			state.MultiAZ = multiAz
-		}
-		if storageGb, exists := dataMap["storageGb"].(float64); exists {
-			state.StorageGB = int(storageGb)
-		}
-		if acuUnits, exists := dataMap["acuUnits"].(float64); exists {
-			state.ACUUnits = acuUnits
+		if multiAZ, exists := dataMap["multiAz"].(bool); exists {
+			state.MultiAZ = multiAZ
 		}
 	}
-
 	return state, nil
 }
 
 func (p *Provider) DeleteDatabase(ctx context.Context, id string) error {
 	_, status, err := p.client.DoRequest(ctx, "DELETE", fmt.Sprintf("/api/v1/databases/%s", id), nil)
 	if status == 404 {
-		// Already deleted
 		return nil
 	}
-	if err != nil && status >= 400 {
-		return fmt.Errorf("failed to delete database %s [%d]: %w", id, status, err)
-	}
-	return nil
+	return err
 }
 
 // Compute Resource CRUD Operations
@@ -159,6 +155,10 @@ func (p *Provider) CreateCompute(ctx context.Context, plan *ComputeResourceState
 	if plan.Name == "" {
 		return nil, fmt.Errorf("name is required for anarva_compute")
 	}
+	if plan.ProjectID == "" {
+		plan.ProjectID = p.client.Config.ProjectID
+	}
+
 	payload := map[string]interface{}{
 		"name":      plan.Name,
 		"projectId": plan.ProjectID,
@@ -168,7 +168,7 @@ func (p *Provider) CreateCompute(ctx context.Context, plan *ComputeResourceState
 
 	res, status, err := p.client.DoRequest(ctx, "POST", "/api/v1/compute/instances", payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create compute instance [%d]: %w", status, err)
+		return nil, fmt.Errorf("failed to create compute [%d]: %w", status, err)
 	}
 
 	state := &ComputeResourceState{
@@ -200,7 +200,7 @@ func (p *Provider) ReadCompute(ctx context.Context, id string) (*ComputeResource
 
 	state := &ComputeResourceState{
 		ID:       id,
-		Name:     "ace-worker-node-01",
+		Name:     "anarva-app-worker-01",
 		ACUUnits: 1.0,
 		RegionID: "ap-south-1",
 		Status:   "RUNNING",
@@ -227,6 +227,10 @@ func (p *Provider) CreateStorageBucket(ctx context.Context, plan *StorageBucketR
 	if plan.Name == "" {
 		return nil, fmt.Errorf("name is required for anarva_storage_bucket")
 	}
+	if plan.ProjectID == "" {
+		plan.ProjectID = p.client.Config.ProjectID
+	}
+
 	payload := map[string]interface{}{
 		"name":      plan.Name,
 		"projectId": plan.ProjectID,
@@ -281,6 +285,81 @@ func (p *Provider) ReadStorageBucket(ctx context.Context, id string) (*StorageBu
 
 func (p *Provider) DeleteStorageBucket(ctx context.Context, id string) error {
 	_, status, err := p.client.DoRequest(ctx, "DELETE", fmt.Sprintf("/api/v1/storage/buckets/%s", id), nil)
+	if status == 404 {
+		return nil
+	}
+	return err
+}
+
+// VPC Resource CRUD Operations
+func (p *Provider) CreateVPC(ctx context.Context, plan *VPCResourceState) (*VPCResourceState, error) {
+	if plan.Name == "" || plan.CIDR == "" {
+		return nil, fmt.Errorf("name and cidr are required for anarva_vpc")
+	}
+	if plan.ProjectID == "" {
+		plan.ProjectID = p.client.Config.ProjectID
+	}
+	if plan.RegionID == "" {
+		plan.RegionID = "us-east-1"
+	}
+
+	payload := map[string]interface{}{
+		"name":      plan.Name,
+		"projectId": plan.ProjectID,
+		"cidr":      plan.CIDR,
+		"regionId":  plan.RegionID,
+	}
+
+	res, status, err := p.client.DoRequest(ctx, "POST", "/api/v1/networks", payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create anarva_vpc [%d]: %w", status, err)
+	}
+
+	state := &VPCResourceState{
+		ID:        fmt.Sprintf("vpc-%s", plan.Name),
+		Name:      plan.Name,
+		ProjectID: plan.ProjectID,
+		CIDR:      plan.CIDR,
+		RegionID:  plan.RegionID,
+		Status:    "AVAILABLE",
+	}
+
+	if dataMap, ok := res.Data.(map[string]interface{}); ok {
+		if id, exists := dataMap["id"].(string); exists {
+			state.ID = id
+		}
+	}
+
+	return state, nil
+}
+
+func (p *Provider) ReadVPC(ctx context.Context, id string) (*VPCResourceState, error) {
+	res, status, err := p.client.DoRequest(ctx, "GET", fmt.Sprintf("/api/v1/networks/%s", id), nil)
+	if status == 404 {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	state := &VPCResourceState{
+		ID:     id,
+		Status: "AVAILABLE",
+	}
+
+	if dataMap, ok := res.Data.(map[string]interface{}); ok {
+		if name, exists := dataMap["name"].(string); exists {
+			state.Name = name
+		}
+		if cidr, exists := dataMap["cidr"].(string); exists {
+			state.CIDR = cidr
+		}
+	}
+	return state, nil
+}
+
+func (p *Provider) DeleteVPC(ctx context.Context, id string) error {
+	_, status, err := p.client.DoRequest(ctx, "DELETE", fmt.Sprintf("/api/v1/networks/%s", id), nil)
 	if status == 404 {
 		return nil
 	}

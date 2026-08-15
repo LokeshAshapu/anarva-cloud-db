@@ -72,6 +72,7 @@ func main() {
 	rootCmd.AddCommand(newMetricsCmd())
 	rootCmd.AddCommand(newBillingCmd())
 	rootCmd.AddCommand(newOperationCmd())
+	rootCmd.AddCommand(newNetworkCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -584,5 +585,36 @@ func newOperationCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(getCmd)
+	return cmd
+}
+
+func newNetworkCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "network",
+		Short: "Manage Anarva Networking Control Plane (VPCs, Subnets, Security Groups, IPAM)",
+	}
+
+	vpcCmd := &cobra.Command{
+		Use:   "vpc",
+		Short: "Manage Anarva Virtual Private Clouds (VPCs)",
+	}
+
+	vpcListCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List Anarva VPCs",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			res, err := cli.Get("/api/v1/networks")
+			if err != nil {
+				return err
+			}
+			printOutput(res["data"], "VPC ID               NAME                 CIDR            REGION      STATUS", func(item map[string]interface{}) string {
+				return fmt.Sprintf("%-20v %-20v %-15v %-11v %-10v", item["id"], item["name"], item["cidr"], item["regionId"], item["status"])
+			})
+			return nil
+		},
+	}
+
+	vpcCmd.AddCommand(vpcListCmd)
+	cmd.AddCommand(vpcCmd)
 	return cmd
 }

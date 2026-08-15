@@ -157,8 +157,6 @@ func (s *ComputeService) List(ctx context.Context, projectID string) ([]map[stri
 }
 
 type DatabaseService struct{ client *Client }
-type StorageService struct{ client *Client }
 type NetworkService struct{ client *Client }
 type ProvisioningService struct{ client *Client }
 type ProjectsService struct{ client *Client }
-type ProvidersService struct{ client *Client }

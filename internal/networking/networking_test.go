@@ -4,6 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/anarva-cloud/anarva-cloud-db/internal/networking/connectivity"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/networking/domain"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/networking/firewall"
@@ -16,7 +19,7 @@ import (
 
 func TestNetworking_VPCNetworkLifecycleAndIPAM(t *testing.T) {
 	ctx := context.Background()
-	repo := repository.NewNetworkingRepository()
+	repo := repository.NewPostgresNetworkingRepository(nil)
 	prov := provider.NewLocalDockerNetworkProvider()
 	ipamSvc := ipam.NewIPAMService()
 	fwSvc := firewall.NewFirewallService()
@@ -25,38 +28,108 @@ func TestNetworking_VPCNetworkLifecycleAndIPAM(t *testing.T) {
 	svc := service.NewNetworkingService(repo, prov, ipamSvc, fwSvc, nil, connSvc, nil)
 
 	// 1. Create VPC Network
-	net, err := svc.CreateNetwork(ctx, "org-test", "proj-test", "primary-vpc", "ap-hyderabad-1", "10.0.0.0/16")
-	if err != nil {
-		t.Fatalf("failed to create VPC network: %v", err)
-	}
-	if net.Status != domain.StatusAvailable {
-		t.Errorf("expected StatusAvailable, got %s", net.Status)
-	}
+	net, err := svc.CreateNetwork(ctx, "org-test", "proj-test", "primary-vpc", "us-east-1", "10.0.0.0/16")
+	require.NoError(t, err)
+	assert.Equal(t, domain.StatusAvailable, net.Status)
 
 	// 2. IPAM CIDR Validation
-	if err := ipamSvc.ValidateCIDR("10.0.0.0/16"); err != nil {
-		t.Errorf("expected valid CIDR, got %v", err)
-	}
-	if err := ipamSvc.ValidateCIDR("invalid-cidr-string"); err == nil {
-		t.Errorf("expected error for invalid CIDR, got nil")
-	}
+	require.NoError(t, ipamSvc.ValidateCIDR("10.0.0.0/16"))
+	assert.Error(t, ipamSvc.ValidateCIDR("invalid-cidr-string"))
 
 	// 3. CIDR Overlap Detection
 	err = ipamSvc.CheckCIDROverlap([]string{"10.0.0.0/16"}, "10.0.1.0/24")
-	if err == nil {
-		t.Errorf("expected CIDR overlap error, got nil")
-	}
+	assert.Error(t, err)
 
 	// 4. IP Allocation
 	alloc, err := ipamSvc.Allocate(net.ID, "sub-01", "ace-worker-1", domain.IPv4)
-	if err != nil || alloc.IP == "" {
-		t.Fatalf("IP allocation failed: %v", err)
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, alloc.IP)
 
 	// 5. Delete Network
-	if err := svc.DeleteNetwork(ctx, net.ID); err != nil {
-		t.Errorf("failed to delete network: %v", err)
-	}
+	require.NoError(t, svc.DeleteNetwork(ctx, net.ID))
+}
+
+func TestNetworking_SubnetContainmentAndOverlap(t *testing.T) {
+	ctx := context.Background()
+	repo := repository.NewPostgresNetworkingRepository(nil)
+	prov := provider.NewLocalDockerNetworkProvider()
+	ipamSvc := ipam.NewIPAMService()
+	fwSvc := firewall.NewFirewallService()
+	connSvc := connectivity.NewConnectivityService()
+
+	svc := service.NewNetworkingService(repo, prov, ipamSvc, fwSvc, nil, connSvc, nil)
+
+	// Create Parent VPC (10.0.0.0/16)
+	vpc, err := svc.CreateNetwork(ctx, "org-alpha", "proj-alpha", "vpc-alpha", "us-east-1", "10.0.0.0/16")
+	require.NoError(t, err)
+
+	// Valid Subnet Creation (10.0.1.0/24 inside 10.0.0.0/16)
+	sub1, err := svc.CreateSubnet(ctx, "org-alpha", "proj-alpha", vpc.ID, "subnet-1", "10.0.1.0/24", "us-east-1a", domain.SubnetPrivate)
+	require.NoError(t, err)
+	assert.Equal(t, "10.0.1.0/24", sub1.CIDR)
+
+	// Out of Bounds Subnet Creation (10.1.0.0/24 outside 10.0.0.0/16) MUST Fail
+	_, err = svc.CreateSubnet(ctx, "org-alpha", "proj-alpha", vpc.ID, "subnet-out-of-bounds", "10.1.0.0/24", "us-east-1a", domain.SubnetPrivate)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "SUBNET_CIDR_OUT_OF_BOUNDS")
+
+	// Overlapping Subnet Creation (10.0.1.0/24 again) MUST Fail
+	_, err = svc.CreateSubnet(ctx, "org-alpha", "proj-alpha", vpc.ID, "subnet-overlap", "10.0.1.0/24", "us-east-1b", domain.SubnetPrivate)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "CIDR overlap detected")
+}
+
+func TestNetworking_TenantIsolationAndVpcNotEmpty(t *testing.T) {
+	ctx := context.Background()
+	repo := repository.NewPostgresNetworkingRepository(nil)
+	prov := provider.NewLocalDockerNetworkProvider()
+	ipamSvc := ipam.NewIPAMService()
+	fwSvc := firewall.NewFirewallService()
+	connSvc := connectivity.NewConnectivityService()
+
+	svc := service.NewNetworkingService(repo, prov, ipamSvc, fwSvc, nil, connSvc, nil)
+
+	// Create VPC for Org Alpha
+	vpc, err := svc.CreateNetwork(ctx, "org-alpha", "proj-alpha", "vpc-alpha", "us-east-1", "10.0.0.0/16")
+	require.NoError(t, err)
+
+	// Org Beta attempt to create subnet inside Org Alpha's VPC MUST fail
+	_, err = svc.CreateSubnet(ctx, "org-beta", "proj-beta", vpc.ID, "subnet-illegal", "10.0.2.0/24", "us-east-1a", domain.SubnetPrivate)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "TENANT_ISOLATION_VIOLATION")
+
+	// Create subnet for Org Alpha
+	_, err = svc.CreateSubnet(ctx, "org-alpha", "proj-alpha", vpc.ID, "subnet-alpha", "10.0.2.0/24", "us-east-1a", domain.SubnetPrivate)
+	require.NoError(t, err)
+
+	// Delete VPC with active subnets MUST fail with VPC_NOT_EMPTY
+	err = svc.DeleteNetwork(ctx, vpc.ID)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "VPC_NOT_EMPTY")
+}
+
+func TestNetworking_RouteTableAndRoutes(t *testing.T) {
+	ctx := context.Background()
+	repo := repository.NewPostgresNetworkingRepository(nil)
+	prov := provider.NewLocalDockerNetworkProvider()
+	ipamSvc := ipam.NewIPAMService()
+	fwSvc := firewall.NewFirewallService()
+	connSvc := connectivity.NewConnectivityService()
+
+	svc := service.NewNetworkingService(repo, prov, ipamSvc, fwSvc, nil, connSvc, nil)
+
+	vpc, err := svc.CreateNetwork(ctx, "org-test", "proj-test", "vpc-rt-test", "us-east-1", "10.0.0.0/16")
+	require.NoError(t, err)
+
+	rt, err := svc.CreateRouteTable(ctx, "org-test", "proj-test", vpc.ID, "public-rt")
+	require.NoError(t, err)
+	assert.Equal(t, "public-rt", rt.Name)
+	assert.NotEmpty(t, rt.Routes)
+
+	// Add Internet Gateway Route (0.0.0.0/0)
+	updatedRt, err := svc.AddRoute(ctx, rt.ID, "0.0.0.0/0", "igw-01", domain.TargetInternetGateway)
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(updatedRt.Routes))
 }
 
 func TestNetworking_FirewallDatabasePortSecurity(t *testing.T) {
@@ -73,9 +146,7 @@ func TestNetworking_FirewallDatabasePortSecurity(t *testing.T) {
 		Priority:    100,
 		Description: "Allow internal VPC DB traffic",
 	}
-	if err := fwSvc.ValidateSecurityRule(safeRule); err != nil {
-		t.Errorf("expected safe rule to pass, got err: %v", err)
-	}
+	require.NoError(t, fwSvc.ValidateSecurityRule(safeRule))
 
 	// Unrestricted Public Access Database Rule (0.0.0.0/0 on 5432)
 	publicDbRule := &domain.SecurityRule{
@@ -89,9 +160,7 @@ func TestNetworking_FirewallDatabasePortSecurity(t *testing.T) {
 		Description: "Public PostgreSQL Access",
 	}
 	err := fwSvc.ValidateSecurityRule(publicDbRule)
-	if err == nil {
-		t.Errorf("expected security risk error for 0.0.0.0/0 on port 5432, got nil")
-	}
+	assert.Error(t, err)
 }
 
 func TestNetworking_SSRFProtection(t *testing.T) {
@@ -100,21 +169,18 @@ func TestNetworking_SSRFProtection(t *testing.T) {
 
 	// 1. Cloud Metadata Endpoint (Blocked)
 	_, err := connSvc.TestConnectivity(ctx, "vm-01", "169.254.169.254", 80)
-	if err == nil || !testingContains(err.Error(), "SSRF BLOCKED") {
-		t.Errorf("expected SSRF BLOCKED error for metadata endpoint 169.254.169.254, got: %v", err)
-	}
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "SSRF BLOCKED")
 
 	// 2. Loopback Control Plane Endpoint (Blocked)
 	_, err = connSvc.TestConnectivity(ctx, "vm-01", "127.0.0.1", 8080)
-	if err == nil || !testingContains(err.Error(), "SSRF BLOCKED") {
-		t.Errorf("expected SSRF BLOCKED error for loopback 127.0.0.1, got: %v", err)
-	}
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "SSRF BLOCKED")
 
 	// 3. Valid Internal Workload (Allowed)
 	res, err := connSvc.TestConnectivity(ctx, "vm-01", "10.0.1.15", 5432)
-	if err != nil || !res.Reachable {
-		t.Errorf("expected valid connectivity test to pass, got err: %v", err)
-	}
+	require.NoError(t, err)
+	assert.True(t, res.Reachable)
 }
 
 func TestNetworking_ReconciliationDrift(t *testing.T) {
@@ -123,31 +189,13 @@ func TestNetworking_ReconciliationDrift(t *testing.T) {
 	recSvc := reconciliation.NewReconciliationService(prov)
 
 	desiredNet := &domain.VirtualNetwork{
-		ID:    "vpc-non-existent",
-		CIDR:  "10.0.0.0/16",
-		Name:  "ghost-vpc",
+		ID:     "vpc-non-existent",
+		CIDR:   "10.0.0.0/16",
+		Name:   "ghost-vpc",
 		Status: domain.StatusAvailable,
 	}
 
 	res, err := recSvc.Reconcile(ctx, desiredNet)
-	if err != nil {
-		t.Fatalf("unexpected reconciliation error: %v", err)
-	}
-
-	if !res.DriftDetected {
-		t.Errorf("expected drift to be detected for missing provider network")
-	}
-}
-
-func testingContains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || (len(s) > len(substr) && stringSearch(s, substr)))
-}
-
-func stringSearch(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	require.NoError(t, err)
+	assert.True(t, res.DriftDetected)
 }

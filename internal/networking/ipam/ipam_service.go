@@ -120,3 +120,26 @@ func (s *IPAMService) CheckAvailability(subnetID, ip string) bool {
 	}
 	return true
 }
+
+func (s *IPAMService) GetIPAMAllocationSummary(vpcCIDR string, subnets []string) (totalIPs int, allocatedIPs int, availableIPs int) {
+	_, parentNet, err := net.ParseCIDR(vpcCIDR)
+	if err != nil {
+		return 0, 0, 0
+	}
+	ones, bits := parentNet.Mask.Size()
+	totalIPs = 1 << (bits - ones)
+
+	for _, subCIDR := range subnets {
+		_, subNet, subErr := net.ParseCIDR(subCIDR)
+		if subErr == nil {
+			subOnes, subBits := subNet.Mask.Size()
+			allocatedIPs += 1 << (subBits - subOnes)
+		}
+	}
+
+	availableIPs = totalIPs - allocatedIPs
+	if availableIPs < 0 {
+		availableIPs = 0
+	}
+	return totalIPs, allocatedIPs, availableIPs
+}
