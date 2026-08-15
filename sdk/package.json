@@ -1,0 +1,26 @@
+{
+  "name": "@anarva/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript SDK for Anarva Cloud Platform API",
+  "main": "dist/src/index.js",
+  "module": "dist/src/index.js",
+  "type": "module",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "anarva",
+    "cloud",
+    "sdk",
+    "typescript",
+    "postgres",
+    "ec2",
+    "s3"
+  ],
+  "author": "Anarva Cloud Technologies",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.2.0"
+  }
+}
