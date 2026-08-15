@@ -242,8 +242,21 @@ export function ConsoleSidebar() {
         ))}
       </div>
 
-      {/* Sidebar Collapse Toggle Button */}
-      <div className="p-3 border-t border-slate-800 flex justify-end flex-shrink-0 bg-slate-950">
+      {/* Sidebar Collapse & Feedback Toggle Buttons */}
+      <div className="p-3 border-t border-slate-800 space-y-2 flex-shrink-0 bg-slate-950">
+        <button
+          onClick={() => {
+            const btn = document.querySelector('header button[aria-label="Feedback"]') || document.querySelector('header button')
+            if (btn) (btn as HTMLElement).click()
+          }}
+          className="w-full p-2 text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer"
+          title="Send Console Feedback to 23w61a0506@gmail.com"
+        >
+          <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          </svg>
+          {!isCollapsed && <span>Send Feedback</span>}
+        </button>
         <button
           onClick={toggleCollapse}
           className="p-2 text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-xs transition flex items-center justify-center w-full font-mono text-[11px]"
