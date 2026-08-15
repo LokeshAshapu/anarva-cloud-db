@@ -194,7 +194,7 @@ export function ConsoleSidebar() {
         isCollapsed ? 'w-20' : 'w-64'
       }`}
     >
-      <div className={`flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-6 select-none max-w-full ${isCollapsed ? 'px-2' : 'px-3'}`}>
+      <div className={`flex-1 overflow-y-auto no-scrollbar overflow-x-hidden p-3 space-y-6 select-none max-w-full ${isCollapsed ? 'px-2' : 'px-3'}`}>
         {navSections.map((sec) => (
           <div key={sec.title} className="space-y-1">
             {!isCollapsed && (
