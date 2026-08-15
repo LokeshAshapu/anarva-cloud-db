@@ -79,7 +79,17 @@ export class AnarvaClient {
 
         if (!response.ok) {
           if (attempt <= this.config.maxRetries && retryStatusCodes.has(response.status) && method === 'GET') {
-            const backoffMs = Math.pow(2, attempt) * 100;
+            let backoffMs = Math.pow(2, attempt) * 100;
+            const retryAfterHeader = response.headers.get('retry-after');
+            if (retryAfterHeader) {
+              const parsedSeconds = parseInt(retryAfterHeader, 10);
+              if (!isNaN(parsedSeconds) && parsedSeconds > 0) {
+                backoffMs = parsedSeconds * 1000;
+              }
+            }
+            // Add full randomized jitter (0.5 to 1.5x multiplier)
+            const jitter = 0.5 + Math.random();
+            backoffMs = Math.floor(backoffMs * jitter);
             await new Promise((resolve) => setTimeout(resolve, backoffMs));
             continue;
           }
@@ -101,7 +111,18 @@ export class AnarvaClient {
           });
         }
 
-        const resData = (await response.json()) as any;
+        let resData: any = {};
+        try {
+          resData = await response.json();
+        } catch {
+          throw new AnarvaError({
+            code: 'INVALID_API_RESPONSE',
+            message: 'Failed to parse API response JSON payload',
+            status: response.status,
+            requestId: reqId,
+          });
+        }
+
         return {
           data: (resData.data ?? resData) as T,
           requestId: resData.requestId || reqId,

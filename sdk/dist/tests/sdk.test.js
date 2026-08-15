@@ -101,4 +101,27 @@ describe('@anarva/sdk Unit & Integration Tests', () => {
         assert.strictEqual(op.status, 'COMPLETED');
         assert.strictEqual(op.resourceId, 'res-rds-postgres-01');
     });
+    test('client handles malformed JSON response gracefully', async () => {
+        const malformedServer = createServer((req, res) => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end('INVALID_JSON_BODY{{{');
+        });
+        await new Promise((resolve) => malformedServer.listen(0, '127.0.0.1', () => resolve()));
+        const addr = malformedServer.address();
+        const client = new AnarvaClient({
+            apiKey: 'anarva_live_testsecret123',
+            apiUrl: `http://127.0.0.1:${addr.port}`,
+        });
+        try {
+            await client.databases.list();
+            assert.fail('Should have thrown INVALID_API_RESPONSE error');
+        }
+        catch (err) {
+            assert.strictEqual(err instanceof AnarvaError, true);
+            assert.strictEqual(err.code, 'INVALID_API_RESPONSE');
+        }
+        finally {
+            malformedServer.close();
+        }
+    });
 });
