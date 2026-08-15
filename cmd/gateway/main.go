@@ -392,6 +392,7 @@ func main() {
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
 	iamHttp.NewIAMHandler(authSvc, actStream).RegisterRoutes(mux)
 	observabilityHttp.NewObservabilityHandler(obsSvc).RegisterRoutes(mux)
+	provHttp.NewProvisioningHandler(provUC, provRegistry, actStream).RegisterRoutes(mux)
 	// Phase 41 Distributed Control Plane & Operation Recovery Worker
 	var relUC *reliabilityUsecase.ReliabilityUseCase
 	if dbPool != nil {
