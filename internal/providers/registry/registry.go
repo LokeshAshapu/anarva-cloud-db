@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -205,7 +206,52 @@ func (r *ProviderRegistry) VerifyProvider(ctx context.Context, id string, credRe
 	p.LastHealthCheck = time.Now()
 	p.RealityLabel = fmt.Sprintf("%s (CONNECTED)", p.Type)
 	p.Regions = []string{"us-east-1", "ap-south-1", "eu-west-1"}
-	p.UpdatedAt = time.Now()
-
 	return p, nil
+}
+
+func (r *ProviderRegistry) ValidateCapability(ctx context.Context, id string, capabilityName string) error {
+	p, err := r.GetProvider(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	supported := false
+	switch strings.ToLower(capabilityName) {
+	case "compute":
+		supported = p.Capabilities.Compute
+	case "containers":
+		supported = p.Capabilities.Containers
+	case "kubernetes":
+		supported = p.Capabilities.Kubernetes
+	case "postgresql":
+		supported = p.Capabilities.PostgreSQL
+	case "mysql":
+		supported = p.Capabilities.MySQL
+	case "objectstorage", "storage":
+		supported = p.Capabilities.ObjectStorage
+	case "networking":
+		supported = p.Capabilities.Networking
+	case "loadbalancer":
+		supported = p.Capabilities.LoadBalancer
+	case "dns":
+		supported = p.Capabilities.DNS
+	case "tls":
+		supported = p.Capabilities.TLS
+	case "monitoring":
+		supported = p.Capabilities.Monitoring
+	case "backup":
+		supported = p.Capabilities.Backup
+	case "replication":
+		supported = p.Capabilities.Replication
+	case "autoscaling":
+		supported = p.Capabilities.Autoscaling
+	default:
+		return fmt.Errorf("PROVIDER_CAPABILITY_UNKNOWN: Capability '%s' is not recognized", capabilityName)
+	}
+
+	if !supported {
+		return fmt.Errorf("PROVIDER_CAPABILITY_NOT_SUPPORTED: Provider '%s' (%s) does not support capability '%s'", p.Name, id, capabilityName)
+	}
+
+	return nil
 }

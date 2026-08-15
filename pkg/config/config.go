@@ -9,13 +9,14 @@ import (
 )
 
 type Config struct {
-	Environment string          `mapstructure:"ENVIRONMENT"`
-	Server      ServerConfig    `mapstructure:"SERVER"`
-	Database    DatabaseConfig  `mapstructure:"DATABASE"`
-	Redis       RedisConfig     `mapstructure:"REDIS"`
-	JWT         JWTConfig       `mapstructure:"JWT"`
-	Storage     StorageConfig   `mapstructure:"STORAGE"`
-	Metrics     MetricsConfig   `mapstructure:"METRICS"`
+	Environment string         `mapstructure:"ENVIRONMENT"`
+	Server      ServerConfig   `mapstructure:"SERVER"`
+	Database    DatabaseConfig `mapstructure:"DATABASE"`
+	Redis       RedisConfig    `mapstructure:"REDIS"`
+	JWT         JWTConfig      `mapstructure:"JWT"`
+	Storage     StorageConfig  `mapstructure:"STORAGE"`
+	Metrics     MetricsConfig  `mapstructure:"METRICS"`
+	Provider    ProviderConfig `mapstructure:"PROVIDER"`
 }
 
 type ServerConfig struct {
@@ -72,6 +73,13 @@ type MetricsConfig struct {
 	Port    int    `mapstructure:"PORT"`
 }
 
+type ProviderConfig struct {
+	Mode               string `mapstructure:"MODE"` // local or real
+	AWSAccessKeyID     string `mapstructure:"AWS_ACCESS_KEY_ID"`
+	AWSSecretAccessKey string `mapstructure:"AWS_SECRET_ACCESS_KEY"`
+	AWSRegion          string `mapstructure:"AWS_REGION"`
+}
+
 // LoadConfig loads configuration from path or environment variables.
 func LoadConfig(path string) (*Config, error) {
 	v := viper.New()
@@ -109,6 +117,9 @@ func LoadConfig(path string) (*Config, error) {
 	v.SetDefault("METRICS.PATH", "/metrics")
 	v.SetDefault("METRICS.PORT", 9091)
 
+	v.SetDefault("PROVIDER.MODE", "local")
+	v.SetDefault("PROVIDER.AWS_REGION", "us-east-1")
+
 	if path != "" {
 		v.AddConfigPath(path)
 		v.SetConfigName("config")
@@ -127,6 +138,12 @@ func LoadConfig(path string) (*Config, error) {
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("unable to decode into config struct: %w", err)
+	}
+
+	if strings.ToLower(cfg.Environment) == "production" && strings.ToLower(cfg.Provider.Mode) == "real" {
+		if cfg.Provider.AWSAccessKeyID == "" || cfg.Provider.AWSSecretAccessKey == "" {
+			return nil, fmt.Errorf("PROVIDER_INVALID_CONFIGURATION: Production real provider mode requires valid AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables")
+		}
 	}
 
 	return &cfg, nil
