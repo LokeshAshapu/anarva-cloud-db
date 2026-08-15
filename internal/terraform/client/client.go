@@ -117,6 +117,9 @@ func (c *Client) DoRequest(ctx context.Context, method, endpoint string, body in
 }
 
 func redactSecrets(input string) string {
-	// Replaces any raw API secret formats with REDACTED
-	return strings.ReplaceAll(input, os.Getenv("ANARVA_API_KEY"), "[REDACTED_API_KEY]")
+	key := os.Getenv("ANARVA_API_KEY")
+	if key == "" {
+		return input
+	}
+	return strings.ReplaceAll(input, key, "[REDACTED_API_KEY]")
 }

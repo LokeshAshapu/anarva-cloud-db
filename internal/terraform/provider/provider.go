@@ -128,6 +128,15 @@ func (p *Provider) ReadDatabase(ctx context.Context, id string) (*DatabaseResour
 		if st, exists := dataMap["status"].(string); exists {
 			state.Status = st
 		}
+		if multiAz, exists := dataMap["multiAz"].(bool); exists {
+			state.MultiAZ = multiAz
+		}
+		if storageGb, exists := dataMap["storageGb"].(float64); exists {
+			state.StorageGB = int(storageGb)
+		}
+		if acuUnits, exists := dataMap["acuUnits"].(float64); exists {
+			state.ACUUnits = acuUnits
+		}
 	}
 
 	return state, nil
