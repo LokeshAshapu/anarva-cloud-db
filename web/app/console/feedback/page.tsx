@@ -188,12 +188,6 @@ export default function FeedbackManagementPage() {
             Tenant-isolated feedback management, status lifecycles, and aggregate ratings
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">Target Dispatch Email:</span>
-          <span className="font-mono text-xs font-bold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-lg border border-blue-500/20">
-            23w61a0506@gmail.com
-          </span>
-        </div>
       </div>
 
       {/* Analytics KPI Cards */}

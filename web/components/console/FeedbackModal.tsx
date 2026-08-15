@@ -59,7 +59,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
 
       const data = await res.json()
       if (res.ok) {
-        setSuccessMsg(data.message || 'Feedback sent successfully! Email dispatched to 23w61a0506@gmail.com')
+        setSuccessMsg(data.message || 'Thank you for your feedback.')
         setMessage('')
         setSubject('')
         setTimeout(() => {
@@ -111,13 +111,6 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
-          {/* Target Email Indicator */}
-          <div className="p-3 bg-blue-950/40 border border-blue-500/30 rounded-xl flex items-center justify-between text-xs">
-            <span className="text-slate-300">Feedback will be sent to:</span>
-            <span className="font-mono font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
-              23w61a0506@gmail.com
-            </span>
-          </div>
 
           {successMsg && (
             <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs rounded-xl flex items-center gap-2">
