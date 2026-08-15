@@ -6,7 +6,7 @@ export function AnarvaLogo({ className = "h-12 w-12" }: { className?: string }) 
       <img
         src="/anarva-trident.png"
         alt="Anarva Trident Logo"
-        className="w-full h-full object-contain filter invert drop-shadow-[0_0_14px_rgba(59,130,246,0.7)] transform scale-110"
+        className="w-full h-full object-contain filter invert drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]"
       />
     </div>
   )

@@ -191,10 +191,10 @@ export function ConsoleSidebar() {
   return (
     <aside
       className={`hidden lg:flex flex-col border-r border-slate-800 bg-slate-950 flex-shrink-0 overflow-x-hidden transition-all duration-300 ${
-        isCollapsed ? 'w-16' : 'w-64'
+        isCollapsed ? 'w-20' : 'w-64'
       }`}
     >
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-6 select-none max-w-full">
+      <div className={`flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-6 select-none max-w-full ${isCollapsed ? 'px-2' : 'px-3'}`}>
         {navSections.map((sec) => (
           <div key={sec.title} className="space-y-1">
             {!isCollapsed && (
@@ -203,7 +203,7 @@ export function ConsoleSidebar() {
               </div>
             )}
 
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {sec.items.map((item) => {
                 const isActive =
                   pathname === item.href ||
@@ -214,13 +214,17 @@ export function ConsoleSidebar() {
                     key={item.href}
                     href={item.href}
                     title={isCollapsed ? item.name : undefined}
-                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition group ${
+                    className={`flex items-center transition group ${
+                      isCollapsed
+                        ? 'justify-center p-2.5 rounded-xl text-center'
+                        : 'justify-between px-3 py-2 rounded-xl text-xs font-semibold'
+                    } ${
                       isActive
-                        ? 'bg-blue-600/15 text-white border border-blue-500/30 font-bold'
+                        ? 'bg-blue-600/15 text-white border border-blue-500/30 font-bold shadow-sm'
                         : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border border-transparent'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
+                    <div className={`flex items-center gap-2.5 ${isCollapsed ? 'justify-center' : 'min-w-0 flex-1 overflow-hidden'}`}>
                       <div className={`flex-shrink-0 transition-colors ${isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-slate-200'}`}>
                         {item.icon}
                       </div>
@@ -243,7 +247,7 @@ export function ConsoleSidebar() {
       </div>
 
       {/* Sidebar Collapse Toggle Button */}
-      <div className="p-3 border-t border-slate-800 flex-shrink-0 bg-slate-950">
+      <div className={`p-3 border-t border-slate-800 flex-shrink-0 bg-slate-950 ${isCollapsed ? 'px-2' : 'px-3'}`}>
         <button
           onClick={toggleCollapse}
           className="p-2 text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-xs transition flex items-center justify-center w-full font-mono text-[11px]"

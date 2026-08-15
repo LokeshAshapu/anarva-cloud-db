@@ -100,7 +100,7 @@ export function ConsoleNavbar({ onOpenCommandPalette, onToggleMobileMenu }: Cons
       .toUpperCase() || 'LA'
 
   return (
-    <header className="border-b border-slate-800 bg-slate-950/95 backdrop-blur sticky top-0 z-40 h-14 flex items-center justify-between px-3 sm:px-4">
+    <header className="border-b border-slate-800 bg-slate-950/95 backdrop-blur sticky top-0 z-40 h-14 flex items-center justify-between px-4 sm:px-6">
       {/* Click-away Backdrop overlay when any dropdown is open */}
       {(showNotifications || showProfileMenu) && (
         <div
@@ -113,7 +113,7 @@ export function ConsoleNavbar({ onOpenCommandPalette, onToggleMobileMenu }: Cons
       )}
 
       {/* Left Brand & Mobile Drawer Trigger */}
-      <div className="flex items-center gap-2 sm:gap-4 z-50">
+      <div className="flex items-center gap-2.5 sm:gap-4 z-50 shrink-0">
         {/* Mobile Hamburger Toggle Button */}
         <button
           onClick={() => onToggleMobileMenu && onToggleMobileMenu()}
@@ -125,9 +125,9 @@ export function ConsoleNavbar({ onOpenCommandPalette, onToggleMobileMenu }: Cons
           </svg>
         </button>
 
-        <Link href="/console" className="flex items-center gap-2">
-          <AnarvaLogo className="h-7 w-7 sm:h-8 sm:w-8" />
-          <span className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5">
+        <Link href="/console" className="flex items-center gap-2.5 shrink-0">
+          <AnarvaLogo className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
+          <span className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5 shrink-0">
             ANARVA{' '}
             <span className="text-blue-500 font-extrabold uppercase text-[10px] sm:text-xs tracking-widest bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
               CLOUD
