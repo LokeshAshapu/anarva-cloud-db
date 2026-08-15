@@ -18,6 +18,11 @@ import (
 	backupRepo "github.com/anarva-cloud/anarva-cloud-db/internal/backup/repository"
 	backupUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/backup/usecase"
 
+	reliabilityHttp "github.com/anarva-cloud/anarva-cloud-db/internal/reliability/delivery/http"
+	reliabilityDomain "github.com/anarva-cloud/anarva-cloud-db/internal/reliability/domain"
+	reliabilityRepo "github.com/anarva-cloud/anarva-cloud-db/internal/reliability/repository"
+	reliabilityUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/reliability/usecase"
+
 	databaseHttp "github.com/anarva-cloud/anarva-cloud-db/internal/database/delivery/http"
 	databaseDomain "github.com/anarva-cloud/anarva-cloud-db/internal/database/domain"
 	databaseDriver "github.com/anarva-cloud/anarva-cloud-db/internal/database/driver"
@@ -245,6 +250,11 @@ func main() {
 			&projectDomain.Invitation{},
 			&databaseDomain.DatabaseInstance{},
 			&backupDomain.BackupRecord{},
+			&reliabilityDomain.AnarvaOperation{},
+			&reliabilityDomain.ResourceLockLease{},
+			&reliabilityDomain.IdempotencyRecord{},
+			&reliabilityDomain.TenantQuota{},
+			&reliabilityDomain.AnarvaAuditEvent{},
 		)
 		if err != nil && appEnv == "production" {
 			log.Fatal(fmt.Sprintf("FATAL: Failed to migrate production control-plane database schema: %v", err))
@@ -382,7 +392,17 @@ func main() {
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
 	iamHttp.NewIAMHandler(authSvc, actStream).RegisterRoutes(mux)
 	observabilityHttp.NewObservabilityHandler(obsSvc).RegisterRoutes(mux)
-	provHttp.NewProvisioningHandler(provUC, provRegistry, actStream).RegisterRoutes(mux)
+	// Phase 41 Distributed Control Plane & Operation Recovery Worker
+	var relUC *reliabilityUsecase.ReliabilityUseCase
+	if dbPool != nil {
+		relRepo := reliabilityRepo.NewReliabilityRepository(dbPool.DB)
+		relUC = reliabilityUsecase.NewReliabilityUseCaseWithRepo(relRepo)
+		recWorker := reliabilityUsecase.NewRecoveryWorker(relUC, reliabilityUsecase.DefaultRecoveryWorkerConfig())
+		recWorker.Start(context.Background())
+	} else {
+		relUC = reliabilityUsecase.NewReliabilityUseCase()
+	}
+	reliabilityHttp.NewReliabilityHandler(relUC).RegisterRoutes(mux)
 	devHttp.NewDeveloperHandler(devUC, whUC, actStream).RegisterRoutes(mux)
 	billHttp.NewBillingHandler(billUC, actStream).RegisterRoutes(mux)
 

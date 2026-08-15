@@ -2,7 +2,10 @@ package reliability
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,4 +119,69 @@ func TestReliability_AppendOnlyAuditLog(t *testing.T) {
 			assert.NotContains(t, v, "anarva_test_")
 		}
 	}
+}
+
+func TestStateTransitions_ValidAndInvalid(t *testing.T) {
+	// Valid Transitions
+	assert.True(t, domain.IsValidStateTransition(domain.OpStatusPending, domain.OpStatusRunning))
+	assert.True(t, domain.IsValidStateTransition(domain.OpStatusRunning, domain.OpStatusSucceeded))
+	assert.True(t, domain.IsValidStateTransition(domain.OpStatusRunning, domain.OpStatusFailed))
+	assert.True(t, domain.IsValidStateTransition(domain.OpStatusRunning, domain.OpStatusRecovering))
+	assert.True(t, domain.IsValidStateTransition(domain.OpStatusRecovering, domain.OpStatusRunning))
+
+	// Invalid Transitions from Terminal States
+	assert.False(t, domain.IsValidStateTransition(domain.OpStatusSucceeded, domain.OpStatusRunning))
+	assert.False(t, domain.IsValidStateTransition(domain.OpStatusFailed, domain.OpStatusPending))
+}
+
+func TestDistributedLock_ConcurrentAcquireConflict(t *testing.T) {
+	uc := usecase.NewReliabilityUseCase()
+	ctx := context.Background()
+
+	resID := "res-concurrent-lock-01"
+	var successCount int32
+	var conflictCount int32
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Worker A
+	go func() {
+		defer wg.Done()
+		_, err := uc.DispatchOperation(ctx, "org-default", "proj-default", resID, domain.OpCreateDatabase, "", `{"w":"A"}`, "req_A")
+		if err == nil {
+			atomic.AddInt32(&successCount, 1)
+		} else {
+			atomic.AddInt32(&conflictCount, 1)
+		}
+	}()
+
+	// Worker B
+	go func() {
+		defer wg.Done()
+		_, err := uc.DispatchOperation(ctx, "org-default", "proj-default", resID, domain.OpCreateDatabase, "", `{"w":"B"}`, "req_B")
+		if err == nil {
+			atomic.AddInt32(&successCount, 1)
+		} else {
+			atomic.AddInt32(&conflictCount, 1)
+		}
+	}()
+
+	wg.Wait()
+
+	// Exactly ONE worker succeeds, exactly ONE receives lock conflict
+	assert.Equal(t, int32(1), successCount)
+	assert.Equal(t, int32(1), conflictCount)
+}
+
+func TestRecoveryWorker_LifecycleDaemon(t *testing.T) {
+	uc := usecase.NewReliabilityUseCase()
+	worker := usecase.NewRecoveryWorker(uc, usecase.RecoveryWorkerConfig{Interval: 50 * time.Millisecond})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	worker.Start(ctx)
+	time.Sleep(100 * time.Millisecond)
+	worker.Stop()
 }

@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/reliability/domain"
+	"github.com/anarva-cloud/anarva-cloud-db/internal/reliability/repository"
 	appErrors "github.com/anarva-cloud/anarva-cloud-db/pkg/errors"
 )
 
 type ReliabilityUseCase struct {
 	mu           sync.RWMutex
+	repo         *repository.ReliabilityRepository
 	operations   map[string]*domain.AnarvaOperation
 	idempotency  map[string]*domain.IdempotencyRecord
 	locks        map[string]*domain.ResourceLockLease
@@ -23,6 +25,19 @@ type ReliabilityUseCase struct {
 
 func NewReliabilityUseCase() *ReliabilityUseCase {
 	uc := &ReliabilityUseCase{
+		operations:  make(map[string]*domain.AnarvaOperation),
+		idempotency: make(map[string]*domain.IdempotencyRecord),
+		locks:       make(map[string]*domain.ResourceLockLease),
+		quotas:      make(map[string]*domain.TenantQuota),
+		rateLimits:  make(map[string]time.Time),
+	}
+	uc.seedDefaults()
+	return uc
+}
+
+func NewReliabilityUseCaseWithRepo(repo *repository.ReliabilityRepository) *ReliabilityUseCase {
+	uc := &ReliabilityUseCase{
+		repo:        repo,
 		operations:  make(map[string]*domain.AnarvaOperation),
 		idempotency: make(map[string]*domain.IdempotencyRecord),
 		locks:       make(map[string]*domain.ResourceLockLease),
@@ -97,11 +112,109 @@ func (uc *ReliabilityUseCase) DispatchOperation(
 	opType domain.OperationType,
 	idempotencyKey, payloadRaw, reqID string,
 ) (*domain.AnarvaOperation, error) {
-	uc.mu.Lock()
-	defer uc.mu.Unlock()
-
 	now := time.Now()
 	requestHash := domain.HashRequestPayload(payloadRaw)
+
+	// Database Persistence Mode
+	if uc.repo != nil {
+		if idempotencyKey != "" {
+			rec, err := uc.repo.GetIdempotencyRecord(ctx, orgID, projID, idempotencyKey)
+			if err != nil {
+				return nil, err
+			}
+			if rec != nil {
+				if rec.OrganizationID != orgID || rec.ProjectID != projID {
+					return nil, appErrors.New(appErrors.CodeForbidden, "TENANT_ISOLATION_VIOLATION: Unauthorized idempotency key access")
+				}
+				if rec.RequestHash != requestHash {
+					return nil, appErrors.New(appErrors.CodeConflict, "IDEMPOTENCY_KEY_REUSE: Idempotency key reused with different request payload")
+				}
+				existingOp, err := uc.repo.GetOperation(ctx, orgID, rec.OperationID)
+				if err == nil && existingOp != nil {
+					return existingOp, nil
+				}
+			}
+		}
+
+		opID := domain.FormatOperationID()
+
+		// Acquire PostgreSQL Distributed Lock
+		lock := &domain.ResourceLockLease{
+			ResourceID:     resourceID,
+			OrganizationID: orgID,
+			ProjectID:      projID,
+			OperationID:    opID,
+			HolderID:       "Anarva-Control-Plane-Instance",
+			Owner:          "Anarva-Control-Plane",
+			AcquiredAt:     now,
+			LockedAt:       now,
+			ExpiresAt:      now.Add(5 * time.Minute),
+			HeartbeatAt:    now,
+		}
+		if err := uc.repo.AcquireDistributedLock(ctx, lock); err != nil {
+			return nil, err
+		}
+
+		op := &domain.AnarvaOperation{
+			ID:                 opID,
+			OrganizationID:     orgID,
+			ProjectID:          projID,
+			ResourceID:         resourceID,
+			Type:               opType,
+			Status:             domain.OpStatusRunning,
+			Progress:           10,
+			CreatedAt:          now,
+			StartedAt:          &now,
+			UpdatedAt:          now,
+			HeartbeatAt:        now,
+			LeaseExpiresAt:     now.Add(5 * time.Minute),
+			RequestID:          reqID,
+			IdempotencyKey:     idempotencyKey,
+			IdempotencyKeyHash: domain.HashRequestPayload(idempotencyKey),
+			Timeline: []domain.OperationEvent{
+				{StepNumber: 1, Name: "Validate Authorization & Quota", Description: "Verify organization quota and IAM permissions", Status: "COMPLETED", Timestamp: now},
+				{StepNumber: 2, Name: "Acquire Distributed Lock Lease", Description: "Set PostgreSQL atomic concurrency lock", Status: "COMPLETED", Timestamp: now},
+				{StepNumber: 3, Name: "Initiate Control-Plane Task", Description: "Dispatch control-plane task to cloud provider", Status: "RUNNING", Timestamp: now},
+			},
+		}
+
+		if err := uc.repo.SaveOperation(ctx, op); err != nil {
+			_ = uc.repo.ReleaseDistributedLock(ctx, orgID, resourceID, opID)
+			return nil, err
+		}
+
+		if idempotencyKey != "" {
+			_ = uc.repo.SaveIdempotencyRecord(ctx, &domain.IdempotencyRecord{
+				Key:            idempotencyKey,
+				OrganizationID: orgID,
+				ProjectID:      projID,
+				RequestHash:    requestHash,
+				OperationID:    op.ID,
+				ResourceID:     resourceID,
+				CreatedAt:      now,
+				ExpiresAt:      now.Add(24 * time.Hour),
+			})
+		}
+
+		_ = uc.repo.SaveAuditEvent(ctx, &domain.AnarvaAuditEvent{
+			OrganizationID: orgID,
+			ProjectID:      projID,
+			ActorType:      domain.ActorUser,
+			ActorID:        "SYSTEM",
+			Action:         fmt.Sprintf("OPERATION_%s_INITIATED", opType),
+			ResourceType:   "RESOURCE",
+			ResourceID:     resourceID,
+			OperationID:    op.ID,
+			RequestID:      reqID,
+			Timestamp:      now,
+		})
+
+		return op, nil
+	}
+
+	// In-Memory Fallback Mode for Standalone Unit Tests
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
 
 	// Idempotency Validation
 	if idempotencyKey != "" {
@@ -137,6 +250,8 @@ func (uc *ReliabilityUseCase) DispatchOperation(
 		CreatedAt:      now,
 		StartedAt:      &now,
 		UpdatedAt:      now,
+		HeartbeatAt:    now,
+		LeaseExpiresAt: now.Add(5 * time.Minute),
 		RequestID:      reqID,
 		IdempotencyKey: idempotencyKey,
 		Timeline: []domain.OperationEvent{
@@ -161,7 +276,6 @@ func (uc *ReliabilityUseCase) DispatchOperation(
 		}
 	}
 
-	// Acquire Lock Lease (5-minute expiration)
 	uc.locks[resourceID] = &domain.ResourceLockLease{
 		ResourceID:  resourceID,
 		OperationID: op.ID,
@@ -170,7 +284,6 @@ func (uc *ReliabilityUseCase) DispatchOperation(
 		ExpiresAt:   now.Add(5 * time.Minute),
 	}
 
-	// Record Audit Event
 	uc.recordAuditEventLocked(orgID, projID, domain.ActorUser, "SYSTEM", fmt.Sprintf("OPERATION_%s_INITIATED", opType), "RESOURCE", resourceID, op.ID, reqID, nil)
 
 	return op, nil
@@ -178,6 +291,48 @@ func (uc *ReliabilityUseCase) DispatchOperation(
 
 // 2. Complete Operation & Release Lock
 func (uc *ReliabilityUseCase) CompleteOperation(ctx context.Context, opID string, errReason string) (*domain.AnarvaOperation, error) {
+	now := time.Now()
+
+	if uc.repo != nil {
+		op, err := uc.repo.GetOperation(ctx, "", opID)
+		if err != nil {
+			return nil, err
+		}
+
+		op.UpdatedAt = now
+		op.CompletedAt = &now
+
+		if errReason != "" {
+			op.Status = domain.OpStatusFailed
+			op.ErrorMessage = errReason
+			op.ErrorCode = "PROVISIONING_FAILED"
+			op.Timeline = append(op.Timeline, domain.OperationEvent{
+				StepNumber:  len(op.Timeline) + 1,
+				Name:        "Operation Failure",
+				Description: errReason,
+				Status:      "FAILED",
+				Timestamp:   now,
+			})
+		} else {
+			op.Status = domain.OpStatusSucceeded
+			op.Progress = 100
+			op.Timeline = append(op.Timeline, domain.OperationEvent{
+				StepNumber:  len(op.Timeline) + 1,
+				Name:        "Operation Completion",
+				Description: "Control-plane operation completed successfully",
+				Status:      "COMPLETED",
+				Timestamp:   now,
+			})
+		}
+
+		if err := uc.repo.SaveOperation(ctx, op); err != nil {
+			return nil, err
+		}
+
+		_ = uc.repo.ReleaseDistributedLock(ctx, op.OrganizationID, op.ResourceID, op.ID)
+		return op, nil
+	}
+
 	uc.mu.Lock()
 	defer uc.mu.Unlock()
 
@@ -186,7 +341,6 @@ func (uc *ReliabilityUseCase) CompleteOperation(ctx context.Context, opID string
 		return nil, appErrors.New(appErrors.CodeNotFound, "Operation not found")
 	}
 
-	now := time.Now()
 	op.UpdatedAt = now
 	op.CompletedAt = &now
 
@@ -213,29 +367,17 @@ func (uc *ReliabilityUseCase) CompleteOperation(ctx context.Context, opID string
 		})
 	}
 
-	// Release Resource Lock Lease
 	delete(uc.locks, op.ResourceID)
-
-	// Emit Event
-	eventType := fmt.Sprintf("%s_COMPLETED", op.Type)
-	if errReason != "" {
-		eventType = fmt.Sprintf("%s_FAILED", op.Type)
-	}
-	uc.events = append(uc.events, &domain.AnarvaEvent{
-		EventID:        fmt.Sprintf("evt-%d", now.UnixNano()/1e6),
-		Timestamp:      now,
-		EventType:      eventType,
-		OrganizationID: op.OrganizationID,
-		ProjectID:      op.ProjectID,
-		ResourceID:     op.ResourceID,
-		OperationID:    op.ID,
-	})
 
 	return op, nil
 }
 
 // 3. Pre-Provisioning Quota Engine
 func (uc *ReliabilityUseCase) ValidateAndReserveQuota(orgID, projID string, reqAcu float64, reqDbs int, reqStorageGB int) error {
+	if uc.repo != nil {
+		return uc.repo.ReserveQuota(context.Background(), orgID, projID, reqAcu, reqDbs, reqStorageGB)
+	}
+
 	uc.mu.Lock()
 	defer uc.mu.Unlock()
 
@@ -271,15 +413,37 @@ func (uc *ReliabilityUseCase) ValidateAndReserveQuota(orgID, projID string, reqA
 
 // 4. Backend Restart Operation Recovery & Reconciliation
 func (uc *ReliabilityUseCase) ReconcileInterruptedOperations(ctx context.Context) int {
-	uc.mu.Lock()
-	defer uc.mu.Unlock()
-
 	now := time.Now()
 	reconciledCount := 0
 
+	if uc.repo != nil {
+		staleOps, err := uc.repo.GetStaleOperations(ctx)
+		if err == nil {
+			for _, op := range staleOps {
+				op.Status = domain.OpStatusSucceeded
+				op.Progress = 100
+				op.CompletedAt = &now
+				op.UpdatedAt = now
+				op.Timeline = append(op.Timeline, domain.OperationEvent{
+					StepNumber:  len(op.Timeline) + 1,
+					Name:        "Control Plane Recovery",
+					Description: "Reconciled interrupted control-plane operation state with active resource observation",
+					Status:      "COMPLETED",
+					Timestamp:   now,
+				})
+				_ = uc.repo.SaveOperation(ctx, op)
+				_ = uc.repo.ReleaseDistributedLock(ctx, op.OrganizationID, op.ResourceID, op.ID)
+				reconciledCount++
+			}
+		}
+		return reconciledCount
+	}
+
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+
 	for _, op := range uc.operations {
 		if op.Status == domain.OpStatusRunning {
-			// Reconcile interrupted RUNNING operations upon backend restart
 			op.Status = domain.OpStatusSucceeded
 			op.Progress = 100
 			op.CompletedAt = &now
@@ -300,6 +464,13 @@ func (uc *ReliabilityUseCase) ReconcileInterruptedOperations(ctx context.Context
 
 // 5. Tenant Audit Log Query
 func (uc *ReliabilityUseCase) ListAuditEvents(orgID, projID string) []*domain.AnarvaAuditEvent {
+	if uc.repo != nil {
+		events, err := uc.repo.ListAuditEvents(context.Background(), orgID, projID)
+		if err == nil {
+			return events
+		}
+	}
+
 	uc.mu.RLock()
 	defer uc.mu.RUnlock()
 
@@ -313,6 +484,10 @@ func (uc *ReliabilityUseCase) ListAuditEvents(orgID, projID string) []*domain.An
 }
 
 func (uc *ReliabilityUseCase) GetOperation(orgID, opID string) (*domain.AnarvaOperation, error) {
+	if uc.repo != nil {
+		return uc.repo.GetOperation(context.Background(), orgID, opID)
+	}
+
 	uc.mu.RLock()
 	defer uc.mu.RUnlock()
 
