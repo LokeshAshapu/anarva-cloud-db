@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 interface FeedbackModalProps {
   isOpen: boolean
@@ -8,6 +9,7 @@ interface FeedbackModalProps {
 }
 
 export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
+  const [mounted, setMounted] = useState(false)
   const [userEmail, setUserEmail] = useState('')
   const [userName, setUserName] = useState('')
   const [category, setCategory] = useState('GENERAL')
@@ -19,6 +21,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
+    setMounted(true)
     if (typeof window !== 'undefined') {
       const email = localStorage.getItem('anarva_user_email') || ''
       const name = localStorage.getItem('anarva_user_name') || ''
@@ -27,7 +30,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     }
   }, [isOpen])
 
-  if (!isOpen) return null
+  if (!isOpen || !mounted) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -73,11 +76,17 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden font-sans text-slate-100">
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden font-sans text-slate-100 my-auto max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -90,6 +99,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
           >
@@ -100,7 +110,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           {/* Target Email Indicator */}
           <div className="p-3 bg-blue-950/40 border border-blue-500/30 rounded-xl flex items-center justify-between text-xs">
             <span className="text-slate-300">Feedback will be sent to:</span>
@@ -209,7 +219,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-2">
+          <div className="flex items-center justify-end gap-3 pt-2 shrink-0">
             <button
               type="button"
               onClick={onClose}
@@ -244,4 +254,6 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
       </div>
     </div>
   )
+
+  return createPortal(modalContent, document.body)
 }
