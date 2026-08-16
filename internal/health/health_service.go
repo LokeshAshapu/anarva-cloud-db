@@ -16,9 +16,11 @@ import (
 type ComponentStatus string
 
 const (
+	StatusHealthy       ComponentStatus = "HEALTHY"
 	StatusReady         ComponentStatus = "READY"
 	StatusDegraded      ComponentStatus = "DEGRADED"
 	StatusUnavailable   ComponentStatus = "UNAVAILABLE"
+	StatusRecovering    ComponentStatus = "RECOVERING"
 	StatusNotConfigured ComponentStatus = "NOT_CONFIGURED"
 )
 

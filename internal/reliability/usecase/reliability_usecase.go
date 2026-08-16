@@ -690,3 +690,45 @@ func (uc *ReliabilityUseCase) recordAuditEventLocked(orgID, projID string, actor
 	}
 	uc.auditLogs = append([]*domain.AnarvaAuditEvent{evt}, uc.auditLogs...)
 }
+
+func (uc *ReliabilityUseCase) AcquireResourceLock(ctx context.Context, resourceID, opID string, ttl time.Duration) (bool, string, error) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+
+	now := time.Now()
+	if lock, exists := uc.locks[resourceID]; exists {
+		if lock.ExpiresAt.After(now) {
+			return false, "", nil
+		}
+	}
+
+	leaseID := fmt.Sprintf("lease-%d", now.UnixNano())
+	uc.locks[resourceID] = &domain.ResourceLockLease{
+		ResourceID:  resourceID,
+		OperationID: opID,
+		Owner:       "Anarva-Control-Plane",
+		LockedAt:    now,
+		ExpiresAt:   now.Add(ttl),
+	}
+	return true, leaseID, nil
+}
+
+func (uc *ReliabilityUseCase) RenewResourceLock(ctx context.Context, resourceID, leaseID string, ttl time.Duration) (bool, error) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+
+	lock, exists := uc.locks[resourceID]
+	if !exists {
+		return false, nil
+	}
+	lock.ExpiresAt = time.Now().Add(ttl)
+	return true, nil
+}
+
+func (uc *ReliabilityUseCase) ReleaseResourceLock(ctx context.Context, resourceID, leaseID string) (bool, error) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+
+	delete(uc.locks, resourceID)
+	return true, nil
+}

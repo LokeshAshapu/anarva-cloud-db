@@ -121,3 +121,18 @@ func RecordDatabaseQuery(operation, status string, duration float64) {
 func RecordOperationEvent(opType, status string) {
 	OperationsTotal.WithLabelValues(opType, status).Inc()
 }
+
+// RecordOperationRecovery records operation recovery result.
+func RecordOperationRecovery(result string, duration float64) {
+	OperationRecoveryTotal.WithLabelValues(result).Inc()
+}
+
+// RecordLockConflict records a distributed resource lock conflict.
+func RecordLockConflict(resourceID string) {
+	IdempotencyConflictsTotal.Inc()
+}
+
+// RecordLockExpiration records an expired lock lease event.
+func RecordLockExpiration(resourceID string) {
+	OperationTimeoutTotal.Inc()
+}
