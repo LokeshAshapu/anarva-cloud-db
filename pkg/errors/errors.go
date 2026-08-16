@@ -22,6 +22,17 @@ const (
 	CodeServiceUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
 	CodeDatabaseError      ErrorCode = "DATABASE_ERROR"
 	CodeQuotaExceeded      ErrorCode = "QUOTA_EXCEEDED"
+
+	// Normalized Operational Error Intelligence Categories (Phase 46)
+	CodeAuthenticationError ErrorCode = "AUTHENTICATION_ERROR"
+	CodeAuthorizationError  ErrorCode = "AUTHORIZATION_ERROR"
+	CodeValidationError     ErrorCode = "VALIDATION_ERROR"
+	CodeConflictError       ErrorCode = "CONFLICT"
+	CodeDependencyFailure   ErrorCode = "DEPENDENCY_FAILURE"
+	CodeProviderFailure     ErrorCode = "PROVIDER_FAILURE"
+	CodeTimeoutError        ErrorCode = "TIMEOUT"
+	CodeDatabaseFailure     ErrorCode = "DATABASE_FAILURE"
+	CodeInternalError       ErrorCode = "INTERNAL_ERROR"
 )
 
 // AppError is the standard error struct for the entire platform.

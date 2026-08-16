@@ -21,6 +21,21 @@ const (
 	OpStatusRecovering OperationStatus = "RECOVERING"
 )
 
+const (
+	EventOperationCreated    = "OPERATION_CREATED"
+	EventValidationStarted   = "VALIDATION_STARTED"
+	EventAuthorizationPassed = "AUTHORIZATION_PASSED"
+	EventLockAcquired        = "LOCK_ACQUIRED"
+	EventExecutionStarted    = "EXECUTION_STARTED"
+	EventProviderExecution   = "PROVIDER_EXECUTION"
+	EventResourceObserved    = "RESOURCE_OBSERVED"
+	EventHealthVerified      = "HEALTH_VERIFIED"
+	EventOperationCompleted  = "OPERATION_COMPLETED"
+	EventOperationFailed     = "OPERATION_FAILED"
+	EventRecoveryStarted     = "RECOVERY_STARTED"
+	EventRecoveryCompleted   = "RECOVERY_COMPLETED"
+)
+
 func IsValidStateTransition(from, to OperationStatus) bool {
 	if from == to {
 		return true
