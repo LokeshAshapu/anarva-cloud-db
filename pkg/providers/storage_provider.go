@@ -6,6 +6,14 @@ import (
 	"time"
 )
 
+// StorageBucketDetails encapsulates bucket properties.
+type StorageBucketDetails struct {
+	Name      string    `json:"name"`
+	Region    string    `json:"region"`
+	Arn       string    `json:"arn"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // ObjectMetadata encapsulates object properties in AOS (Anarva Object Storage).
 type ObjectMetadata struct {
 	Bucket       string            `json:"bucket"`

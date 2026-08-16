@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"time"
 
 	dbDomain "github.com/anarva-cloud/anarva-cloud-db/internal/database/domain"
 )
@@ -18,6 +19,17 @@ type DatabaseProvisionOpts struct {
 	MinACU        float64
 	MaxACU        float64
 	StorageSizeGB int
+}
+
+// DatabaseDetails represents details of a managed database instance.
+type DatabaseDetails struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Engine    string    `json:"engine"`
+	Status    string    `json:"status"`
+	Endpoint  string    `json:"endpoint"`
+	Port      int       `json:"port"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // DatabaseProvider defines the provider-independent abstraction interface for managed database workloads.
