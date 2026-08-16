@@ -2,273 +2,114 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { AnarvaLogo } from '../AnarvaLogo'
-import { RegionSelector } from '../cloud/RegionSelector'
 import { createClient } from '@/utils/supabase/client'
-
-import { FeedbackModal } from './FeedbackModal'
 
 interface ConsoleNavbarProps {
   onOpenCommandPalette: () => void
-  onToggleMobileMenu?: () => void
+  onToggleMobileMenu: () => void
 }
 
-export function ConsoleNavbar({ onOpenCommandPalette, onToggleMobileMenu }: ConsoleNavbarProps) {
-  const router = useRouter()
-  const [showNotifications, setShowNotifications] = useState(false)
-  const [showProfileMenu, setShowProfileMenu] = useState(false)
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
-  const [userEmail, setUserEmail] = useState('operator@anarva.internal')
-  const [userName, setUserName] = useState('Cloud Operator')
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'notif-1',
-      title: 'S3 Object Storage Online',
-      desc: 'Phase 23 storage engine ready',
-      href: '/console/storage',
-      time: 'Just now',
-      unread: true,
-    },
-    {
-      id: 'notif-2',
-      title: 'Attack Protection Active',
-      desc: 'Captcha & leaked password shield',
-      href: '/console/security',
-      time: '5m ago',
-      unread: true,
-    },
-  ])
+export function ConsoleNavbar({
+  onOpenCommandPalette,
+  onToggleMobileMenu,
+}: ConsoleNavbarProps) {
+  const [userEmail, setUserEmail] = useState('admin@anarva.io')
 
   useEffect(() => {
-    async function loadUser() {
-      if (typeof window !== 'undefined') {
-        const storedEmail = localStorage.getItem('anarva_user_email')
-        const storedName = localStorage.getItem('anarva_user_name')
-        if (storedEmail) setUserEmail(storedEmail)
-        if (storedName) setUserName(storedName)
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('anarva_user_email')
+      if (stored) setUserEmail(stored)
 
-        try {
-          const supabase = createClient()
-          const { data } = await supabase.auth.getUser()
+      try {
+        const supabase = createClient()
+        supabase.auth.getUser().then(({ data }) => {
           if (data?.user?.email) {
             setUserEmail(data.user.email)
             localStorage.setItem('anarva_user_email', data.user.email)
-            const metaName = data.user.user_metadata?.full_name
-            if (metaName) {
-              setUserName(metaName)
-              localStorage.setItem('anarva_user_name', metaName)
-            }
           }
-        } catch (e) {
-          console.log('Supabase user check notice:', e)
-        }
-      }
+        })
+      } catch {}
     }
-    loadUser()
   }, [])
 
-  const handleSignOut = async () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('anarva_user_email')
-      localStorage.removeItem('anarva_user_name')
-    }
-    try {
-      const supabase = createClient()
-      await supabase.auth.signOut()
-    } catch {}
-    router.push('/login')
-  }
-
-  const handleNotificationClick = (href: string) => {
-    setShowNotifications(false)
-    router.push(href)
-  }
-
-  const handleClearNotifications = () => {
-    setNotifications([])
-  }
-
-  const unreadCount = notifications.filter((n) => n.unread).length
-
-  const initials =
-    userName
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase() || 'LA'
-
   return (
-    <header className="border-b border-slate-800 bg-slate-950/95 backdrop-blur sticky top-0 z-40 h-14 flex items-center justify-between px-4 sm:px-6">
-      {/* Click-away Backdrop overlay when any dropdown is open */}
-      {(showNotifications || showProfileMenu) && (
-        <div
-          className="fixed inset-0 z-40 bg-transparent"
-          onClick={() => {
-            setShowNotifications(false)
-            setShowProfileMenu(false)
-          }}
-        />
-      )}
-
-      {/* Left Brand & Mobile Drawer Trigger */}
-      <div className="flex items-center gap-2.5 sm:gap-4 z-50 shrink-0">
-        {/* Mobile Hamburger Toggle Button */}
+    <header className="h-14 bg-gray-950/90 backdrop-blur border-b border-gray-800/80 px-4 flex items-center justify-between z-30 sticky top-0">
+      {/* Left: Brand Identity & Selectors */}
+      <div className="flex items-center gap-4">
+        {/* Mobile Toggle Button */}
         <button
-          onClick={() => onToggleMobileMenu && onToggleMobileMenu()}
-          className="p-1.5 text-slate-400 hover:text-white rounded-lg lg:hidden hover:bg-slate-900 transition"
-          aria-label="Open mobile menu"
+          onClick={onToggleMobileMenu}
+          className="lg:hidden p-1.5 text-gray-400 hover:text-white rounded hover:bg-gray-800/60"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
 
-        <Link href="/console" className="flex items-center gap-2.5 shrink-0">
-          <AnarvaLogo className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
-          <span className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5 shrink-0">
-            ANARVA{' '}
-            <span className="text-blue-500 font-extrabold uppercase text-[10px] sm:text-xs tracking-widest bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
-              CLOUD
-            </span>
-          </span>
+        {/* Brand Logo & Name */}
+        <Link href="/console" className="flex items-center gap-2.5 font-mono text-sm tracking-tight text-white font-extrabold group">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+          </div>
+          <span>ANARVA</span>
         </Link>
 
-        {/* Global Search Bar Trigger */}
+        {/* Divider */}
+        <span className="hidden sm:block text-gray-800 font-light">/</span>
+
+        {/* Organization & Project Context Selectors */}
+        <div className="hidden sm:flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-900 border border-gray-800 rounded-md text-gray-300">
+            <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+            <span className="font-semibold">Org:</span>
+            <span className="font-mono text-white">Anarva Production Org</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-900 border border-gray-800 rounded-md text-gray-300">
+            <span className="font-semibold">Project:</span>
+            <span className="font-mono text-white">prod-main</span>
+          </div>
+
+          <div className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded text-[10px] font-mono font-bold text-emerald-400 tracking-wider">
+            PRODUCTION
+          </div>
+        </div>
+      </div>
+
+      {/* Right: Command Palette, Notifications & User Profile */}
+      <div className="flex items-center gap-3">
+        {/* Command Palette Trigger */}
         <button
           onClick={onOpenCommandPalette}
-          className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 text-xs rounded-xl transition w-48 lg:w-64"
+          className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-400 hover:text-gray-200 rounded-lg text-xs transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          <span className="flex-1 text-left truncate">Search resources, databases...</span>
-          <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-950 text-slate-400 border border-slate-800 rounded">⌘K</kbd>
+          <span className="hidden md:inline font-mono">Search resources...</span>
+          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-gray-800 border border-gray-700 rounded text-gray-400">
+            ⌘K
+          </kbd>
         </button>
-      </div>
 
-      {/* Right Region, Notifications & Profile */}
-      <div className="flex items-center gap-2 sm:gap-3 z-50">
-        {/* Region Selector */}
-        <div className="hidden sm:block">
-          <RegionSelector />
-        </div>
-
-        {/* Feedback Button */}
-        <button
-          onClick={() => setShowFeedbackModal(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-xl transition cursor-pointer"
-        >
-          <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        {/* Notifications Button */}
+        <button className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800/60 relative">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
           </svg>
-          <span className="hidden sm:inline">Feedback</span>
+          <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full absolute top-1.5 right-1.5"></span>
         </button>
 
-        {/* Notifications Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => {
-              setShowProfileMenu(false)
-              setShowNotifications(!showNotifications)
-            }}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition relative focus:outline-none"
-            aria-label="Notifications"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-blue-500 rounded-full" />}
-          </button>
-
-          {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 space-y-3 font-sans">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span className="font-bold text-white text-xs">Notifications</span>
-                {notifications.length > 0 ? (
-                  <button
-                    onClick={handleClearNotifications}
-                    className="text-[10px] text-blue-400 hover:underline font-mono font-bold"
-                  >
-                    Clear All
-                  </button>
-                ) : (
-                  <span className="text-[10px] text-slate-500 font-mono font-bold">ALL CLEAR</span>
-                )}
-              </div>
-
-              {notifications.length === 0 ? (
-                <div className="text-xs text-slate-500 py-4 text-center">No new notifications</div>
-              ) : (
-                <div className="space-y-2 text-xs">
-                  {notifications.map((n) => (
-                    <button
-                      key={n.id}
-                      onClick={() => handleNotificationClick(n.href)}
-                      className="w-full text-left p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800/80 hover:border-blue-500/40 rounded-xl transition cursor-pointer active:scale-[0.98] block"
-                    >
-                      <div className="font-bold text-slate-200 flex items-center justify-between">
-                        <span>{n.title}</span>
-                        <span className="text-[9px] text-slate-500 font-mono font-normal">{n.time}</span>
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-1">{n.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* User Profile */}
-        <div className="relative">
-          <button
-            onClick={() => {
-              setShowNotifications(false)
-              setShowProfileMenu(!showProfileMenu)
-            }}
-            className="flex items-center gap-2 p-1 rounded-full hover:bg-slate-900 transition focus:outline-none"
-          >
-            <div className="h-8 w-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center border border-blue-400/30">
-              {initials}
-            </div>
-          </button>
-
-          {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 space-y-3 font-sans">
-              <div className="border-b border-slate-800 pb-2">
-                <div className="font-bold text-white text-sm">{userName}</div>
-                <div className="text-xs text-slate-400 font-mono truncate">{userEmail}</div>
-              </div>
-              <div className="space-y-1 text-xs">
-                <Link
-                  href="/console/security"
-                  onClick={() => setShowProfileMenu(false)}
-                  className="block px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl font-medium"
-                >
-                  Security Controls
-                </Link>
-                <Link
-                  href="/console/billing"
-                  onClick={() => setShowProfileMenu(false)}
-                  className="block px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl font-medium"
-                >
-                  Billing & Quotas
-                </Link>
-              </div>
-              <button
-                onClick={handleSignOut}
-                className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-xl font-semibold transition"
-              >
-                Sign Out
-              </button>
-            </div>
-          )}
+        {/* User Profile Avatar */}
+        <div className="flex items-center gap-2 pl-2 border-l border-gray-800/80">
+          <div className="w-7 h-7 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center font-mono text-xs font-bold text-cyan-400">
+            {userEmail.charAt(0).toUpperCase()}
+          </div>
+          <span className="hidden lg:inline text-xs font-mono text-gray-300 truncate max-w-[140px]">{userEmail}</span>
         </div>
       </div>
-
-      <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} />
     </header>
   )
 }

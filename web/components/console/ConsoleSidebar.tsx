@@ -27,10 +27,10 @@ export function ConsoleSidebar() {
 
   const navSections = [
     {
-      title: 'CORE PLATFORM',
+      title: 'OVERVIEW',
       items: [
         {
-          name: 'Home Dashboard',
+          name: 'Home',
           href: '/console',
           badge: '',
           icon: (
@@ -40,9 +40,24 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Compute (ACE / EC2)',
+          name: 'Operations',
+          href: '/console/operations',
+          badge: 'LIVE',
+          icon: (
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          ),
+        },
+      ],
+    },
+    {
+      title: 'RESOURCES',
+      items: [
+        {
+          name: 'Compute',
           href: '/console/compute',
-          badge: 'ACE',
+          badge: '',
           icon: (
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
@@ -50,9 +65,9 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Databases (PostgreSQL / MySQL)',
+          name: 'Databases',
           href: '/console/databases',
-          badge: 'RDS',
+          badge: '',
           icon: (
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
@@ -60,9 +75,9 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Object Storage (AOS / S3)',
+          name: 'Storage',
           href: '/console/storage',
-          badge: 'S3',
+          badge: '',
           icon: (
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
@@ -70,9 +85,9 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Networking (VPC / Subnets)',
+          name: 'Networking',
           href: '/console/networking',
-          badge: 'VPC',
+          badge: '',
           icon: (
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a11 11 0 0115.358 0M1.05 6.364a17 17 0 0121.9 0" />
@@ -80,17 +95,22 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Load Balancers & Edge',
+          name: 'Load Balancers',
           href: '/console/loadbalancers',
-          badge: 'ALB',
+          badge: '',
           icon: (
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
             </svg>
           ),
         },
+      ],
+    },
+    {
+      title: 'PLATFORM',
+      items: [
         {
-          name: 'Provisioning Engine',
+          name: 'Provisioning',
           href: '/console/provisioning',
           badge: '',
           icon: (
@@ -99,44 +119,18 @@ export function ConsoleSidebar() {
             </svg>
           ),
         },
-      ],
-    },
-    {
-      title: 'OPERATIONS & SECURITY',
-      items: [
         {
-          name: 'Operations Center',
-          href: '/console/operations',
-          badge: 'OPS',
-          icon: (
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          ),
-        },
-        {
-          name: 'IAM & Access Control',
-          href: '/console/iam',
+          name: 'Infrastructure',
+          href: '/console/infrastructure',
           badge: '',
           icon: (
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
           ),
         },
         {
-          name: 'Attack & Bot Shield',
-          href: '/console/security',
-          badge: 'SHIELD',
-          icon: (
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
-          ),
-        },
-        {
-          name: 'CloudWatch & Metrics',
+          name: 'Monitoring',
           href: '/console/monitoring',
           badge: '',
           icon: (
@@ -146,7 +140,7 @@ export function ConsoleSidebar() {
           ),
         },
         {
-          name: 'Backups & Recovery',
+          name: 'Backups',
           href: '/console/backups',
           badge: '',
           icon: (
@@ -155,43 +149,109 @@ export function ConsoleSidebar() {
             </svg>
           ),
         },
+      ],
+    },
+    {
+      title: 'SECURITY',
+      items: [
         {
-          name: 'Cloud Providers',
-          href: '/console/providers',
-          badge: 'HYBRID',
+          name: 'IAM',
+          href: '/console/iam',
+          badge: '',
           icon: (
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 001-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           ),
         },
         {
-          name: 'Global Infrastructure',
-          href: '/console/infrastructure',
-          badge: 'HA',
+          name: 'Security',
+          href: '/console/security',
+          badge: 'SHIELD',
           icon: (
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2v1.5a2.5 2.5 0 002.5 2.5h.5a2 2 0 012 2v.935M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           ),
         },
         {
-          name: 'Audit Stream',
+          name: 'Audit',
           href: '/console/audit',
           badge: '',
           icon: (
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            </svg>
+          ),
+        },
+      ],
+    },
+    {
+      title: 'DEVELOPER',
+      items: [
+        {
+          name: 'API Keys & Webhooks',
+          href: '/console/developer',
+          badge: '',
+          icon: (
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
           ),
         },
         {
-          name: 'Billing & Cost Explorer',
+          name: 'SDK & DevTools',
+          href: '/console/devtools',
+          badge: '',
+          icon: (
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+          ),
+        },
+      ],
+    },
+    {
+      title: 'FINANCE',
+      items: [
+        {
+          name: 'Billing',
           href: '/console/billing',
           badge: '',
           icon: (
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 03 3z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+          ),
+        },
+      ],
+    },
+    {
+      title: 'FEEDBACK',
+      items: [
+        {
+          name: 'Feedback',
+          href: '/console/feedback',
+          badge: '',
+          icon: (
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+            </svg>
+          ),
+        },
+      ],
+    },
+    {
+      title: 'SETTINGS',
+      items: [
+        {
+          name: 'Settings',
+          href: '/console/settings',
+          badge: '',
+          icon: (
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           ),
         },
@@ -201,71 +261,69 @@ export function ConsoleSidebar() {
 
   return (
     <aside
-      className={`hidden lg:flex flex-col border-r border-slate-800 bg-slate-950 flex-shrink-0 overflow-x-hidden transition-all duration-300 ${
-        isCollapsed ? 'w-20' : 'w-64'
+      className={`hidden lg:flex flex-col bg-gray-950 border-r border-gray-800/80 transition-all duration-200 ease-in-out relative z-20 flex-shrink-0 ${
+        isCollapsed ? 'w-16' : 'w-64'
       }`}
     >
-      <div className={`flex-1 overflow-y-auto no-scrollbar overflow-x-hidden p-3 space-y-6 select-none max-w-full ${isCollapsed ? 'px-2' : 'px-3'}`}>
-        {navSections.map((sec) => (
-          <div key={sec.title} className="space-y-1">
+      {/* Sidebar Header */}
+      <div className="h-14 flex items-center justify-between px-3 border-b border-gray-800/80">
+        {!isCollapsed && (
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-xs font-mono font-semibold uppercase text-gray-400 tracking-wider">Control Plane</span>
+          </div>
+        )}
+        <button
+          onClick={toggleCollapse}
+          className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-gray-800/60 transition-colors mx-auto"
+          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isCollapsed ? 'M13 5l7 7-7 7M5 5l7 7-7 7' : 'M11 19l-7-7 7-7m8 14l-7-7 7-7'} />
+          </svg>
+        </button>
+      </div>
+
+      {/* Navigation Sections */}
+      <div className="flex-1 overflow-y-auto py-3 px-2 space-y-5 custom-scrollbar">
+        {navSections.map((sec, idx) => (
+          <div key={idx} className="space-y-1">
             {!isCollapsed && (
-              <div className="px-3 text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest truncate">
+              <h3 className="px-2 text-[10px] font-mono font-bold text-gray-500 uppercase tracking-widest mb-1 select-none">
                 {sec.title}
-              </div>
+              </h3>
             )}
-
-            <div className="space-y-1">
-              {sec.items.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  (item.href !== '/console' && pathname.startsWith(item.href))
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    title={isCollapsed ? item.name : undefined}
-                    className={`flex items-center transition group ${
-                      isCollapsed
-                        ? 'justify-center p-2.5 rounded-xl text-center'
-                        : 'justify-between px-3 py-2 rounded-xl text-xs font-semibold'
-                    } ${
-                      isActive
-                        ? 'bg-blue-600/15 text-white border border-blue-500/30 font-bold shadow-sm'
-                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border border-transparent'
-                    }`}
-                  >
-                    <div className={`flex items-center gap-2.5 ${isCollapsed ? 'justify-center' : 'min-w-0 flex-1 overflow-hidden'}`}>
-                      <div className={`flex-shrink-0 transition-colors ${isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-slate-200'}`}>
-                        {item.icon}
-                      </div>
-                      {!isCollapsed && (
-                        <span className="truncate text-xs font-medium">{item.name}</span>
-                      )}
-                    </div>
-
-                    {!isCollapsed && item.badge && (
-                      <span className="flex-shrink-0 text-[9px] font-mono font-extrabold px-1.5 py-0.2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded ml-1">
-                        {item.badge}
-                      </span>
-                    )}
-                  </Link>
-                )
-              })}
-            </div>
+            {sec.items.map((item) => {
+              const isActive = pathname === item.href || (item.href !== '/console' && pathname.startsWith(item.href))
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    isActive
+                      ? 'bg-cyan-500/10 text-cyan-400 font-semibold border border-cyan-500/20 shadow-sm'
+                      : 'text-gray-400 hover:text-gray-100 hover:bg-gray-900/60'
+                  } ${isCollapsed ? 'justify-center' : ''}`}
+                  title={isCollapsed ? item.name : undefined}
+                >
+                  <span className={isActive ? 'text-cyan-400' : 'text-gray-400'}>{item.icon}</span>
+                  {!isCollapsed && <span className="truncate">{item.name}</span>}
+                  {!isCollapsed && item.badge && (
+                    <span className="ml-auto text-[9px] font-mono font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-1.5 py-0.5 rounded">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
           </div>
         ))}
       </div>
 
-      {/* Sidebar Collapse Toggle Button */}
-      <div className={`p-3 border-t border-slate-800 flex-shrink-0 bg-slate-950 ${isCollapsed ? 'px-2' : 'px-3'}`}>
-        <button
-          onClick={toggleCollapse}
-          className="p-2 text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-xs transition flex items-center justify-center w-full font-mono text-[11px]"
-          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {isCollapsed ? '➔' : '← Collapse Sidebar'}
-        </button>
+      {/* Sidebar Footer */}
+      <div className="p-3 border-t border-gray-800/80 bg-gray-950/60 text-[11px] font-mono text-gray-500 flex items-center justify-between">
+        {!isCollapsed && <span>v0.1.0 (ANARVA)</span>}
+        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
       </div>
     </aside>
   )
