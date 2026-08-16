@@ -53,6 +53,7 @@ import (
 	postgresHandler "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/handler"
 	postgresProvider "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/provider"
 	postgresService "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/service"
+	secInternal "github.com/anarva-cloud/anarva-cloud-db/internal/security"
 	storageProvider "github.com/anarva-cloud/anarva-cloud-db/internal/storage/provider"
 
 	mysqlHandler "github.com/anarva-cloud/anarva-cloud-db/internal/database/mysql/handler"
@@ -428,9 +429,14 @@ func main() {
 	}
 	mux.HandleFunc("POST /api/v1/query", qh.ExecuteQuery)
 
-	// Security Status Diagnostics Endpoint
-	secHandler := gwHandler.NewSecurityStatusHandler()
+	// Security Status Diagnostics & Security Events Engine
+	secEventSvc := secInternal.NewSecurityEventService()
+	secSvc := secInternal.NewSecurityService(cfg, secEventSvc)
+	secHandler := gwHandler.NewSecurityStatusHandler(secSvc)
+	rateLimiter.SetEventService(secEventSvc)
+
 	mux.HandleFunc("GET /api/v1/security/status", secHandler.GetSecurityStatus)
+	mux.HandleFunc("GET /api/v1/security/events", secHandler.GetSecurityEvents)
 
 	// Health (Liveness), Readiness, and System Status endpoints
 	healthSvc := healthService.NewHealthService(dbPool, cfg, prvReg, relUC, "0.1.0")
@@ -454,8 +460,8 @@ func main() {
 
 	log.Info("Successfully registered Auth, Project, Database, Backup, and Query routes on API Gateway")
 
-	// Wrap middleware chain: Correlation -> CORS -> RateLimit -> Auth -> Mux
-	handler := gwMiddleware.CorrelationMiddleware(gwMiddleware.CORSMiddleware(rateLimiter.Limit(authMiddleware.Authenticate(mux))))
+	// Wrap middleware chain: SecurityHeaders -> Correlation -> CORS -> RateLimit -> Auth -> Mux
+	handler := gwMiddleware.SecurityHeadersMiddleware(gwMiddleware.CorrelationMiddleware(gwMiddleware.CORSMiddleware(rateLimiter.Limit(authMiddleware.Authenticate(mux)))))
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),

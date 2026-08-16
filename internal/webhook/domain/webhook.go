@@ -3,6 +3,7 @@ package domain
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -38,9 +39,9 @@ type WebhookDelivery struct {
 }
 
 type WebhookEvent struct {
-	ID        string            `json:"id"`
-	EventType string            `json:"eventType"`
-	Timestamp time.Time         `json:"timestamp"`
+	ID        string                 `json:"id"`
+	EventType string                 `json:"eventType"`
+	Timestamp time.Time              `json:"timestamp"`
 	Data      map[string]interface{} `json:"data"`
 }
 
@@ -52,8 +53,8 @@ func ValidateWebhookURL(targetURL string) error {
 	}
 
 	hostname := parsed.Hostname()
-	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" {
-		return fmt.Errorf("webhooks to localhost or 127.0.0.1 are forbidden (SSRF protection)")
+	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" || strings.HasSuffix(hostname, ".internal") || strings.HasSuffix(hostname, ".local") {
+		return fmt.Errorf("webhooks to localhost or internal addresses are forbidden (SSRF protection)")
 	}
 
 	ips, err := net.LookupIP(hostname)
@@ -77,4 +78,10 @@ func ComputeHMACSignature(payload []byte, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(payload)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// VerifyHMACSignature compares signatures in constant time to protect against timing attacks
+func VerifyHMACSignature(payload []byte, secret, expectedSignature string) bool {
+	computed := ComputeHMACSignature(payload, secret)
+	return subtle.ConstantTimeCompare([]byte(computed), []byte(expectedSignature)) == 1
 }

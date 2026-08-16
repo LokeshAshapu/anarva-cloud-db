@@ -1,11 +1,12 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
 
-	appErrors "github.com/anarva-cloud/anarva-cloud-db/pkg/errors"
+	"github.com/anarva-cloud/anarva-cloud-db/internal/security"
 )
 
 type rateLimiter struct {
@@ -19,6 +20,7 @@ type RateLimitMiddleware struct {
 	limiters map[string]*rateLimiter
 	mu       sync.RWMutex
 	rate     int // tokens per minute
+	eventSvc *security.SecurityEventService
 }
 
 func NewRateLimitMiddleware(ratePerMinute int) *RateLimitMiddleware {
@@ -26,6 +28,10 @@ func NewRateLimitMiddleware(ratePerMinute int) *RateLimitMiddleware {
 		limiters: make(map[string]*rateLimiter),
 		rate:     ratePerMinute,
 	}
+}
+
+func (m *RateLimitMiddleware) SetEventService(eventSvc *security.SecurityEventService) {
+	m.eventSvc = eventSvc
 }
 
 func (m *RateLimitMiddleware) Limit(next http.Handler) http.Handler {
@@ -57,7 +63,31 @@ func (m *RateLimitMiddleware) Limit(next http.Handler) http.Handler {
 
 		if limiter.tokens <= 0 {
 			limiter.mu.Unlock()
-			respondError(w, appErrors.New(appErrors.CodeTimeout, "rate limit exceeded. Try again in 1 minute."))
+
+			if m.eventSvc != nil {
+				reqID := r.Header.Get("X-Request-ID")
+				m.eventSvc.RecordEvent(
+					security.EventRateLimitViolation,
+					security.SeverityMedium,
+					"DENIED",
+					ip,
+					"org-default",
+					"",
+					"",
+					reqID,
+					"Rate limit threshold exceeded on "+r.URL.Path,
+				)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": map[string]string{
+					"code":    "TOO_MANY_REQUESTS",
+					"message": "Rate limit exceeded. Please retry after 60 seconds.",
+				},
+			})
 			return
 		}
 

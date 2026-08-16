@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,11 +29,50 @@ type ObjectStorageProvider interface {
 	GenerateSignedURL(ctx context.Context, bucketID, key, method string, expiresSec int) (*domain.PresignedURL, error)
 }
 
+// ValidateObjectKey protects against path traversal attempts in storage keys.
+func ValidateObjectKey(key string) error {
+	if key == "" {
+		return fmt.Errorf("STORAGE_SECURITY_RISK: Object key cannot be empty")
+	}
+
+	// 1. Check for null bytes
+	if strings.Contains(key, "\x00") {
+		return fmt.Errorf("STORAGE_SECURITY_RISK: Object key contains illegal null bytes")
+	}
+
+	// 2. Decode URL encoding if present
+	decodedKey := key
+	if unescaped, err := url.QueryUnescape(key); err == nil {
+		decodedKey = unescaped
+	}
+
+	// 3. Check for URL-encoded traversal patterns
+	lowerKey := strings.ToLower(key)
+	if strings.Contains(lowerKey, "%2e%2e%2f") || strings.Contains(lowerKey, "%2e%2e/") ||
+		strings.Contains(lowerKey, "%2e%2e%5c") || strings.Contains(lowerKey, "%2e%2e\\") {
+		return fmt.Errorf("STORAGE_SECURITY_RISK: Object key contains illegal URL-encoded path traversal")
+	}
+
+	// 4. Check for direct traversal patterns
+	if strings.Contains(decodedKey, "../") || strings.Contains(decodedKey, "..\\") ||
+		strings.HasPrefix(decodedKey, "/") || strings.HasPrefix(decodedKey, "\\") || filepath.IsAbs(decodedKey) {
+		return fmt.Errorf("STORAGE_SECURITY_RISK: Object key '%s' attempts directory traversal outside storage root", key)
+	}
+
+	// 5. Clean path check
+	cleaned := filepath.Clean(decodedKey)
+	if strings.HasPrefix(cleaned, "..") || strings.HasPrefix(cleaned, "/") || strings.HasPrefix(cleaned, "\\") {
+		return fmt.Errorf("STORAGE_SECURITY_RISK: Object key '%s' attempts directory traversal outside storage root", key)
+	}
+
+	return nil
+}
+
 type LocalStorageProvider struct {
-	mu        sync.RWMutex
-	baseDir   string
-	buckets   map[string]*domain.Bucket
-	objects   map[string]*domain.Object
+	mu      sync.RWMutex
+	baseDir string
+	buckets map[string]*domain.Bucket
+	objects map[string]*domain.Object
 }
 
 func NewLocalStorageProvider(baseDir string) *LocalStorageProvider {
@@ -103,6 +144,10 @@ func (p *LocalStorageProvider) GetBucket(ctx context.Context, bucketID string) (
 }
 
 func (p *LocalStorageProvider) PutObject(ctx context.Context, bucketID, key string, data io.Reader, size int64, contentType string) (*domain.Object, error) {
+	if err := ValidateObjectKey(key); err != nil {
+		return nil, err
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -155,6 +200,10 @@ func (p *LocalStorageProvider) PutObject(ctx context.Context, bucketID, key stri
 }
 
 func (p *LocalStorageProvider) GetObject(ctx context.Context, bucketID, key string) (io.ReadCloser, *domain.Object, error) {
+	if err := ValidateObjectKey(key); err != nil {
+		return nil, nil, err
+	}
+
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -179,6 +228,10 @@ func (p *LocalStorageProvider) GetObject(ctx context.Context, bucketID, key stri
 }
 
 func (p *LocalStorageProvider) DeleteObject(ctx context.Context, bucketID, key string) error {
+	if err := ValidateObjectKey(key); err != nil {
+		return err
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -205,26 +258,25 @@ func (p *LocalStorageProvider) ListObjects(ctx context.Context, bucketID, prefix
 }
 
 func (p *LocalStorageProvider) GenerateSignedURL(ctx context.Context, bucketID, key, method string, expiresSec int) (*domain.PresignedURL, error) {
+	if err := ValidateObjectKey(key); err != nil {
+		return nil, err
+	}
+
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	b, ok := p.buckets[bucketID]
-	if !ok {
+	if _, ok := p.buckets[bucketID]; !ok {
 		return nil, fmt.Errorf("bucket '%s' not found", bucketID)
 	}
 
 	if expiresSec <= 0 {
-		expiresSec = 3600
+		expiresSec = 900
 	}
-
-	exp := time.Now().Add(time.Duration(expiresSec) * time.Second)
-	url := fmt.Sprintf("http://localhost:8080/api/v1/storage/buckets/%s/object/%s?signature=sig-%d&expires=%d", b.Name, key, time.Now().Unix(), exp.Unix())
+	expiresAt := time.Now().Add(time.Duration(expiresSec) * time.Second)
 
 	return &domain.PresignedURL{
-		URL:       url,
+		URL:       fmt.Sprintf("http://localhost:8080/api/v1/storage/buckets/%s/objects/%s?method=%s&expires=%d", bucketID, key, method, expiresAt.Unix()),
 		Method:    method,
-		Bucket:    b.Name,
-		Key:       key,
-		ExpiresAt: exp,
+		ExpiresAt: expiresAt,
 	}, nil
 }
