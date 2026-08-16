@@ -603,13 +603,15 @@ func newNetworkCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List Anarva VPCs",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			res, err := cli.Get("/api/v1/networks")
+			res, _, err := cli.DoRequest(context.Background(), "GET", "/api/v1/networks", nil)
 			if err != nil {
 				return err
 			}
-			printOutput(res["data"], "VPC ID               NAME                 CIDR            REGION      STATUS", func(item map[string]interface{}) string {
-				return fmt.Sprintf("%-20v %-20v %-15v %-11v %-10v", item["id"], item["name"], item["cidr"], item["regionId"], item["status"])
-			})
+			if res != nil {
+				printOutput(res.Data, "VPC ID               NAME                 CIDR            REGION      STATUS", func(item map[string]interface{}) string {
+					return fmt.Sprintf("%-20v %-20v %-15v %-11v %-10v", item["id"], item["name"], item["cidr"], item["regionId"], item["status"])
+				})
+			}
 			return nil
 		},
 	}

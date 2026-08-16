@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
+
+	pkgVersion "github.com/anarva-cloud/anarva-cloud-db/pkg/version"
 
 	authHttp "github.com/anarva-cloud/anarva-cloud-db/internal/auth/delivery/http"
 	authDomain "github.com/anarva-cloud/anarva-cloud-db/internal/auth/domain"
@@ -409,13 +413,16 @@ func main() {
 	provHttp.NewProvisioningHandler(provUC, provRegistry, actStream).RegisterRoutes(mux)
 	// Phase 41 Distributed Control Plane & Operation Recovery Worker
 	var relUC *reliabilityUsecase.ReliabilityUseCase
+	var recWorker *reliabilityUsecase.RecoveryWorker
 	if dbPool != nil {
 		relRepo := reliabilityRepo.NewReliabilityRepository(dbPool.DB)
 		relUC = reliabilityUsecase.NewReliabilityUseCaseWithRepo(relRepo)
-		recWorker := reliabilityUsecase.NewRecoveryWorker(relUC, reliabilityUsecase.DefaultRecoveryWorkerConfig())
+		recWorker = reliabilityUsecase.NewRecoveryWorker(relUC, reliabilityUsecase.DefaultRecoveryWorkerConfig())
 		recWorker.Start(context.Background())
 	} else {
 		relUC = reliabilityUsecase.NewReliabilityUseCase()
+		recWorker = reliabilityUsecase.NewRecoveryWorker(relUC, reliabilityUsecase.DefaultRecoveryWorkerConfig())
+		recWorker.Start(context.Background())
 	}
 	vNetSvc.SetReliabilityUseCase(relUC)
 	reliabilityHttp.NewReliabilityHandler(relUC).RegisterRoutes(mux)
@@ -458,7 +465,22 @@ func main() {
 		})
 	})
 
-	log.Info("Successfully registered Auth, Project, Database, Backup, and Query routes on API Gateway")
+	// Version API endpoint
+	mux.HandleFunc("GET /api/v1/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		reqID := r.Header.Get("X-Request-ID")
+		if reqID == "" {
+			reqID = "req-ver-" + time.Now().Format("20060102150405")
+		}
+		w.Header().Set("X-Request-ID", reqID)
+		vInfo := pkgVersion.GetVersionInfo(cfg.Environment)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":      vInfo,
+			"requestId": reqID,
+		})
+	})
+
+	log.Info("Successfully registered Auth, Project, Database, Backup, Query, and Version routes on API Gateway")
 
 	// Wrap middleware chain: SecurityHeaders -> Correlation -> CORS -> RateLimit -> Auth -> Mux
 	handler := gwMiddleware.SecurityHeadersMiddleware(gwMiddleware.CorrelationMiddleware(gwMiddleware.CORSMiddleware(rateLimiter.Limit(authMiddleware.Authenticate(mux)))))
@@ -470,8 +492,36 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 	}
 
-	log.Info(fmt.Sprintf("API Gateway listening on port %d", cfg.Server.Port))
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(fmt.Sprintf("API Gateway HTTP server failed: %v", err))
+	// Signal Handler for Graceful Shutdown
+	stopChan := make(chan os.Signal, 1)
+	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		log.Info(fmt.Sprintf("Anarva API Gateway listening on port %d", cfg.Server.Port))
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(fmt.Sprintf("API Gateway HTTP server failed: %v", err))
+		}
+	}()
+
+	<-stopChan
+	log.Info("[SHUTDOWN] Termination signal received. Initiating graceful shutdown sequence...")
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancelShutdown()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Error(fmt.Sprintf("[SHUTDOWN] Error shutting down HTTP server: %v", err))
+	} else {
+		log.Info("[SHUTDOWN] HTTP server stopped accepting new requests cleanly.")
 	}
+
+	recWorker.Stop()
+	log.Info("[SHUTDOWN] Background operation recovery worker daemon stopped.")
+
+	if dbPool != nil {
+		_ = dbPool.Close()
+		log.Info("[SHUTDOWN] PostgreSQL control-plane database pool closed cleanly.")
+	}
+
+	log.Info("[SHUTDOWN] Anarva Control Plane shutdown complete.")
 }

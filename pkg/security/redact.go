@@ -20,6 +20,8 @@ var (
 	awsKeyRegex = regexp.MustCompile(`(AKIA[0-9A-Z]{16})`)
 	// Matches JSON password / secret fields
 	jsonPasswordRegex = regexp.MustCompile(`(?i)"(password|secret|token|access_token|refresh_token|api_key)"\s*:\s*"([^"]+)"`)
+	// Matches plain text password occurrences in logs
+	plainPasswordRegex = regexp.MustCompile(`(?i)(password[:= \t]+)([^\s"\}]+)`)
 )
 
 // RedactSecrets scans an arbitrary string and redacts passwords, API keys, tokens, and credentials.
@@ -50,6 +52,9 @@ func RedactSecrets(input string) string {
 
 	// Redact JSON Secret Fields
 	result = jsonPasswordRegex.ReplaceAllString(result, `"${1}":"[REDACTED]"`)
+
+	// Redact Plaintext Passwords
+	result = plainPasswordRegex.ReplaceAllString(result, "${1}[REDACTED]")
 
 	return result
 }
