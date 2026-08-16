@@ -1,51 +1,15 @@
-# Anarva Cloud Enterprise IAM & Security Architecture Documentation
+# Anarva Security Architecture
 
-## 1. Security Hierarchy & Model
+## Principles
+1. **Anarva-Native Identity & Authorization**: The security model is native to the Anarva Control Plane.
+2. **Zero-Trust & Fail-Closed**: Unauthenticated or unauthorized requests fail closed.
+3. **Secret Protection & Redaction**: Secrets (API keys, JWT secrets, passwords, Bearer tokens) are never printed in logs, errors, CLI `--debug`, SDK errors, or Terraform diagnostics.
+4. **Tenant Isolation**: Server-side enforced queries prevent cross-tenant access.
 
-Anarva Cloud enforces zero-trust authorization at every boundary:
-
-```
-AUTHENTICATED USER
-└── ORGANIZATION (Anarva Systems)
-    └── PROJECT (Anarva Cloud Platform)
-        └── RESOURCE (arnv:db:ap-hyderabad-1:proj-default:database/production-db)
-            └── ACTION (database.query / database.delete)
-```
-
----
-
-## 2. Password Security Audit
-
-- **Authentication Provider**: Powered by Supabase Auth (`@supabase/supabase-js`, `@supabase/ssr`).
-- **Backend Hashing**: Password hashes are securely computed on Supabase Auth infrastructure using **bcrypt / Argon2**.
-- **Client Hashing Removal**: Client-side plain SHA-256 pre-hashing was removed to prevent weak hash key collisions and rely on Supabase Auth's native salted password pipeline.
-
----
-
-## 3. API Key Security & SHA-256 Masking
-
-- **Key Generation**: API secret keys generate a unique prefix (`ak_...`) and full secret (`anarva_live_ak_...`).
-- **Backend Storage**: The full secret is returned **ONLY ONCE** to the user upon creation. The application database stores only the `sha256(fullSecret)` hash.
-- **Revocation**: Instant server-side revocation sets `revoked_at` timestamp.
-
----
-
-## 4. Threat Model & Mitigation Matrix
-
-| Asset | Threat Actor | Potential Threat | Mitigation Strategy |
-| :--- | :--- | :--- | :--- |
-| **API Endpoints** | Malicious IP | Brute-force & DoS | RateLimiter Middleware (100 req/sec per IP) |
-| **Tenant Data** | Cross-Tenant User | IDOR / Unauthorized Access | Backend OrganizationID & ProjectID validation on all CRUD |
-| **Database Credentials** | External Sniffer | Secret Exposure | Passwords masked in UI, TLS 1.3 enforced |
-| **Client Browsers** | Malicious Script | XSS / Clickjacking | Next.js Security Headers (`CSP`, `X-Frame-Options: DENY`, `HSTS`) |
-
----
-
-## 5. Security Headers (`web/next.config.js`)
-
-- `Strict-Transport-Security`: `max-age=31536000; includeSubDomains`
-- `X-Content-Type-Options`: `nosniff`
-- `X-Frame-Options`: `DENY`
-- `X-XSS-Protection`: `1; mode=block`
-- `Referrer-Policy`: `strict-origin-when-cross-origin`
-- `Permissions-Policy`: `camera=(), microphone=(), geolocation=()`
+## Architecture Layers
+- **Authentication**: JWT Manager (HMAC-SHA256) + SHA-256 Hashed API Keys.
+- **Authorization**: Role-Based Access Control (`OWNER`, `ADMIN`, `DEVELOPER`, `VIEWER`, `BILLING_ADMIN`, `AUDITOR`).
+- **Security Health Engine**: `/api/v1/security/status` and `/api/v1/security/events`.
+- **SSRF & Storage Defense**: IP CIDR validation and object key path traversal checks.
+- **Webhook Security**: Constant-time HMAC-SHA256 signature verification (`crypto/subtle.ConstantTimeCompare`).
+- **Response Hardening**: Security headers, strict CORS origin matching, rate limiting (HTTP 429 + `Retry-After: 60`).
