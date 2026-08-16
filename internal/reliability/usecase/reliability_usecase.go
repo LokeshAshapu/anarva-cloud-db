@@ -495,7 +495,181 @@ func (uc *ReliabilityUseCase) GetOperation(orgID, opID string) (*domain.AnarvaOp
 	if !exists || (orgID != "" && op.OrganizationID != orgID) {
 		return nil, appErrors.New(appErrors.CodeNotFound, "Operation not found")
 	}
+	if op.RecoveryAttempted && op.Recovery == nil {
+		op.Recovery = &domain.RecoveryInfo{
+			Attempted: op.RecoveryAttempted,
+			Attempt:   op.RecoveryAttempt,
+			Status:    op.RecoveryStatus,
+			Reason:    op.RecoveryReason,
+		}
+	}
 	return op, nil
+}
+
+type OperationsSummary struct {
+	Total       int `json:"total"`
+	Pending     int `json:"pending"`
+	Running     int `json:"running"`
+	Succeeded   int `json:"succeeded"`
+	Failed      int `json:"failed"`
+	TimedOut    int `json:"timedOut"`
+	Cancelled   int `json:"cancelled"`
+	Recovering  int `json:"recovering"`
+	ActiveLocks int `json:"activeLocks"`
+}
+
+func (uc *ReliabilityUseCase) ListOperations(ctx context.Context, orgID string, filters repository.OperationQueryFilters) ([]*domain.AnarvaOperation, int64, error) {
+	if uc.repo != nil {
+		return uc.repo.ListOperations(ctx, orgID, filters)
+	}
+
+	uc.mu.RLock()
+	defer uc.mu.RUnlock()
+
+	var filtered []*domain.AnarvaOperation
+	for _, op := range uc.operations {
+		if orgID != "" && op.OrganizationID != orgID {
+			continue
+		}
+		if filters.ProjectID != "" && op.ProjectID != filters.ProjectID {
+			continue
+		}
+		if filters.Status != "" && string(op.Status) != filters.Status {
+			continue
+		}
+		if filters.ResourceID != "" && op.ResourceID != filters.ResourceID {
+			continue
+		}
+		if filters.OperationType != "" && string(op.Type) != filters.OperationType {
+			continue
+		}
+		if !filters.CreatedAfter.IsZero() && op.CreatedAt.Before(filters.CreatedAfter) {
+			continue
+		}
+		if !filters.CreatedBefore.IsZero() && op.CreatedAt.After(filters.CreatedBefore) {
+			continue
+		}
+		if op.RecoveryAttempted && op.Recovery == nil {
+			op.Recovery = &domain.RecoveryInfo{
+				Attempted: op.RecoveryAttempted,
+				Attempt:   op.RecoveryAttempt,
+				Status:    op.RecoveryStatus,
+				Reason:    op.RecoveryReason,
+			}
+		}
+		filtered = append(filtered, op)
+	}
+
+	total := int64(len(filtered))
+	page := filters.Page
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := filters.PageSize
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	start := (page - 1) * pageSize
+	if start >= len(filtered) {
+		return []*domain.AnarvaOperation{}, total, nil
+	}
+	end := start + pageSize
+	if end > len(filtered) {
+		end = len(filtered)
+	}
+
+	return filtered[start:end], total, nil
+}
+
+func (uc *ReliabilityUseCase) DetectOperationTimeouts(ctx context.Context, timeoutThreshold time.Duration) int {
+	if timeoutThreshold <= 0 {
+		timeoutThreshold = 5 * time.Minute
+	}
+	now := time.Now()
+	cutoff := now.Add(-timeoutThreshold)
+	timedOutCount := 0
+
+	if uc.repo != nil {
+		staleOps, err := uc.repo.GetStaleOperations(ctx)
+		if err == nil {
+			for _, op := range staleOps {
+				if op.Status == domain.OpStatusRunning && op.HeartbeatAt.Before(cutoff) {
+					op.Status = domain.OpStatusTimedOut
+					op.CompletedAt = &now
+					op.UpdatedAt = now
+					op.ErrorCode = "OPERATION_TIMED_OUT"
+					op.ErrorMessage = "Operation execution exceeded timeout threshold"
+					op.Timeline = append(op.Timeline, domain.OperationEvent{
+						StepNumber:  len(op.Timeline) + 1,
+						Name:        "Operation Timeout",
+						Description: "Operation heartbeat exceeded timeout threshold",
+						Status:      "TIMED_OUT",
+						Timestamp:   now,
+					})
+					_ = uc.repo.SaveOperation(ctx, op)
+					_ = uc.repo.ReleaseDistributedLock(ctx, op.OrganizationID, op.ResourceID, op.ID)
+					timedOutCount++
+				}
+			}
+		}
+		return timedOutCount
+	}
+
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+
+	for _, op := range uc.operations {
+		if op.Status == domain.OpStatusRunning && op.HeartbeatAt.Before(cutoff) {
+			op.Status = domain.OpStatusTimedOut
+			op.CompletedAt = &now
+			op.UpdatedAt = now
+			op.ErrorCode = "OPERATION_TIMED_OUT"
+			op.ErrorMessage = "Operation execution exceeded timeout threshold"
+			op.Timeline = append(op.Timeline, domain.OperationEvent{
+				StepNumber:  len(op.Timeline) + 1,
+				Name:        "Operation Timeout",
+				Description: "Operation heartbeat exceeded timeout threshold",
+				Status:      "TIMED_OUT",
+				Timestamp:   now,
+			})
+			delete(uc.locks, op.ResourceID)
+			timedOutCount++
+		}
+	}
+
+	return timedOutCount
+}
+
+func (uc *ReliabilityUseCase) GetOperationsSummary(ctx context.Context, orgID string) OperationsSummary {
+	ops, _, _ := uc.ListOperations(ctx, orgID, repository.OperationQueryFilters{PageSize: 1000})
+
+	summary := OperationsSummary{}
+	summary.Total = len(ops)
+
+	for _, op := range ops {
+		switch op.Status {
+		case domain.OpStatusPending:
+			summary.Pending++
+		case domain.OpStatusRunning:
+			summary.Running++
+		case domain.OpStatusSucceeded:
+			summary.Succeeded++
+		case domain.OpStatusFailed:
+			summary.Failed++
+		case domain.OpStatusTimedOut:
+			summary.TimedOut++
+		case domain.OpStatusCancelled:
+			summary.Cancelled++
+		case domain.OpStatusRecovering:
+			summary.Recovering++
+		}
+	}
+
+	uc.mu.RLock()
+	defer uc.mu.RUnlock()
+	summary.ActiveLocks = len(uc.locks)
+
+	return summary
 }
 
 func (uc *ReliabilityUseCase) recordAuditEventLocked(orgID, projID string, actorType domain.AuditActorType, actorID, action, resType, resID, opID, reqID string, metadata map[string]string) {

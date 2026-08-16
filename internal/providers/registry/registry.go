@@ -255,3 +255,46 @@ func (r *ProviderRegistry) ValidateCapability(ctx context.Context, id string, ca
 
 	return nil
 }
+
+type NormalizedProviderHealth struct {
+	ID                   string         `json:"id"`
+	ProviderName         string         `json:"providerName"`
+	Type                 ProviderType   `json:"type"`
+	Status               ProviderStatus `json:"status"`
+	LastSuccessfulOp     *time.Time     `json:"lastSuccessfulOperation,omitempty"`
+	LastFailedOp         *time.Time     `json:"lastFailedOperation,omitempty"`
+	LastCheckedTimestamp time.Time      `json:"lastCheckedTimestamp"`
+	ErrorCount           int            `json:"errorCount"`
+	CapabilityStatus     string         `json:"capabilityStatus"`
+}
+
+func (r *ProviderRegistry) GetProviderHealthSummary(ctx context.Context) ([]NormalizedProviderHealth, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var healthList []NormalizedProviderHealth
+	for _, p := range r.providers {
+		capStatus := "FULL"
+		if p.Status == StatusNotConfigured {
+			capStatus = "NOT_CONFIGURED"
+		} else if p.Status == StatusDegraded {
+			capStatus = "PARTIAL"
+		}
+
+		now := time.Now()
+		h := NormalizedProviderHealth{
+			ID:                   p.ID,
+			ProviderName:         p.Name,
+			Type:                 p.Type,
+			Status:               p.Status,
+			LastCheckedTimestamp: p.LastHealthCheck,
+			CapabilityStatus:     capStatus,
+		}
+		if p.Status == StatusConnected {
+			h.LastSuccessfulOp = &now
+		}
+		healthList = append(healthList, h)
+	}
+
+	return healthList, nil
+}

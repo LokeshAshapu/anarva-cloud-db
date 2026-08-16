@@ -83,10 +83,23 @@ type AnarvaOperation struct {
 	ErrorCode          string           `json:"errorCode,omitempty"`
 	ErrorMessage       string           `json:"errorMessage,omitempty"`
 	RequestID          string           `json:"requestId" gorm:"index:idx_op_req"`
+	ActorID            string           `json:"actorId,omitempty"`
 	IdempotencyKey     string           `json:"idempotencyKey,omitempty"`
 	IdempotencyKeyHash string           `json:"idempotencyKeyHash,omitempty" gorm:"index:idx_op_idemp_hash"`
+	RecoveryAttempted  bool             `json:"recoveryAttempted"`
+	RecoveryAttempt    int              `json:"recoveryAttempt"`
+	RecoveryStatus     string           `json:"recoveryStatus,omitempty"`
+	RecoveryReason     string           `json:"recoveryReason,omitempty"`
+	Recovery           *RecoveryInfo    `json:"recovery,omitempty" gorm:"-"`
 	Timeline           []OperationEvent `json:"timeline" gorm:"-"`
 	TimelineJSON       string           `json:"-" gorm:"type:text"`
+}
+
+type RecoveryInfo struct {
+	Attempted bool   `json:"attempted"`
+	Attempt   int    `json:"attempt"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason,omitempty"`
 }
 
 type IdempotencyRecord struct {

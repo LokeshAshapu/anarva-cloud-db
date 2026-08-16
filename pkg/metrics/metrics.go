@@ -52,6 +52,52 @@ var (
 			Help: "Current number of active client connections",
 		},
 	)
+
+	// Operations & Reliability Metrics
+	OperationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "anarva_operations_total",
+			Help: "Total control-plane operations by operation type and status",
+		},
+		[]string{"type", "status"},
+	)
+
+	ActiveOperationsGauge = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "anarva_active_operations",
+			Help: "Current count of control-plane operations by status",
+		},
+		[]string{"status"},
+	)
+
+	ActiveResourceLocksGauge = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "anarva_active_resource_locks",
+			Help: "Current count of active distributed resource lock leases",
+		},
+	)
+
+	OperationTimeoutTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "anarva_operation_timeouts_total",
+			Help: "Total control-plane operation timeouts detected",
+		},
+	)
+
+	OperationRecoveryTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "anarva_operation_recoveries_total",
+			Help: "Total operation recoveries executed by result (success/failure)",
+		},
+		[]string{"result"},
+	)
+
+	IdempotencyConflictsTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "anarva_idempotency_conflicts_total",
+			Help: "Total idempotency key reuse conflicts",
+		},
+	)
 )
 
 // Handler returns an http.Handler for serving Prometheus metrics.
@@ -69,4 +115,9 @@ func RecordHTTPRequest(status int, method, path string, duration float64) {
 func RecordDatabaseQuery(operation, status string, duration float64) {
 	DatabaseQueriesTotal.WithLabelValues(operation, status).Inc()
 	DatabaseQueryDuration.WithLabelValues(operation).Observe(duration)
+}
+
+// RecordOperationEvent records operation metric transitions.
+func RecordOperationEvent(opType, status string) {
+	OperationsTotal.WithLabelValues(opType, status).Inc()
 }

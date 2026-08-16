@@ -41,16 +41,21 @@ func (r *ReliabilityRepository) SaveOperation(ctx context.Context, op *domain.An
 				return appErrors.New(appErrors.CodeInvalidInput, fmt.Sprintf("INVALID_STATE_TRANSITION: Cannot transition operation %s from %s to %s", op.ID, existing.Status, op.Status))
 			}
 			return tx.Model(&existing).Updates(map[string]interface{}{
-				"status":           op.Status,
-				"progress":         op.Progress,
-				"updated_at":       time.Now(),
-				"completed_at":     op.CompletedAt,
-				"heartbeat_at":     time.Now(),
-				"lease_expires_at": op.LeaseExpiresAt,
-				"retry_count":      op.RetryCount,
-				"error_code":       op.ErrorCode,
-				"error_message":    op.ErrorMessage,
-				"timeline_json":    op.TimelineJSON,
+				"status":             op.Status,
+				"progress":           op.Progress,
+				"updated_at":         time.Now(),
+				"completed_at":       op.CompletedAt,
+				"heartbeat_at":       time.Now(),
+				"lease_expires_at":   op.LeaseExpiresAt,
+				"retry_count":        op.RetryCount,
+				"error_code":         op.ErrorCode,
+				"error_message":      op.ErrorMessage,
+				"actor_id":           op.ActorID,
+				"recovery_attempted": op.RecoveryAttempted,
+				"recovery_attempt":   op.RecoveryAttempt,
+				"recovery_status":    op.RecoveryStatus,
+				"recovery_reason":    op.RecoveryReason,
+				"timeline_json":      op.TimelineJSON,
 			}).Error
 		} else if err == gorm.ErrRecordNotFound {
 			if op.CreatedAt.IsZero() {
@@ -83,7 +88,90 @@ func (r *ReliabilityRepository) GetOperation(ctx context.Context, orgID, opID st
 	if op.TimelineJSON != "" {
 		_ = json.Unmarshal([]byte(op.TimelineJSON), &op.Timeline)
 	}
+	if op.RecoveryAttempted {
+		op.Recovery = &domain.RecoveryInfo{
+			Attempted: op.RecoveryAttempted,
+			Attempt:   op.RecoveryAttempt,
+			Status:    op.RecoveryStatus,
+			Reason:    op.RecoveryReason,
+		}
+	}
 	return &op, nil
+}
+
+type OperationQueryFilters struct {
+	Status        string
+	ResourceID    string
+	OperationType string
+	ProjectID     string
+	CreatedAfter  time.Time
+	CreatedBefore time.Time
+	Page          int
+	PageSize      int
+}
+
+func (r *ReliabilityRepository) ListOperations(ctx context.Context, orgID string, filters OperationQueryFilters) ([]*domain.AnarvaOperation, int64, error) {
+	var ops []*domain.AnarvaOperation
+	var total int64
+
+	query := r.db.WithContext(ctx).Model(&domain.AnarvaOperation{})
+
+	if orgID != "" {
+		query = query.Where("organization_id = ?", orgID)
+	}
+	if filters.ProjectID != "" {
+		query = query.Where("project_id = ?", filters.ProjectID)
+	}
+	if filters.Status != "" {
+		query = query.Where("status = ?", filters.Status)
+	}
+	if filters.ResourceID != "" {
+		query = query.Where("resource_id = ?", filters.ResourceID)
+	}
+	if filters.OperationType != "" {
+		query = query.Where("type = ?", filters.OperationType)
+	}
+	if !filters.CreatedAfter.IsZero() {
+		query = query.Where("created_at >= ?", filters.CreatedAfter)
+	}
+	if !filters.CreatedBefore.IsZero() {
+		query = query.Where("created_at <= ?", filters.CreatedBefore)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	page := filters.Page
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := filters.PageSize
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	err := query.Order("created_at desc").Limit(pageSize).Offset(offset).Find(&ops).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	for _, op := range ops {
+		if op.TimelineJSON != "" {
+			_ = json.Unmarshal([]byte(op.TimelineJSON), &op.Timeline)
+		}
+		if op.RecoveryAttempted {
+			op.Recovery = &domain.RecoveryInfo{
+				Attempted: op.RecoveryAttempted,
+				Attempt:   op.RecoveryAttempt,
+				Status:    op.RecoveryStatus,
+				Reason:    op.RecoveryReason,
+			}
+		}
+	}
+
+	return ops, total, nil
 }
 
 func (r *ReliabilityRepository) GetStaleOperations(ctx context.Context) ([]*domain.AnarvaOperation, error) {

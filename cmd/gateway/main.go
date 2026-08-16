@@ -43,6 +43,7 @@ import (
 	devUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/developer/usecase"
 	gwHandler "github.com/anarva-cloud/anarva-cloud-db/internal/gateway/handler"
 	gwMiddleware "github.com/anarva-cloud/anarva-cloud-db/internal/gateway/middleware"
+	healthService "github.com/anarva-cloud/anarva-cloud-db/internal/health"
 	iamHttp "github.com/anarva-cloud/anarva-cloud-db/internal/iam/delivery/http"
 	iamService "github.com/anarva-cloud/anarva-cloud-db/internal/iam/service"
 	networkProvider "github.com/anarva-cloud/anarva-cloud-db/internal/network/provider"
@@ -431,38 +432,24 @@ func main() {
 	secHandler := gwHandler.NewSecurityStatusHandler()
 	mux.HandleFunc("GET /api/v1/security/status", secHandler.GetSecurityStatus)
 
-	// Health (Liveness) and Readiness endpoints
+	// Health (Liveness), Readiness, and System Status endpoints
+	healthSvc := healthService.NewHealthService(dbPool, cfg, prvReg, relUC, "0.1.0")
+
 	mux.Handle("/metrics", metrics.Handler())
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", healthSvc.HandleHealth)
+	mux.HandleFunc("/readiness", healthSvc.HandleReadiness)
+	mux.HandleFunc("/api/v1/system/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"UP"}`))
-	})
-
-	mux.HandleFunc("/readiness", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if dbPool == nil {
-			if appEnv == "production" {
-				w.WriteHeader(http.StatusServiceUnavailable)
-				_, _ = w.Write([]byte(`{"status":"NOT_READY","database":"UNAVAILABLE"}`))
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"status":"READY","database":"DEV_STANDALONE"}`))
-			return
+		reqID := r.Header.Get("X-Request-ID")
+		if reqID == "" {
+			reqID = "req-sys-" + time.Now().Format("20060102150405")
 		}
-
-		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
-		defer cancel()
-
-		if err := dbPool.HealthCheck(ctx); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte(`{"status":"NOT_READY","database":"UNAVAILABLE"}`))
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"READY","database":"CONNECTED"}`))
+		w.Header().Set("X-Request-ID", reqID)
+		resp := healthSvc.GetSystemStatus(r.Context(), reqID)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":      resp,
+			"requestId": reqID,
+		})
 	})
 
 	log.Info("Successfully registered Auth, Project, Database, Backup, and Query routes on API Gateway")

@@ -140,11 +140,36 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("unable to decode into config struct: %w", err)
 	}
 
-	if strings.ToLower(cfg.Environment) == "production" && strings.ToLower(cfg.Provider.Mode) == "real" {
-		if cfg.Provider.AWSAccessKeyID == "" || cfg.Provider.AWSSecretAccessKey == "" {
-			return nil, fmt.Errorf("PROVIDER_INVALID_CONFIGURATION: Production real provider mode requires valid AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables")
-		}
+	if err := ValidateProductionConfig(&cfg); err != nil && strings.ToLower(cfg.Environment) == "production" {
+		return nil, err
 	}
 
 	return &cfg, nil
+}
+
+// ValidateProductionConfig validates configuration rules. In production, it fails closed.
+func ValidateProductionConfig(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("CONFIG_VALIDATION_FAILURE: configuration object is nil")
+	}
+
+	env := strings.ToLower(cfg.Environment)
+	if env == "production" {
+		if cfg.Server.Port <= 0 {
+			return fmt.Errorf("CONFIG_VALIDATION_FAILURE: SERVER_PORT is required in production")
+		}
+		if cfg.JWT.Secret == "" || cfg.JWT.Secret == "anarva_cloud_db_super_secret_jwt_key_2026" {
+			return fmt.Errorf("CONFIG_VALIDATION_FAILURE: Production environment requires a strong non-default JWT_SECRET")
+		}
+		if cfg.Database.Host == "" {
+			return fmt.Errorf("CONFIG_VALIDATION_FAILURE: DATABASE_HOST is required in production")
+		}
+		if strings.ToLower(cfg.Provider.Mode) == "real" {
+			if cfg.Provider.AWSAccessKeyID == "" || cfg.Provider.AWSSecretAccessKey == "" {
+				return fmt.Errorf("CONFIG_VALIDATION_FAILURE: Production real provider mode requires active AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY credentials")
+			}
+		}
+	}
+
+	return nil
 }

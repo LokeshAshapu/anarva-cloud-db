@@ -96,4 +96,9 @@ func (w *RecoveryWorker) performRecovery(ctx context.Context) {
 	if reconciled > 0 {
 		log.Printf("[RECOVERY_WORKER] Successfully reconciled %d interrupted/stale control-plane operations", reconciled)
 	}
+
+	timedOut := w.uc.DetectOperationTimeouts(ctx, 5*time.Minute)
+	if timedOut > 0 {
+		log.Printf("[RECOVERY_WORKER] Marked %d stale running operations as TIMED_OUT", timedOut)
+	}
 }

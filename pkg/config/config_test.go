@@ -40,9 +40,13 @@ func TestDatabaseConfig_DSN(t *testing.T) {
 func TestLoadConfig_EnvOverride(t *testing.T) {
 	os.Setenv("ENVIRONMENT", "production")
 	os.Setenv("SERVER_PORT", "9000")
+	os.Setenv("JWT_SECRET", "super_secure_custom_prod_jwt_key_12345")
+	os.Setenv("DATABASE_HOST", "prod-db.internal")
 	defer func() {
 		os.Unsetenv("ENVIRONMENT")
 		os.Unsetenv("SERVER_PORT")
+		os.Unsetenv("JWT_SECRET")
+		os.Unsetenv("DATABASE_HOST")
 	}()
 
 	cfg, err := LoadConfig("")
