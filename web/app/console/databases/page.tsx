@@ -7,7 +7,7 @@ import { CloudCard } from '@/components/cloud/CloudCard'
 import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
 import { CloudModal } from '@/components/cloud/CloudModal'
 import { CloudEmptyState } from '@/components/cloud/CloudEmptyState'
-import { API_BASE_URL } from '@/lib/api'
+import { API_BASE_URL, getAuthHeaders, fetchAPI } from '@/lib/api'
 
 interface DatabaseInstanceItem {
   id: string
@@ -120,8 +120,8 @@ export default function ManagedDatabasesPage() {
 
   const handleDeleteInstance = async (id: string, engine: 'POSTGRESQL' | 'MYSQL') => {
     if (confirm(`Are you sure you want to delete ${engine} instance '${id}'?`)) {
-      const endpoint = engine === 'POSTGRESQL' ? `${API_BASE_URL}/api/v1/databases/${id}` : `${API_BASE_URL}/api/v1/mysql/databases/${id}`
-      await fetch(endpoint, { method: 'DELETE' }).catch(() => null)
+      const path = engine === 'POSTGRESQL' ? `/api/v1/databases/${id}` : `/api/v1/mysql/databases/${id}`
+      await fetchAPI(path, { method: 'DELETE' }).catch(() => null)
       const updated = instances.filter((i) => i.id !== id)
       saveInstances(updated)
       setSelectedInstance(null)
@@ -133,33 +133,24 @@ export default function ManagedDatabasesPage() {
     setIsExecutingSql(true)
     setQueryResults(null)
 
-    const endpoint = selectedInstance?.engine === 'MYSQL' ? `${API_BASE_URL}/api/v1/mysql/databases/${selectedInstance.id}/query` : `${API_BASE_URL}/api/v1/databases/${selectedInstance?.id}/query`
+    const path = selectedInstance?.engine === 'MYSQL' ? `/api/v1/mysql/databases/${selectedInstance.id}/query` : `/api/v1/databases/${selectedInstance?.id}/query`
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sql: sqlQuery }),
-    }).then((r) => r.json()).catch(() => null)
-
-    if (res && res.error) {
-      const errMsg = typeof res.error === 'object'
-        ? (res.error.message || res.error.code || JSON.stringify(res.error))
-        : String(res.error)
-      setQueryResults({ error: errMsg })
-    } else if (res && res.data) {
-      setQueryResults(res.data)
-    } else {
-      setQueryResults({
-        columns: ['id', 'username', 'status', 'created_at'],
-        rows: [
-          [1, 'anarva_admin', 'ACTIVE', new Date().toISOString()],
-          [2, 'app_user', 'ACTIVE', new Date().toISOString()],
-        ],
-        rowCount: 2,
-        latencyMs: 0.72,
+    try {
+      const resData: any = await fetchAPI(path, {
+        method: 'POST',
+        body: JSON.stringify({ sql: sqlQuery }),
       })
+
+      if (resData && resData.data) {
+        setQueryResults(resData.data)
+      } else {
+        setQueryResults(resData)
+      }
+    } catch (err: any) {
+      setQueryResults({ error: err.message || String(err) })
+    } finally {
+      setIsExecutingSql(false)
     }
-    setIsExecutingSql(false)
   }
 
   const renderDriverCode = (driver: string, inst: DatabaseInstanceItem) => {
@@ -317,16 +308,17 @@ export default function ManagedDatabasesPage() {
 
               {queryResults && (
                 <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                  <div className="text-emerald-400 font-bold">
-                    Query executed in {queryResults.latencyMs || queryResults.executionMs || 0.8} ms ({queryResults.rowCount || queryResults.rows?.length || 0} rows)
-                  </div>
                   {queryResults.error ? (
-                    <div className="text-red-400 font-bold">
-                      {typeof queryResults.error === 'object'
+                    <div className="p-3 bg-red-950/50 border border-red-800/80 rounded-lg text-red-400 font-bold font-mono">
+                      ❌ {typeof queryResults.error === 'object'
                         ? (queryResults.error.message || queryResults.error.code || JSON.stringify(queryResults.error))
                         : String(queryResults.error)}
                     </div>
                   ) : (
+                    <>
+                      <div className="text-emerald-400 font-bold">
+                        Query executed in {queryResults.latencyMs || queryResults.executionMs || 0.8} ms ({queryResults.rowCount || queryResults.rows?.length || 0} rows)
+                      </div>
                     <div className="overflow-x-auto border border-slate-800 rounded font-sans text-xs">
                       <table className="w-full text-left">
                         <thead className="bg-slate-900 text-slate-400 uppercase text-[10px]">
@@ -347,6 +339,7 @@ export default function ManagedDatabasesPage() {
                         </tbody>
                       </table>
                     </div>
+                  </>
                   )}
                 </div>
               )}
