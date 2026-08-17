@@ -21,6 +21,9 @@ interface DatabaseInstanceItem {
   storageGb: number
   networkId: string
   port: number
+  host?: string
+  dbName?: string
+  username?: string
   realityLabel: string
   createdAt: string
 }
@@ -139,7 +142,10 @@ export default function ManagedDatabasesPage() {
     }).then((r) => r.json()).catch(() => null)
 
     if (res && res.error) {
-      setQueryResults({ error: res.error })
+      const errMsg = typeof res.error === 'object'
+        ? (res.error.message || res.error.code || JSON.stringify(res.error))
+        : String(res.error)
+      setQueryResults({ error: errMsg })
     } else if (res && res.data) {
       setQueryResults(res.data)
     } else {
@@ -156,6 +162,39 @@ export default function ManagedDatabasesPage() {
     setIsExecutingSql(false)
   }
 
+  const renderDriverCode = (driver: string, inst: DatabaseInstanceItem) => {
+    const isMySQL = inst.engine === 'MYSQL'
+    const host = inst.host || '127.0.0.1'
+    const port = inst.port || (isMySQL ? 3306 : 5432)
+    const dbName = inst.dbName || 'main'
+    const user = inst.username || 'anarva_admin'
+    const pass = 'anarva_secret'
+
+    switch (driver) {
+      case 'node':
+        return isMySQL
+          ? `const mysql = require('mysql2/promise');\nconst connection = await mysql.createConnection({ host: '${host}', port: ${port}, user: '${user}', password: '${pass}', database: '${dbName}' });`
+          : `const { Client } = require('pg');\nconst client = new Client('postgres://${user}:${pass}@${host}:${port}/${dbName}');\nawait client.connect();`
+      case 'python':
+        return isMySQL
+          ? `import mysql.connector\nconn = mysql.connector.connect(host="${host}", port=${port}, user="${user}", password="${pass}", database="${dbName}")`
+          : `import psycopg2\nconn = psycopg2.connect("host=${host} port=${port} dbname=${dbName} user=${user} password=${pass}")`
+      case 'go':
+        return isMySQL
+          ? `db, err := sql.Open("mysql", "${user}:${pass}@tcp(${host}:${port})/${dbName}")`
+          : `db, err := sql.Open("postgres", "postgres://${user}:${pass}@${host}:${port}/${dbName}?sslmode=disable")`
+      case 'jdbc':
+        return isMySQL
+          ? `jdbc:mysql://${host}:${port}/${dbName}?user=${user}&password=${pass}`
+          : `jdbc:postgresql://${host}:${port}/${dbName}?user=${user}&password=${pass}`
+      case 'cli':
+      default:
+        return isMySQL
+          ? `mysql -h ${host} -P ${port} -u ${user} -p ${dbName}`
+          : `psql -h ${host} -p ${port} -U ${user} -d ${dbName}`
+    }
+  }
+
   const filteredInstances = instances.filter((i) => i.engine === selectedEngine)
 
   const detailTabs: TabItem[] = [
@@ -166,10 +205,6 @@ export default function ManagedDatabasesPage() {
   ]
 
   if (selectedInstance) {
-    const isMySQL = selectedInstance.engine === 'MYSQL'
-    const defaultPort = isMySQL ? 3306 : 5432
-    const cliCmd = isMySQL ? `mysql -h 127.0.0.1 -P ${defaultPort} -u admin -p main` : `psql -h 127.0.0.1 -p ${defaultPort} -U admin -d main`
-
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
@@ -255,7 +290,7 @@ export default function ManagedDatabasesPage() {
               </div>
 
               <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl relative">
-                <code className="text-emerald-400 break-all">{cliCmd}</code>
+                <pre className="text-emerald-400 break-all whitespace-pre-wrap">{renderDriverCode(selectedDriver, selectedInstance)}</pre>
               </div>
             </div>
           </CloudCard>
@@ -286,7 +321,11 @@ export default function ManagedDatabasesPage() {
                     Query executed in {queryResults.latencyMs || queryResults.executionMs || 0.8} ms ({queryResults.rowCount || queryResults.rows?.length || 0} rows)
                   </div>
                   {queryResults.error ? (
-                    <div className="text-red-400 font-bold">{queryResults.error}</div>
+                    <div className="text-red-400 font-bold">
+                      {typeof queryResults.error === 'object'
+                        ? (queryResults.error.message || queryResults.error.code || JSON.stringify(queryResults.error))
+                        : String(queryResults.error)}
+                    </div>
                   ) : (
                     <div className="overflow-x-auto border border-slate-800 rounded font-sans text-xs">
                       <table className="w-full text-left">
