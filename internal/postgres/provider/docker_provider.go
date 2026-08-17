@@ -363,6 +363,7 @@ func (p *LocalDockerPostgresProvider) GetConnectionInfo(ctx context.Context, ins
 		return nil, domain.ErrInstanceNotFound
 	}
 
+	connStr := fmt.Sprintf("postgres://anarva_admin:anarva_secret@%s:%d/postgres?sslmode=disable", inst.Host, inst.Port)
 	return &domain.ConnectionInfo{
 		HostReference:     inst.Host,
 		Port:              inst.Port,
@@ -370,6 +371,7 @@ func (p *LocalDockerPostgresProvider) GetConnectionInfo(ctx context.Context, ins
 		UsernameReference: "anarva_admin",
 		PasswordSecretRef: fmt.Sprintf("sec_ref_%s", inst.ID[:8]),
 		SSLMode:           "disable",
+		ConnectionString:  connStr,
 	}, nil
 }
 

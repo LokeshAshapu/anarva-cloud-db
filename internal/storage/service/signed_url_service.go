@@ -25,6 +25,10 @@ func NewSignedURLService(prov provider.ObjectStorageProvider) *SignedURLService 
 }
 
 func (s *SignedURLService) GenerateSignedURL(ctx context.Context, bucketID, key, method string, expiresSec int) (*domain.PresignedURL, error) {
+	if err := provider.ValidateObjectKey(key); err != nil {
+		return nil, err
+	}
+
 	if expiresSec <= 0 {
 		expiresSec = 3600
 	}
@@ -45,4 +49,25 @@ func (s *SignedURLService) GenerateSignedURL(ctx context.Context, bucketID, key,
 		Key:       key,
 		ExpiresAt: exp,
 	}, nil
+}
+
+func (s *SignedURLService) ValidateSignedURL(bucketID, key, method, signature string, expiresUnix int64) error {
+	if err := provider.ValidateObjectKey(key); err != nil {
+		return err
+	}
+
+	if time.Now().Unix() > expiresUnix {
+		return fmt.Errorf("STORAGE_PRESIGNED_EXPIRED: Presigned URL has expired")
+	}
+
+	payload := fmt.Sprintf("%s:%s:%s:%d", method, bucketID, key, expiresUnix)
+	h := hmac.New(sha256.New, s.secretKey)
+	h.Write([]byte(payload))
+	expectedSig := hex.EncodeToString(h.Sum(nil))
+
+	if !hmac.Equal([]byte(signature), []byte(expectedSig)) {
+		return fmt.Errorf("STORAGE_PRESIGNED_INVALID_SIGNATURE: Invalid presigned URL signature")
+	}
+
+	return nil
 }

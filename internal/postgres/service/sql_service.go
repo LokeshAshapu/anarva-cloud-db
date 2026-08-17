@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -15,18 +17,47 @@ type SQLQueryResult struct {
 	Truncated bool            `json:"truncated"`
 }
 
+type TableState struct {
+	Columns []string
+	Rows    [][]interface{}
+}
+
 type SQLService struct {
-	maxRows        int
-	maxTimeout     time.Duration
+	mu              sync.RWMutex
+	maxRows         int
+	maxTimeout      time.Duration
 	maxResponseSize int
+	instanceTables  map[string]map[string]*TableState // instanceID -> tableName -> TableState
 }
 
 func NewSQLService() *SQLService {
 	return &SQLService{
-		maxRows:        1000,
-		maxTimeout:     5 * time.Second,
-		maxResponseSize: 2 * 1024 * 1024, // 2MB
+		maxRows:         1000,
+		maxTimeout:      5 * time.Second,
+		maxResponseSize: 2 * 1024 * 1024,
+		instanceTables:  make(map[string]map[string]*TableState),
 	}
+}
+
+func (s *SQLService) getOrInitTables(instanceID string) map[string]*TableState {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tables, exists := s.instanceTables[instanceID]
+	if !exists {
+		tables = make(map[string]*TableState)
+		// Default users table
+		nowStr := time.Now().Format(time.RFC3339)
+		tables["users"] = &TableState{
+			Columns: []string{"id", "username", "status", "created_at"},
+			Rows: [][]interface{}{
+				{1, "anarva_admin", "ACTIVE", nowStr},
+				{2, "app_user", "ACTIVE", nowStr},
+			},
+		}
+		s.instanceTables[instanceID] = tables
+	}
+	return tables
 }
 
 func (s *SQLService) ExecuteQuery(ctx context.Context, instanceID, sql string) (*SQLQueryResult, error) {
@@ -40,19 +71,76 @@ func (s *SQLService) ExecuteQuery(ctx context.Context, instanceID, sql string) (
 		return nil, errors.New("dangerous administrative SQL statements require approval")
 	}
 
+	if instanceID == "" {
+		instanceID = "default-instance"
+	}
+
+	tables := s.getOrInitTables(instanceID)
 	start := time.Now()
 
-	// Parameterized / Safe Execution Simulation
-	columns := []string{"id", "name", "email", "status", "created_at"}
-	rows := [][]interface{}{
-		{"usr_101", "Alex Rivers", "alex@anarva.io", "ACTIVE", time.Now().Add(-720 * time.Hour).Format(time.RFC3339)},
-		{"usr_102", "Devon Vance", "devon@anarva.io", "ACTIVE", time.Now().Add(-360 * time.Hour).Format(time.RFC3339)},
-		{"usr_103", "Elena Rostova", "elena@anarva.io", "ACTIVE", time.Now().Add(-120 * time.Hour).Format(time.RFC3339)},
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var columns []string
+	var rows [][]interface{}
+
+	if strings.HasPrefix(upper, "INSERT INTO") {
+		// Basic insert support into users or created tables
+		for tName, tbl := range tables {
+			if strings.Contains(upper, strings.ToUpper(tName)) {
+				newID := len(tbl.Rows) + 1
+				newRow := []interface{}{newID, fmt.Sprintf("user_%d", newID), "ACTIVE", time.Now().Format(time.RFC3339)}
+				tbl.Rows = append(tbl.Rows, newRow)
+				columns = tbl.Columns
+				rows = tbl.Rows
+				break
+			}
+		}
+		if columns == nil {
+			// Insert into default table
+			tbl := tables["users"]
+			newID := len(tbl.Rows) + 1
+			newRow := []interface{}{newID, fmt.Sprintf("user_%d", newID), "ACTIVE", time.Now().Format(time.RFC3339)}
+			tbl.Rows = append(tbl.Rows, newRow)
+			columns = tbl.Columns
+			rows = tbl.Rows
+		}
+	} else if strings.HasPrefix(upper, "CREATE TABLE") {
+		// Extract table name or default to custom_table
+		tName := "custom_table"
+		parts := strings.Fields(trimmed)
+		if len(parts) >= 3 {
+			tName = strings.Trim(parts[2], "()")
+		}
+		tables[tName] = &TableState{
+			Columns: []string{"id", "data", "created_at"},
+			Rows: [][]interface{}{
+				{1, "initial_record", time.Now().Format(time.RFC3339)},
+			},
+		}
+		columns = tables[tName].Columns
+		rows = tables[tName].Rows
+	} else {
+		// SELECT or other read query
+		found := false
+		for tName, tbl := range tables {
+			if strings.Contains(upper, strings.ToUpper(tName)) {
+				columns = tbl.Columns
+				rows = tbl.Rows
+				found = true
+				break
+			}
+		}
+		if !found {
+			tbl := tables["users"]
+			columns = tbl.Columns
+			rows = tbl.Rows
+		}
 	}
 
 	latency := float64(time.Since(start).Microseconds()) / 1000.0
-	if latency < 0.8 {
-		latency = 0.85
+	if latency < 0.5 {
+		latency = 0.55
 	}
 
 	return &SQLQueryResult{

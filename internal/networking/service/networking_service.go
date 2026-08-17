@@ -13,6 +13,7 @@ import (
 	"github.com/anarva-cloud/anarva-cloud-db/internal/networking/ipam"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/networking/provider"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/networking/repository"
+	reliabilityDomain "github.com/anarva-cloud/anarva-cloud-db/internal/reliability/domain"
 	reliabilityUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/reliability/usecase"
 	appErrors "github.com/anarva-cloud/anarva-cloud-db/pkg/errors"
 )
@@ -61,8 +62,10 @@ func (s *NetworkingService) CreateNetwork(ctx context.Context, orgID, projectID,
 	netID := fmt.Sprintf("vpc-%d", time.Now().UnixNano()/1e6)
 
 	// Phase 41 Operation Engine Integration
+	var op *reliabilityDomain.AnarvaOperation
 	if s.relUC != nil {
-		_, err := s.relUC.DispatchOperation(ctx, orgID, projectID, netID, "CREATE_VPC", "", fmt.Sprintf("%s:%s", name, cidr), fmt.Sprintf("req_vpc_%s", netID))
+		var err error
+		op, err = s.relUC.DispatchOperation(ctx, orgID, projectID, netID, "CREATE_VPC", "", fmt.Sprintf("%s:%s", name, cidr), fmt.Sprintf("req_vpc_%s", netID))
 		if err != nil {
 			return nil, err
 		}
@@ -84,8 +87,8 @@ func (s *NetworkingService) CreateNetwork(ctx context.Context, orgID, projectID,
 
 	created, err := s.provider.CreateNetwork(ctx, vNet)
 	if err != nil {
-		if s.relUC != nil {
-			_, _ = s.relUC.CompleteOperation(ctx, fmt.Sprintf("op-%s", netID), err.Error())
+		if s.relUC != nil && op != nil {
+			_, _ = s.relUC.CompleteOperation(ctx, op.ID, err.Error())
 		}
 		return nil, err
 	}
@@ -109,8 +112,8 @@ func (s *NetworkingService) CreateNetwork(ctx context.Context, orgID, projectID,
 	_, _ = s.provider.CreateSecurityGroup(ctx, defaultSG)
 	_ = s.repo.SaveSecurityGroup(defaultSG)
 
-	if s.relUC != nil {
-		_, _ = s.relUC.CompleteOperation(ctx, fmt.Sprintf("op-%s", netID), "")
+	if s.relUC != nil && op != nil {
+		_, _ = s.relUC.CompleteOperation(ctx, op.ID, "")
 	}
 
 	if s.actStream != nil {

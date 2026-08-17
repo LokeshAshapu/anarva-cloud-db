@@ -126,6 +126,7 @@ type ConnectionInfo struct {
 	UsernameReference    string `json:"usernameReference"`
 	PasswordSecretRef    string `json:"passwordSecretRef"`
 	SSLMode              string `json:"sslMode"`
+	ConnectionString     string `json:"connectionString"`
 	CertificateReference string `json:"certificateReference,omitempty"`
 }
 

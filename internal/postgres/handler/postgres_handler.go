@@ -169,7 +169,7 @@ func (h *PostgresHandler) handleDatabaseSubroutes(w http.ResponseWriter, r *http
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{"data": res})
 
-	case "sql":
+	case "sql", "query":
 		var req struct {
 			SQL string `json:"sql"`
 		}

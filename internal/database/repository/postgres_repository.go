@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"gorm.io/gorm"
 
@@ -62,6 +63,69 @@ func (r *instanceRepository) CountByProjectID(ctx context.Context, projectID str
 	var count int64
 	if err := r.db.WithContext(ctx).Model(&domain.DatabaseInstance{}).Where("project_id = ? AND status != ?", projectID, domain.StatusTerminated).Count(&count).Error; err != nil {
 		return 0, appErrors.Wrap(err, appErrors.CodeDatabaseError, "failed to count database instances")
+	}
+	return count, nil
+}
+
+type memoryInstanceRepo struct {
+	mu        sync.RWMutex
+	instances map[string]*domain.DatabaseInstance
+}
+
+func NewMemoryInstanceRepository() domain.InstanceRepository {
+	return &memoryInstanceRepo{instances: make(map[string]*domain.DatabaseInstance)}
+}
+
+func (m *memoryInstanceRepo) Create(ctx context.Context, instance *domain.DatabaseInstance) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.instances[instance.ID] = instance
+	return nil
+}
+
+func (m *memoryInstanceRepo) GetByID(ctx context.Context, id string) (*domain.DatabaseInstance, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if inst, ok := m.instances[id]; ok {
+		return inst, nil
+	}
+	return nil, appErrors.New(appErrors.CodeNotFound, "database instance not found")
+}
+
+func (m *memoryInstanceRepo) ListByProjectID(ctx context.Context, projectID string) ([]*domain.DatabaseInstance, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var list []*domain.DatabaseInstance
+	for _, inst := range m.instances {
+		if inst.ProjectID == projectID {
+			list = append(list, inst)
+		}
+	}
+	return list, nil
+}
+
+func (m *memoryInstanceRepo) Update(ctx context.Context, instance *domain.DatabaseInstance) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.instances[instance.ID] = instance
+	return nil
+}
+
+func (m *memoryInstanceRepo) Delete(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.instances, id)
+	return nil
+}
+
+func (m *memoryInstanceRepo) CountByProjectID(ctx context.Context, projectID string) (int64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var count int64
+	for _, inst := range m.instances {
+		if inst.ProjectID == projectID && inst.Status != domain.StatusTerminated {
+			count++
+		}
 	}
 	return count, nil
 }

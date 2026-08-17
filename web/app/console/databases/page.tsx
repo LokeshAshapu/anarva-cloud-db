@@ -140,14 +140,17 @@ export default function ManagedDatabasesPage() {
 
     if (res && res.error) {
       setQueryResults({ error: res.error })
+    } else if (res && res.data) {
+      setQueryResults(res.data)
     } else {
       setQueryResults({
         columns: ['id', 'username', 'status', 'created_at'],
         rows: [
-          { id: 1, username: 'admin', status: 'ACTIVE', created_at: new Date().toISOString() },
-          { id: 2, username: 'app_user', status: 'ACTIVE', created_at: new Date().toISOString() },
+          [1, 'anarva_admin', 'ACTIVE', new Date().toISOString()],
+          [2, 'app_user', 'ACTIVE', new Date().toISOString()],
         ],
-        executionMs: 0.72,
+        rowCount: 2,
+        latencyMs: 0.72,
       })
     }
     setIsExecutingSql(false)
@@ -279,7 +282,9 @@ export default function ManagedDatabasesPage() {
 
               {queryResults && (
                 <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                  <div className="text-emerald-400 font-bold">Query executed in {queryResults.executionMs} ms ({queryResults.rowCount} rows)</div>
+                  <div className="text-emerald-400 font-bold">
+                    Query executed in {queryResults.latencyMs || queryResults.executionMs || 0.8} ms ({queryResults.rowCount || queryResults.rows?.length || 0} rows)
+                  </div>
                   {queryResults.error ? (
                     <div className="text-red-400 font-bold">{queryResults.error}</div>
                   ) : (
@@ -287,13 +292,17 @@ export default function ManagedDatabasesPage() {
                       <table className="w-full text-left">
                         <thead className="bg-slate-900 text-slate-400 uppercase text-[10px]">
                           <tr>
-                            {queryResults.columns.map((c: string) => <th key={c} className="p-2">{c}</th>)}
+                            {queryResults.columns?.map((c: string) => <th key={c} className="p-2">{c}</th>)}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800 font-mono">
-                          {queryResults.rows.map((r: any, idx: number) => (
+                          {queryResults.rows?.map((r: any, idx: number) => (
                             <tr key={idx}>
-                              {queryResults.columns.map((c: string) => <td key={c} className="p-2 text-slate-200">{String(r[c])}</td>)}
+                              {queryResults.columns?.map((c: string, colIdx: number) => (
+                                <td key={c} className="p-2 text-slate-200">
+                                  {String(Array.isArray(r) ? r[colIdx] : r[c])}
+                                </td>
+                              ))}
                             </tr>
                           ))}
                         </tbody>
