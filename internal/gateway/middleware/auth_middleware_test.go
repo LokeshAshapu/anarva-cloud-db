@@ -20,6 +20,10 @@ func TestAuthMiddleware(t *testing.T) {
 
 	// Sample protected test handler
 	protectedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		path := r.URL.Path
 		if path == "/health" || path == "/readiness" || path == "/metrics" || path == "/api/v1/security/status" {
 			w.WriteHeader(http.StatusOK)
@@ -113,6 +117,15 @@ func TestAuthMiddleware(t *testing.T) {
 			handler.ServeHTTP(rr, req)
 			assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 for public route: "+path)
 		}
+	})
+
+	t.Run("CORS OPTIONS Preflight Bypasses AuthMiddleware", func(t *testing.T) {
+		req := httptest.NewRequest("OPTIONS", "/api/v1/networks", nil)
+		rr := httptest.NewRecorder()
+
+		handler.ServeHTTP(rr, req)
+
+		assert.NotEqual(t, http.StatusUnauthorized, rr.Code)
 	})
 
 	t.Run("Dev Auth Fails Closed in Production Environment", func(t *testing.T) {

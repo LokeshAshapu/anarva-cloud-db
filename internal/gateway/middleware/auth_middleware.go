@@ -31,6 +31,12 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
+		// Allow CORS Preflight OPTIONS Requests
+		if r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Explicit Public Routes
 		if path == "/health" || path == "/readiness" || path == "/metrics" || path == "/api/v1/security/status" ||
 			strings.HasPrefix(path, "/api/v1/auth/login") ||

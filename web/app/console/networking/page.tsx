@@ -7,7 +7,7 @@ import { CloudCard } from '@/components/cloud/CloudCard'
 import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
 import { CloudModal } from '@/components/cloud/CloudModal'
 import { CloudEmptyState } from '@/components/cloud/CloudEmptyState'
-import { API_BASE_URL } from '@/lib/api'
+import { API_BASE_URL, getAuthHeaders } from '@/lib/api'
 
 interface VPCItem {
   id: string
@@ -89,11 +89,12 @@ export default function NetworkingConsolePage() {
   const fetchData = async () => {
     setIsLoading(true)
     try {
+      const authHeaders = getAuthHeaders()
       const [vpcRes, subRes, sgRes, rtRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/v1/networks`).then((r) => r.json()),
-        fetch(`${API_BASE_URL}/api/v1/subnets`).then((r) => r.json()),
-        fetch(`${API_BASE_URL}/api/v1/security-groups`).then((r) => r.json()),
-        fetch(`${API_BASE_URL}/api/v1/route-tables`).then((r) => r.json()),
+        fetch(`${API_BASE_URL}/api/v1/networks`, { headers: authHeaders }).then((r) => r.json()),
+        fetch(`${API_BASE_URL}/api/v1/subnets`, { headers: authHeaders }).then((r) => r.json()),
+        fetch(`${API_BASE_URL}/api/v1/security-groups`, { headers: authHeaders }).then((r) => r.json()),
+        fetch(`${API_BASE_URL}/api/v1/route-tables`, { headers: authHeaders }).then((r) => r.json()),
       ])
 
       if (vpcRes && vpcRes.data) setVpcs(vpcRes.data)
@@ -112,7 +113,7 @@ export default function NetworkingConsolePage() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/networks`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           organizationId: 'org-default',
           projectId: 'proj-default',
@@ -137,7 +138,7 @@ export default function NetworkingConsolePage() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/subnets`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           organizationId: 'org-default',
           projectId: 'proj-default',

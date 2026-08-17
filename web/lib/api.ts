@@ -62,16 +62,26 @@ export interface BackupSnapshot {
   created_at: string
 }
 
-export async function fetchAPI<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-
+export function getAuthHeaders(): Record<string, string> {
+  let token: string | null = null
+  if (typeof window !== 'undefined') {
+    token = localStorage.getItem('access_token') || localStorage.getItem('anarva_token') || localStorage.getItem('token')
+  }
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
   }
-
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
+export async function fetchAPI<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const authHeaders = getAuthHeaders()
+
+  const headers: Record<string, string> = {
+    ...authHeaders,
+    ...(options.headers as Record<string, string>),
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
