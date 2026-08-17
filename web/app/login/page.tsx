@@ -81,7 +81,7 @@ export default function LoginPage() {
       )
 
       if (match) {
-        localStorage.setItem('access_token', `supa-session-${Date.now()}`)
+        localStorage.setItem('access_token', `dev-token-session-${Date.now()}`)
         saveUserSession(match.email, match.fullName || derivedName)
         router.push('/console')
         return
@@ -89,7 +89,7 @@ export default function LoginPage() {
 
       // Demo login fallback
       if (email.includes('@') && password.length >= 6) {
-        localStorage.setItem('access_token', `supa-session-${Date.now()}`)
+        localStorage.setItem('access_token', `dev-token-session-${Date.now()}`)
         saveUserSession(email, derivedName)
         router.push('/console')
         return

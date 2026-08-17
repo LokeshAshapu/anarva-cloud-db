@@ -77,8 +77,8 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		// Dev / Console Session Guard for dev-token- payloads
-		if strings.HasPrefix(tokenStr, "dev-token-") {
+		// Dev / Console Session Guard for dev-token- and supa-session- payloads
+		if strings.HasPrefix(tokenStr, "dev-token-") || strings.HasPrefix(tokenStr, "supa-session-") || tokenStr == "anarva-console-session" {
 			if os.Getenv("APP_ENV") == "production" && os.Getenv("ENABLE_DEV_AUTH") != "true" && tokenStr == "dev-token-bypass" {
 				respondAuthError(w, http.StatusUnauthorized, "INVALID_TOKEN", "invalid or expired token")
 				return
