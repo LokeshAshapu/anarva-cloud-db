@@ -7,7 +7,7 @@ import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
 import { CloudCard } from '@/components/cloud/CloudCard'
 import { CloudEmptyState } from '@/components/cloud/CloudEmptyState'
 import { CloudModal } from '@/components/cloud/CloudModal'
-import { API_BASE_URL } from '@/lib/api'
+import { API_BASE_URL, getAuthHeaders } from '@/lib/api'
 
 interface LoadBalancerItem {
   id: string
@@ -80,7 +80,7 @@ export default function LoadBalancersPage() {
 
     await fetch(`${API_BASE_URL}/api/v1/load-balancers`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(newLb),
     }).catch(() => null)
 
@@ -93,7 +93,10 @@ export default function LoadBalancersPage() {
 
   const handleDeleteLB = async (id: string) => {
     if (confirm('Delete load balancer?')) {
-      await fetch(`${API_BASE_URL}/api/v1/load-balancers/${id}`, { method: 'DELETE' }).catch(() => null)
+      await fetch(`${API_BASE_URL}/api/v1/load-balancers/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      }).catch(() => null)
       const updated = lbs.filter((l) => l.id !== id)
       saveLBs(updated)
       setSelectedLB(null)

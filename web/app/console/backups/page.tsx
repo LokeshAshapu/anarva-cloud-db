@@ -7,7 +7,7 @@ import { CloudButton } from '@/components/cloud/CloudButton'
 import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
 import { CloudModal } from '@/components/cloud/CloudModal'
 import { CloudEmptyState } from '@/components/cloud/CloudEmptyState'
-import { API_BASE_URL } from '@/lib/api'
+import { API_BASE_URL, getAuthHeaders } from '@/lib/api'
 
 interface BackupItem {
   id: string
@@ -150,12 +150,23 @@ export default function BackupsPage() {
     }
   }, [])
 
-  const handleCreateSnapshot = (e: React.FormEvent) => {
+  const handleCreateSnapshot = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!snapshotName) return
     setIsSubmitting(true)
 
-    setTimeout(() => {
+    try {
+      const authHeaders = getAuthHeaders()
+      await fetch(`${API_BASE_URL}/api/v1/backups`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          databaseName: targetDbName,
+          name: snapshotName,
+          retentionDays,
+        }),
+      }).catch(() => null)
+
       const newBackup: BackupItem = {
         id: `bak-${Date.now()}`,
         resourceId: `arnv:bak:ap-hyderabad-1:proj-default:database/${targetDbName}/backup/${snapshotName}`,
@@ -171,18 +182,12 @@ export default function BackupsPage() {
         expiresAt: new Date(Date.now() + retentionDays * 86400000).toISOString(),
       }
 
-      setBackups((prev) => {
-        const updated = [newBackup, ...prev]
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(`anarva_user_backups_${userEmail}`, JSON.stringify(updated))
-        }
-        return updated
-      })
-
-      setIsSubmitting(false)
+      setBackups((prev) => [newBackup, ...prev])
       setCreateSnapshotModalOpen(false)
       setSnapshotName('')
-    }, 400)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleDeleteBackup = (id: string) => {

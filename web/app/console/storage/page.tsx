@@ -7,7 +7,7 @@ import { CloudCard } from '@/components/cloud/CloudCard'
 import { CloudTabs, TabItem } from '@/components/cloud/CloudTabs'
 import { CloudModal } from '@/components/cloud/CloudModal'
 import { CloudEmptyState } from '@/components/cloud/CloudEmptyState'
-import { API_BASE_URL } from '@/lib/api'
+import { API_BASE_URL, getAuthHeaders } from '@/lib/api'
 
 interface BucketItem {
   id: string
@@ -59,7 +59,8 @@ export default function ObjectStoragePage() {
       const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
 
-      fetch(`${API_BASE_URL}/api/v1/storage/buckets`)
+      const authHeaders = getAuthHeaders()
+      fetch(`${API_BASE_URL}/api/v1/storage/buckets`, { headers: authHeaders })
         .then((r) => r.json())
         .then((res) => {
           if (res && res.data) setBuckets(res.data)
@@ -72,9 +73,10 @@ export default function ObjectStoragePage() {
     setIsCreating(true)
     const cleanName = bucketName || 'production-bucket'
 
+    const authHeaders = getAuthHeaders()
     const res = await fetch(`${API_BASE_URL}/api/v1/storage/buckets`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
       body: JSON.stringify({
         organizationId: 'org-main',
         projectId: 'proj-main',
@@ -107,7 +109,11 @@ export default function ObjectStoragePage() {
 
   const handleDeleteBucket = async (id: string) => {
     if (confirm(`Are you sure you want to delete bucket '${id}'?`)) {
-      await fetch(`${API_BASE_URL}/api/v1/storage/buckets/${id}`, { method: 'DELETE' }).catch(() => null)
+      const authHeaders = getAuthHeaders()
+      await fetch(`${API_BASE_URL}/api/v1/storage/buckets/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      }).catch(() => null)
       setBuckets(buckets.filter((b) => b.id !== id))
       setSelectedBucket(null)
     }
@@ -115,9 +121,10 @@ export default function ObjectStoragePage() {
 
   const handleGenerateSignedUrl = async (key: string) => {
     if (!selectedBucket) return
+    const authHeaders = getAuthHeaders()
     const res = await fetch(`${API_BASE_URL}/api/v1/storage/buckets/${selectedBucket.id}/signed-url`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
       body: JSON.stringify({ key, method: 'GET', expiresSec: 3600 }),
     }).then((r) => r.json()).catch(() => null)
 
