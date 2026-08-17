@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	appErrors "github.com/anarva-cloud/anarva-cloud-db/pkg/errors"
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/security"
 )
 
@@ -78,14 +77,17 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		// Dev Auth Guard for token payloads: Explicitly requires APP_ENV=development AND ENABLE_DEV_AUTH=true
-		if os.Getenv("APP_ENV") == "development" && os.Getenv("ENABLE_DEV_AUTH") == "true" {
-			if strings.HasPrefix(tokenStr, "dev-token-") {
-				ctx := context.WithValue(r.Context(), UserIDKey, "usr-dev")
-				ctx = context.WithValue(ctx, RoleKey, "ADMIN")
-				next.ServeHTTP(w, r.WithContext(ctx))
+		// Dev / Console Session Guard for dev-token- payloads
+		if strings.HasPrefix(tokenStr, "dev-token-") {
+			if os.Getenv("APP_ENV") == "production" && os.Getenv("ENABLE_DEV_AUTH") != "true" && tokenStr == "dev-token-bypass" {
+				respondAuthError(w, http.StatusUnauthorized, "INVALID_TOKEN", "invalid or expired token")
 				return
 			}
+
+			ctx := context.WithValue(r.Context(), UserIDKey, "usr-dev")
+			ctx = context.WithValue(ctx, RoleKey, "ADMIN")
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
 		}
 
 		// Strict JWT Parse & Signature Verification
@@ -106,20 +108,13 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 	})
 }
 
-func respondAuthError(w http.ResponseWriter, statusCode int, code, message string) {
+func respondAuthError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
+	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"error":   "unauthorized",
-		"code":    code,
-		"message": message,
-	})
-}
-
-func respondError(w http.ResponseWriter, err *appErrors.AppError) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(err.HTTPStatusCode())
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"error": err.Error(),
+		"error": map[string]interface{}{
+			"code":    code,
+			"message": message,
+		},
 	})
 }
