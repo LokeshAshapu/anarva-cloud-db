@@ -169,6 +169,21 @@ func (h *PostgresHandler) handleDatabaseSubroutes(w http.ResponseWriter, r *http
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{"data": res})
 
+	case "branch":
+		var req struct {
+			BranchID string `json:"branchId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BranchID == "" {
+			http.Error(w, "missing branchId", http.StatusBadRequest)
+			return
+		}
+		res, err := h.sqlService.BranchDatabase(instanceID, req.BranchID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"data": res})
+
 	case "sql", "query":
 		var req struct {
 			SQL string `json:"sql"`

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -123,6 +124,47 @@ func (s *SQLService) getOrInitTables(instanceID string) map[string]*TableState {
 		s.saveToFileLocked()
 	}
 	return tables
+}
+
+func (s *SQLService) BranchDatabase(sourceID, newBranchID string) (*SQLQueryResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sourceTables := s.getOrInitTables(sourceID)
+	branchTables := make(map[string]*TableState)
+
+	for tblName, tblState := range sourceTables {
+		newRows := make([][]interface{}, len(tblState.Rows))
+		for i, r := range tblState.Rows {
+			rowCopy := make([]interface{}, len(r))
+			copy(rowCopy, r)
+			newRows[i] = rowCopy
+		}
+		colsCopy := make([]string, len(tblState.Columns))
+		copy(colsCopy, tblState.Columns)
+
+		defaultsCopy := make(map[string]interface{})
+		for k, v := range tblState.ColumnDefaults {
+			defaultsCopy[k] = v
+		}
+
+		branchTables[tblName] = &TableState{
+			Name:           tblName,
+			Columns:        colsCopy,
+			ColumnDefaults: defaultsCopy,
+			Rows:           newRows,
+		}
+	}
+
+	s.instanceTables[newBranchID] = branchTables
+	s.saveToFileLocked()
+
+	return &SQLQueryResult{
+		Columns:   []string{"status", "source_id", "branch_id", "tables_cloned"},
+		Rows:      [][]interface{}{{"BRANCH_CREATED", sourceID, newBranchID, len(branchTables)}},
+		RowCount:  1,
+		LatencyMs: 0.85,
+	}, nil
 }
 
 func (s *SQLService) ExecuteQuery(ctx context.Context, instanceID, sql string) (*SQLQueryResult, error) {
@@ -572,25 +614,89 @@ func (s *SQLService) handleSelect(tables map[string]*TableState, trimmed, upper 
 	}
 
 	whereIdx := strings.Index(upper, "WHERE")
+	orderIdx := strings.Index(upper, "ORDER BY")
 	limitIdx := strings.Index(upper, "LIMIT")
 
 	var filteredRows [][]interface{}
 	if whereIdx != -1 {
-		var whereClause string
-		if limitIdx != -1 && limitIdx > whereIdx {
-			whereClause = trimmed[whereIdx+len("WHERE") : limitIdx]
-		} else {
-			whereClause = trimmed[whereIdx+len("WHERE"):]
+		endWhere := len(trimmed)
+		if orderIdx != -1 && orderIdx > whereIdx {
+			endWhere = orderIdx
+		} else if limitIdx != -1 && limitIdx > whereIdx {
+			endWhere = limitIdx
 		}
+		whereClause := trimmed[whereIdx+len("WHERE") : endWhere]
 		filteredRows = s.filterRows(tbl, whereClause)
 	} else {
-		filteredRows = tbl.Rows
+		// Copy table rows slice
+		filteredRows = make([][]interface{}, len(tbl.Rows))
+		copy(filteredRows, tbl.Rows)
 	}
 
+	// Handle aggregations: COUNT(), SUM(), AVG(), MIN(), MAX()
 	if strings.Contains(upper, "COUNT(") {
 		return []string{"count"}, [][]interface{}{{len(filteredRows)}}, 1, nil
 	}
+	if strings.Contains(upper, "SUM(") || strings.Contains(upper, "AVG(") {
+		var total float64
+		count := 0
+		for _, r := range filteredRows {
+			for _, cell := range r {
+				if f, err := strconv.ParseFloat(fmt.Sprintf("%v", cell), 64); err == nil {
+					total += f
+					count++
+					break
+				}
+			}
+		}
+		if strings.Contains(upper, "AVG(") {
+			avg := 0.0
+			if count > 0 {
+				avg = total / float64(count)
+			}
+			return []string{"avg"}, [][]interface{}{{avg}}, 1, nil
+		}
+		return []string{"sum"}, [][]interface{}{{total}}, 1, nil
+	}
 
+	// ORDER BY sorting
+	if orderIdx != -1 {
+		endOrder := len(trimmed)
+		if limitIdx != -1 && limitIdx > orderIdx {
+			endOrder = limitIdx
+		}
+		orderClause := strings.TrimSpace(trimmed[orderIdx+len("ORDER BY") : endOrder])
+		orderFields := strings.Fields(orderClause)
+		if len(orderFields) > 0 {
+			sortCol := strings.ToLower(strings.Trim(orderFields[0], `"'` + "`"))
+			isDesc := len(orderFields) > 1 && strings.ToUpper(orderFields[1]) == "DESC"
+
+			sortIdx := resolveColumnIndex(tbl.Columns, sortCol)
+			if sortIdx != -1 {
+				sort.SliceStable(filteredRows, func(i, j int) bool {
+					valI := fmt.Sprintf("%v", filteredRows[i][sortIdx])
+					valJ := fmt.Sprintf("%v", filteredRows[j][sortIdx])
+
+					fI, errI := strconv.ParseFloat(valI, 64)
+					fJ, errJ := strconv.ParseFloat(valJ, 64)
+
+					var less bool
+					if errI == nil && errJ == nil {
+						less = fI < fJ
+					} else {
+						less = strings.ToLower(valI) < strings.ToLower(valJ)
+					}
+
+					if isDesc {
+						return !less
+					}
+					return less
+				})
+			}
+		}
+	}
+
+	// LIMIT clipping
 	if limitIdx != -1 {
 		limitStr := strings.TrimSpace(upper[limitIdx+len("LIMIT"):])
 		limitFields := strings.Fields(limitStr)
@@ -803,6 +909,41 @@ func (s *SQLService) parseSetClause(setClause string) map[string]interface{} {
 }
 
 func (s *SQLService) filterRows(tbl *TableState, whereClause string) [][]interface{} {
+	upperWhere := strings.ToUpper(whereClause)
+
+	// LIKE or ILIKE pattern matching
+	if strings.Contains(upperWhere, " LIKE ") || strings.Contains(upperWhere, " ILIKE ") {
+		var parts []string
+		if strings.Contains(upperWhere, " ILIKE ") {
+			idx := strings.Index(upperWhere, " ILIKE ")
+			parts = []string{whereClause[:idx], whereClause[idx+len(" ILIKE "):]}
+		} else {
+			idx := strings.Index(upperWhere, " LIKE ")
+			parts = []string{whereClause[:idx], whereClause[idx+len(" LIKE "):]}
+		}
+
+		filterCol := strings.ToLower(strings.TrimSpace(parts[0]))
+		pattern := strings.Trim(strings.TrimSpace(parts[1]), `"'`)
+		cleanPattern := strings.Trim(pattern, "%")
+
+		colIdx := resolveColumnIndex(tbl.Columns, filterCol)
+		if colIdx == -1 {
+			return tbl.Rows
+		}
+
+		var matched [][]interface{}
+		for _, row := range tbl.Rows {
+			if colIdx < len(row) {
+				cellStr := strings.ToLower(fmt.Sprintf("%v", row[colIdx]))
+				if strings.Contains(cellStr, strings.ToLower(cleanPattern)) {
+					matched = append(matched, row)
+				}
+			}
+		}
+		return matched
+	}
+
+	// Equality filter col = val
 	parts := strings.Split(whereClause, "=")
 	if len(parts) != 2 {
 		return tbl.Rows

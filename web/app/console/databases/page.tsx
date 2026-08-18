@@ -215,6 +215,36 @@ export default function ManagedDatabasesPage() {
     }
   }
 
+  const handleExportCSV = () => {
+    if (!queryResults || !queryResults.columns || !queryResults.rows) return
+    const headers = queryResults.columns.join(',')
+    const rowLines = queryResults.rows.map((r: any) =>
+      queryResults.columns.map((c: string, idx: number) => {
+        const val = Array.isArray(r) ? r[idx] : r[c]
+        return `"${String(val ?? '').replace(/"/g, '""')}"`
+      }).join(',')
+    )
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rowLines].join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute('download', `query_results_${Date.now()}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const handleExportJSON = () => {
+    if (!queryResults || !queryResults.rows) return
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(queryResults, null, 2))
+    const link = document.createElement('a')
+    link.setAttribute('href', dataStr)
+    link.setAttribute('download', `query_results_${Date.now()}.json`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   const handleExecuteSql = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsExecutingSql(true)
@@ -448,8 +478,26 @@ export default function ManagedDatabasesPage() {
                     </div>
                   ) : (
                     <>
-                      <div className="text-emerald-400 font-bold">
-                        Query executed in {queryResults.latencyMs || queryResults.executionMs || 0.8} ms ({queryResults.rowCount || queryResults.rows?.length || 0} rows)
+                      <div className="flex justify-between items-center text-emerald-400 font-bold">
+                        <div>
+                          Query executed in {queryResults.latencyMs || queryResults.executionMs || 0.8} ms ({queryResults.rowCount || queryResults.rows?.length || 0} rows)
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={handleExportCSV}
+                            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded text-[10px] flex items-center gap-1 font-mono"
+                          >
+                            📥 Export CSV
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleExportJSON}
+                            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded text-[10px] flex items-center gap-1 font-mono"
+                          >
+                            📥 Export JSON
+                          </button>
+                        </div>
                       </div>
                     <div className="overflow-x-auto border border-slate-800 rounded font-sans text-xs">
                       <table className="w-full text-left">

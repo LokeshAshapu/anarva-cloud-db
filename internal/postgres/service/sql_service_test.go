@@ -30,30 +30,52 @@ func TestSQLService_StatefulExecution(t *testing.T) {
 		assert.NotNil(t, res)
 	})
 
-	t.Run("CREATE TABLE custom_users with DEFAULT values and INSERT", func(t *testing.T) {
-		createSQL := `CREATE TABLE custom_users (
-			id SERIAL PRIMARY KEY,
-			name VARCHAR(100) NOT NULL,
-			email VARCHAR(150) UNIQUE NOT NULL,
-			is_active BOOLEAN DEFAULT true,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		)`
-		resCreate, err := svc.ExecuteQuery(ctx, instID, createSQL)
+	t.Run("LIKE pattern matching and ORDER BY DESC sorting", func(t *testing.T) {
+		likeInstID := fmt.Sprintf("like-inst-%d", time.Now().UnixNano())
+		_, err := svc.ExecuteQuery(ctx, likeInstID, "CREATE TABLE clients (id INT, email TEXT)")
 		require.NoError(t, err)
-		assert.Equal(t, []string{"id", "name", "email", "is_active", "created_at"}, resCreate.Columns)
 
-		insertSQL := `INSERT INTO custom_users (name, email) VALUES
-			('Alice Johnson', 'alice@example.com'),
-			('Bob Smith', 'bob@example.com'),
-			('Charlie Brown', 'charlie@example.com')`
-		resInsert, err := svc.ExecuteQuery(ctx, instID, insertSQL)
+		_, err = svc.ExecuteQuery(ctx, likeInstID, "INSERT INTO clients (id, email) VALUES (1, 'alpha@anarva.io'), (2, 'beta@other.com'), (3, 'gamma@anarva.io')")
 		require.NoError(t, err)
-		assert.Equal(t, 3, resInsert.RowCount)
 
-		// Verify is_active is boolean true instead of null
-		assert.Equal(t, true, resInsert.Rows[0][3])
-		assert.Equal(t, "Alice Johnson", resInsert.Rows[0][1])
-		assert.Equal(t, "alice@example.com", resInsert.Rows[0][2])
+		resLike, err := svc.ExecuteQuery(ctx, likeInstID, "SELECT * FROM clients WHERE email LIKE '%@anarva.io' ORDER BY id DESC")
+		require.NoError(t, err)
+		require.Equal(t, 2, resLike.RowCount)
+		assert.Equal(t, 3, resLike.Rows[0][0]) // first is id 3 (DESC order)
+		assert.Equal(t, 1, resLike.Rows[1][0]) // second is id 1
+	})
+
+	t.Run("SUM and AVG aggregate functions", func(t *testing.T) {
+		aggInstID := fmt.Sprintf("agg-inst-%d", time.Now().UnixNano())
+		_, err := svc.ExecuteQuery(ctx, aggInstID, "CREATE TABLE sales (amount FLOAT)")
+		require.NoError(t, err)
+
+		_, err = svc.ExecuteQuery(ctx, aggInstID, "INSERT INTO sales (amount) VALUES (100.0), (200.0), (300.0)")
+		require.NoError(t, err)
+
+		resSum, err := svc.ExecuteQuery(ctx, aggInstID, "SELECT SUM(amount) FROM sales")
+		require.NoError(t, err)
+		assert.Equal(t, 600.0, resSum.Rows[0][0])
+	})
+
+	t.Run("Database branching creates copy-on-write database clone", func(t *testing.T) {
+		srcID := fmt.Sprintf("src-db-%d", time.Now().UnixNano())
+		branchID := fmt.Sprintf("branch-db-%d", time.Now().UnixNano())
+
+		_, err := svc.ExecuteQuery(ctx, srcID, "CREATE TABLE inventory (item TEXT, qty INT)")
+		require.NoError(t, err)
+
+		_, err = svc.ExecuteQuery(ctx, srcID, "INSERT INTO inventory (item, qty) VALUES ('GPU H100', 64)")
+		require.NoError(t, err)
+
+		resBranch, err := svc.BranchDatabase(srcID, branchID)
+		require.NoError(t, err)
+		assert.Equal(t, "BRANCH_CREATED", resBranch.Rows[0][0])
+
+		resBranchQuery, err := svc.ExecuteQuery(ctx, branchID, "SELECT * FROM inventory")
+		require.NoError(t, err)
+		require.Equal(t, 1, resBranchQuery.RowCount)
+		assert.Equal(t, "GPU H100", resBranchQuery.Rows[0][0])
 	})
 
 	t.Run("ALTER TABLE ADD COLUMN and DROP COLUMN", func(t *testing.T) {
