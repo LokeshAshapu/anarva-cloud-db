@@ -50,7 +50,11 @@ func TestWorkflow2_PostgreSQLSQLConsoleStatefulExecution(t *testing.T) {
 	// 2. State Mutation via INSERT statement
 	res2, err2 := sqlSvc.ExecuteQuery(ctx, instID, "INSERT INTO users (username, status) VALUES ('new_dev', 'ACTIVE');")
 	require.NoError(t, err2)
-	assert.Greater(t, res2.RowCount, res1.RowCount)
+	assert.Equal(t, 1, res2.RowCount)
+
+	res3, err3 := sqlSvc.ExecuteQuery(ctx, instID, "SELECT * FROM users LIMIT 10;")
+	require.NoError(t, err3)
+	assert.Greater(t, res3.RowCount, res1.RowCount)
 
 	// 3. Dangerous query rejection
 	_, errDangerous := sqlSvc.ExecuteQuery(ctx, instID, "DROP DATABASE production;")
