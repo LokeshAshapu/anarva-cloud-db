@@ -61,52 +61,101 @@ export default function ManagedDatabasesPage() {
       const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
 
+      let loadedInstances: DatabaseInstanceItem[] = []
       const stored = localStorage.getItem('anarva_user_managed_dbs_v2') || localStorage.getItem(`anarva_user_managed_dbs_${email}`)
       if (stored) {
         try {
           const parsed = JSON.parse(stored)
           if (Array.isArray(parsed) && parsed.length > 0) {
-            setInstances(parsed)
-            return
+            loadedInstances = parsed
           }
         } catch (e) {}
       }
 
-      const defaults: DatabaseInstanceItem[] = [
-        {
-          id: 'postgresql-prod-01',
-          name: 'production-postgres',
-          engine: 'POSTGRESQL',
-          version: '17',
-          status: 'AVAILABLE',
-          regionId: 'ap-hyderabad-1',
-          cpu: 2,
-          memoryMb: 2048,
-          storageGb: 25,
-          networkId: 'vpc-01',
-          port: 5432,
-          realityLabel: 'LOCAL_POSTGRES (STATEFUL_STORAGE)',
-          createdAt: new Date().toISOString(),
-        },
-      ]
-      setInstances(defaults)
-      localStorage.setItem('anarva_user_managed_dbs_v2', JSON.stringify(defaults))
+      if (loadedInstances.length === 0) {
+        loadedInstances = [
+          {
+            id: 'postgresql-prod-01',
+            name: 'production-postgres',
+            engine: 'POSTGRESQL',
+            version: '17',
+            status: 'AVAILABLE',
+            regionId: 'ap-hyderabad-1',
+            cpu: 2,
+            memoryMb: 2048,
+            storageGb: 25,
+            networkId: 'vpc-01',
+            port: 5432,
+            realityLabel: 'LOCAL_POSTGRES (STATEFUL_STORAGE)',
+            createdAt: new Date().toISOString(),
+          },
+        ]
+        localStorage.setItem('anarva_user_managed_dbs_v2', JSON.stringify(loadedInstances))
+      }
+
+      setInstances(loadedInstances)
+
+      // Restore active database instance and tab on page refresh
+      const savedActiveDbId = localStorage.getItem('anarva_active_db_id')
+      if (savedActiveDbId) {
+        const found = loadedInstances.find((i) => i.id === savedActiveDbId)
+        if (found) {
+          setSelectedInstance(found)
+
+          const savedTab = localStorage.getItem(`anarva_active_db_tab_${found.id}`)
+          if (savedTab) {
+            setActiveTab(savedTab)
+          }
+
+          const savedQuery = localStorage.getItem(`anarva_sql_query_text_${found.id}`)
+          if (savedQuery) {
+            setSqlQuery(savedQuery)
+          }
+
+          const cached = localStorage.getItem(`anarva_sql_query_cache_${found.id}`)
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached)
+              if (parsed.results) {
+                setQueryResults(parsed.results)
+              }
+            } catch (e) {}
+          }
+        }
+      }
     }
   }, [])
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && selectedInstance) {
-      const cached = localStorage.getItem(`anarva_sql_query_cache_${selectedInstance.id}`)
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached)
-          if (parsed.results) {
-            setQueryResults(parsed.results)
-          }
-        } catch (e) {}
+  const handleSelectInstance = (inst: DatabaseInstanceItem | null) => {
+    setSelectedInstance(inst)
+    if (typeof window !== 'undefined') {
+      if (inst) {
+        localStorage.setItem('anarva_active_db_id', inst.id)
+        const savedTab = localStorage.getItem(`anarva_active_db_tab_${inst.id}`)
+        if (savedTab) setActiveTab(savedTab)
+
+        const savedQuery = localStorage.getItem(`anarva_sql_query_text_${inst.id}`)
+        if (savedQuery) setSqlQuery(savedQuery)
+
+        const cached = localStorage.getItem(`anarva_sql_query_cache_${inst.id}`)
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached)
+            if (parsed.results) setQueryResults(parsed.results)
+          } catch (e) {}
+        }
+      } else {
+        localStorage.removeItem('anarva_active_db_id')
       }
     }
-  }, [selectedInstance])
+  }
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId)
+    if (typeof window !== 'undefined' && selectedInstance) {
+      localStorage.setItem(`anarva_active_db_tab_${selectedInstance.id}`, tabId)
+    }
+  }
 
   const saveInstances = (updated: DatabaseInstanceItem[]) => {
     setInstances(updated)
@@ -148,6 +197,7 @@ export default function ManagedDatabasesPage() {
 
     const updated = [newInst, ...instances]
     saveInstances(updated)
+    handleSelectInstance(newInst)
 
     setIsCreating(false)
     setIsWizardOpen(false)
@@ -161,7 +211,7 @@ export default function ManagedDatabasesPage() {
       await fetchAPI(path, { method: 'DELETE' }).catch(() => null)
       const updated = instances.filter((i) => i.id !== id)
       saveInstances(updated)
-      setSelectedInstance(null)
+      handleSelectInstance(null)
     }
   }
 
@@ -170,6 +220,10 @@ export default function ManagedDatabasesPage() {
     setIsExecutingSql(true)
 
     const path = selectedInstance?.engine === 'MYSQL' ? `/api/v1/mysql/databases/${selectedInstance.id}/query` : `/api/v1/databases/${selectedInstance?.id}/query`
+
+    if (typeof window !== 'undefined' && selectedInstance) {
+      localStorage.setItem(`anarva_sql_query_text_${selectedInstance.id}`, sqlQuery)
+    }
 
     try {
       const resData: any = await fetchAPI(path, {
@@ -240,7 +294,7 @@ export default function ManagedDatabasesPage() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
           <div>
-            <button onClick={() => setSelectedInstance(null)} className="text-xs text-blue-400 font-mono mb-2">
+            <button onClick={() => handleSelectInstance(null)} className="text-xs text-blue-400 font-mono mb-2">
               ← Back to Managed Databases
             </button>
             <div className="flex items-center gap-3">
@@ -260,7 +314,7 @@ export default function ManagedDatabasesPage() {
           </CloudButton>
         </div>
 
-        <CloudTabs tabs={detailTabs} activeTab={activeTab} onChange={setActiveTab} />
+        <CloudTabs tabs={detailTabs} activeTab={activeTab} onChange={handleTabChange} />
 
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-mono text-xs">
@@ -444,7 +498,7 @@ export default function ManagedDatabasesPage() {
             {filteredInstances.map((db) => (
               <div
                 key={db.id}
-                onClick={() => setSelectedInstance(db)}
+                onClick={() => handleSelectInstance(db)}
                 className="p-4 bg-slate-950 hover:bg-slate-900 cursor-pointer transition flex items-center justify-between font-mono"
               >
                 <div>
