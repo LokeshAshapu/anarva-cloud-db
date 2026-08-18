@@ -61,23 +61,60 @@ export default function ManagedDatabasesPage() {
       const email = localStorage.getItem('anarva_user_email') || 'user@anarva.io'
       setUserEmail(email)
 
-      const stored = localStorage.getItem(`anarva_user_managed_dbs_${email}`)
+      const stored = localStorage.getItem('anarva_user_managed_dbs_v2') || localStorage.getItem(`anarva_user_managed_dbs_${email}`)
       if (stored) {
         try {
-          setInstances(JSON.parse(stored))
-        } catch (e) {
-          setInstances([])
-        }
-      } else {
-        setInstances([])
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setInstances(parsed)
+            return
+          }
+        } catch (e) {}
       }
+
+      const defaults: DatabaseInstanceItem[] = [
+        {
+          id: 'postgresql-prod-01',
+          name: 'production-postgres',
+          engine: 'POSTGRESQL',
+          version: '17',
+          status: 'AVAILABLE',
+          regionId: 'ap-hyderabad-1',
+          cpu: 2,
+          memoryMb: 2048,
+          storageGb: 25,
+          networkId: 'vpc-01',
+          port: 5432,
+          realityLabel: 'LOCAL_POSTGRES (STATEFUL_STORAGE)',
+          createdAt: new Date().toISOString(),
+        },
+      ]
+      setInstances(defaults)
+      localStorage.setItem('anarva_user_managed_dbs_v2', JSON.stringify(defaults))
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && selectedInstance) {
+      const cached = localStorage.getItem(`anarva_sql_query_cache_${selectedInstance.id}`)
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached)
+          if (parsed.results) {
+            setQueryResults(parsed.results)
+          }
+        } catch (e) {}
+      }
+    }
+  }, [selectedInstance])
 
   const saveInstances = (updated: DatabaseInstanceItem[]) => {
     setInstances(updated)
     if (typeof window !== 'undefined') {
-      localStorage.setItem(`anarva_user_managed_dbs_${userEmail}`, JSON.stringify(updated))
+      localStorage.setItem('anarva_user_managed_dbs_v2', JSON.stringify(updated))
+      if (userEmail) {
+        localStorage.setItem(`anarva_user_managed_dbs_${userEmail}`, JSON.stringify(updated))
+      }
     }
   }
 
@@ -98,7 +135,7 @@ export default function ManagedDatabasesPage() {
       storageGb,
       networkId,
       port: defaultPort,
-      realityLabel: selectedEngine === 'POSTGRESQL' ? 'LOCAL_POSTGRES (LIMITED_CAPABILITIES)' : 'LOCAL_MYSQL (LIMITED_CAPABILITIES)',
+      realityLabel: selectedEngine === 'POSTGRESQL' ? 'LOCAL_POSTGRES (STATEFUL_STORAGE)' : 'LOCAL_MYSQL (STATEFUL_STORAGE)',
       createdAt: new Date().toISOString(),
     }
 
@@ -131,7 +168,6 @@ export default function ManagedDatabasesPage() {
   const handleExecuteSql = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsExecutingSql(true)
-    setQueryResults(null)
 
     const path = selectedInstance?.engine === 'MYSQL' ? `/api/v1/mysql/databases/${selectedInstance.id}/query` : `/api/v1/databases/${selectedInstance?.id}/query`
 
@@ -141,10 +177,14 @@ export default function ManagedDatabasesPage() {
         body: JSON.stringify({ sql: sqlQuery }),
       })
 
-      if (resData && resData.data) {
-        setQueryResults(resData.data)
-      } else {
-        setQueryResults(resData)
+      const finalRes = (resData && resData.data) ? resData.data : resData
+      setQueryResults(finalRes)
+
+      if (typeof window !== 'undefined' && selectedInstance && !finalRes.error) {
+        localStorage.setItem(`anarva_sql_query_cache_${selectedInstance.id}`, JSON.stringify({
+          query: sqlQuery,
+          results: finalRes,
+        }))
       }
     } catch (err: any) {
       setQueryResults({ error: err.message || String(err) })

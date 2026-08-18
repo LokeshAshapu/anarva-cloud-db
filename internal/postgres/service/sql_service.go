@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,21 +22,51 @@ type SQLQueryResult struct {
 }
 
 type TableState struct {
-	Name           string
-	Columns        []string
-	ColumnDefaults map[string]interface{}
-	Rows           [][]interface{}
+	Name           string                 `json:"name"`
+	Columns        []string               `json:"columns"`
+	ColumnDefaults map[string]interface{} `json:"columnDefaults"`
+	Rows           [][]interface{}        `json:"rows"`
 }
 
 type SQLService struct {
 	mu             sync.RWMutex
+	filePath       string
 	instanceTables map[string]map[string]*TableState // instanceID -> tableName -> TableState
 }
 
 func NewSQLService() *SQLService {
-	return &SQLService{
+	filePath := filepath.Join(os.TempDir(), "anarva_sql_service_state.json")
+	svc := &SQLService{
+		filePath:       filePath,
 		instanceTables: make(map[string]map[string]*TableState),
 	}
+	svc.loadFromFile()
+	return svc
+}
+
+func (s *SQLService) loadFromFile() {
+	if s.filePath == "" {
+		return
+	}
+	data, err := os.ReadFile(s.filePath)
+	if err != nil {
+		return
+	}
+	var loaded map[string]map[string]*TableState
+	if err := json.Unmarshal(data, &loaded); err == nil && loaded != nil {
+		s.instanceTables = loaded
+	}
+}
+
+func (s *SQLService) saveToFileLocked() {
+	if s.filePath == "" {
+		return
+	}
+	data, err := json.MarshalIndent(s.instanceTables, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(s.filePath, data, 0644)
 }
 
 func (s *SQLService) getOrInitTables(instanceID string) map[string]*TableState {
@@ -54,6 +87,7 @@ func (s *SQLService) getOrInitTables(instanceID string) map[string]*TableState {
 			},
 		}
 		s.instanceTables[instanceID] = tables
+		s.saveToFileLocked()
 	}
 	return tables
 }
@@ -130,6 +164,11 @@ func (s *SQLService) ExecuteQuery(ctx context.Context, instanceID, sql string) (
 		}
 	}
 
+	// Save state to disk on any state-modifying query
+	if strings.HasPrefix(upper, "CREATE TABLE") || strings.HasPrefix(upper, "INSERT INTO") || strings.HasPrefix(upper, "UPDATE") || strings.HasPrefix(upper, "DELETE FROM") || strings.HasPrefix(upper, "DROP TABLE") {
+		s.saveToFileLocked()
+	}
+
 	latency := float64(time.Since(start).Microseconds()) / 1000.0
 	if latency < 0.2 {
 		latency = 0.45
@@ -194,7 +233,6 @@ func (s *SQLService) handleCreateTable(tables map[string]*TableState, trimmed, u
 				if colName != "primary" && colName != "foreign" && colName != "constraint" && colName != "unique" {
 					columns = append(columns, colName)
 
-					// Check for DEFAULT value clause
 					upperPart := strings.ToUpper(part)
 					if defIdx := strings.Index(upperPart, "DEFAULT"); defIdx != -1 {
 						afterDef := strings.TrimSpace(part[defIdx+len("DEFAULT"):])
@@ -291,7 +329,6 @@ func (s *SQLService) handleInsert(tables map[string]*TableState, trimmed, upper 
 			}
 		}
 
-		// Auto-populate unmapped columns from ColumnDefaults or dynamic rules
 		for i, col := range tbl.Columns {
 			if !mapped[i] {
 				if defVal, ok := tbl.ColumnDefaults[col]; ok && defVal != nil {
