@@ -1,0 +1,12 @@
+{
+  "ui_vs_api_alignment": {
+    "databases_console": "MATCH (UI SQL console displays exact columns & row counts returned by backend SQLService)",
+    "vpc_networking_console": "MATCH (UI VPC creation response wrapped in { 'data': created } matches network_handler.go)",
+    "storage_console": "MATCH (UI bucket listing and presigned URL download matches LocalStorageProvider)",
+    "compute_console": "MATCH (UI container status matches LocalDockerComputeProvider)"
+  },
+  "localstorage_audit": {
+    "role": "Client-side state caching for user convenience across F5 refresh",
+    "rule": "Backend state is ALWAYS treated as source of truth; localStorage never forces a failed backend operation to appear successful"
+  }
+}

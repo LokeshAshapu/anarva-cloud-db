@@ -1,0 +1,134 @@
+[
+  {
+    "panel": "Managed Databases",
+    "route": "/console/databases",
+    "workflow": "Provision PostgreSQL Instance & Stateful SQL Query Execution",
+    "ui_action": "Create Instance & Execute SQL Statements",
+    "api_route": "/api/v1/databases, /api/v1/databases/{id}/query",
+    "http_method": "POST",
+    "provider": "LOCAL_POSTGRES (SQLService & LocalDockerPostgresProvider)",
+    "expected_state_change": "Stateful DB instance created & data rows mutated permanently in disk file state",
+    "verification_method": "Independent GET read-back and server restart disk file check"
+  },
+  {
+    "panel": "Managed Databases",
+    "route": "/console/databases",
+    "workflow": "Execute MySQL SQL Queries",
+    "ui_action": "Execute MySQL Statements",
+    "api_route": "/api/v1/mysql/databases/{id}/query",
+    "http_method": "POST",
+    "provider": "LOCAL_MYSQL (SQLService)",
+    "expected_state_change": "MySQL rows mutated permanently in disk file state",
+    "verification_method": "Independent GET read-back and server restart disk file check"
+  },
+  {
+    "panel": "Managed Databases",
+    "route": "/console/databases",
+    "workflow": "MongoDB NoSQL Document Querying (MQL)",
+    "ui_action": "Execute MQL (find, insertOne, deleteMany)",
+    "api_route": "/api/v1/databases/{id}/mql",
+    "http_method": "POST",
+    "provider": "MQLService (JSON Document Engine)",
+    "expected_state_change": "BSON document inserted/updated in collection state",
+    "verification_method": "Independent GET read-back and server restart disk file check"
+  },
+  {
+    "panel": "Managed Databases",
+    "route": "/console/databases",
+    "workflow": "Redis Key-Value In-Memory Command Execution",
+    "ui_action": "Execute Redis Commands (SET, GET, KEYS, DEL, PING)",
+    "api_route": "/api/v1/databases/{id}/redis",
+    "http_method": "POST",
+    "provider": "RedisService (Key-Value State Store)",
+    "expected_state_change": "Key-value pair set/deleted in memory and file state",
+    "verification_method": "Independent GET read-back and server restart disk file check"
+  },
+  {
+    "panel": "Managed Databases",
+    "route": "/console/databases",
+    "workflow": "Database Branching & Sandbox Cloning",
+    "ui_action": "Branch Database / Clone Sandbox",
+    "api_route": "/api/v1/databases/{id}/branch",
+    "http_method": "POST",
+    "provider": "SQLService.BranchDatabase",
+    "expected_state_change": "Isolated database copy created with duplicated schema & rows",
+    "verification_method": "Independent SELECT query against new branch ID"
+  },
+  {
+    "panel": "Object Storage",
+    "route": "/console/storage",
+    "workflow": "S3-Compatible Bucket & File Upload Lifecycle",
+    "ui_action": "Create Bucket, Upload File, Generate Signed URL, Fetch Signed URL",
+    "api_route": "/api/v1/storage/buckets, /api/v1/storage/objects",
+    "http_method": "POST / PUT / GET",
+    "provider": "LocalStorageProvider & SignedURLService",
+    "expected_state_change": "Directory created & file bytes stored on local disk root",
+    "verification_method": "Read object bytes from disk and HTTP GET on signed URL with HMAC verification"
+  },
+  {
+    "panel": "Compute Instances",
+    "route": "/console/compute",
+    "workflow": "Compute Container Instance Lifecycle",
+    "ui_action": "Provision Container, Start, Stop, Exec Command",
+    "api_route": "/api/v1/compute/instances",
+    "http_method": "POST / GET",
+    "provider": "LocalDockerComputeProvider",
+    "expected_state_change": "Docker container spawned via CLI if Docker available, else in-memory map",
+    "verification_method": "docker ps inspection or container status readback"
+  },
+  {
+    "panel": "Virtual Networks",
+    "route": "/console/networking",
+    "workflow": "VPC & Subnet Network Topology Provisioning",
+    "ui_action": "Create VPC, Create Subnet, Create Route Table, Create Security Group",
+    "api_route": "/api/v1/networks, /api/v1/subnets, /api/v1/security-groups",
+    "http_method": "POST / GET",
+    "provider": "LocalDockerNetworkProvider / PostgresNetworkingRepository",
+    "expected_state_change": "VPC record & CIDR block saved to control-plane database repository",
+    "verification_method": "GET /api/v1/networks read-back"
+  },
+  {
+    "panel": "Edge Load Balancers",
+    "route": "/console/loadbalancers",
+    "workflow": "Load Balancer & WAF Configuration",
+    "ui_action": "Create Load Balancer, Rule, TLS Cert",
+    "api_route": "/api/v1/loadbalancers",
+    "http_method": "POST / GET",
+    "provider": "LocalDockerLoadBalancerProvider",
+    "expected_state_change": "Load balancer metadata saved in control-plane database repository",
+    "verification_method": "GET /api/v1/loadbalancers read-back"
+  },
+  {
+    "panel": "Backups & Recovery",
+    "route": "/console/backups",
+    "workflow": "Database Snapshot & Point-in-Time Recovery",
+    "ui_action": "Create Snapshot, Restore Snapshot",
+    "api_route": "/api/v1/backups/snapshots",
+    "http_method": "POST / GET",
+    "provider": "BackupEngine / BackupProvider",
+    "expected_state_change": "Table state snapshot written to ./data/backups/",
+    "verification_method": "GET /api/v1/backups/snapshots read-back"
+  },
+  {
+    "panel": "IAM & Access",
+    "route": "/console/iam",
+    "workflow": "User, Role & API Key Lifecycle",
+    "ui_action": "Create User, Assign Role, Generate API Key, Revoke API Key",
+    "api_route": "/api/v1/developer/keys",
+    "http_method": "POST / DELETE",
+    "provider": "AuthService / DeveloperUseCase",
+    "expected_state_change": "API key generated, hashed, and secret redacted upon readback",
+    "verification_method": "Attempt request with revoked key & verify HTTP 401"
+  },
+  {
+    "panel": "Operations",
+    "route": "/console/operations",
+    "workflow": "Control-Plane Operation Recovery & Idempotence",
+    "ui_action": "Inspect Background Operations",
+    "api_route": "/api/v1/operations",
+    "http_method": "GET",
+    "provider": "RecoveryWorker / ReliabilityUseCase",
+    "expected_state_change": "Background daemon reconciles interrupted control-plane operations",
+    "verification_method": "GET /api/v1/operations read-back"
+  }
+]

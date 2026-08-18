@@ -1,0 +1,62 @@
+[
+  {
+    "panel": "Managed Databases",
+    "workflow": "PostgreSQL & MySQL Stateful SQL Execution",
+    "classification": "REAL_LOCAL",
+    "rationale": "Executes real stateful SQL queries against disk-synced state files (./data/anarva_sql_service_state.json). Retains data rows permanently across server restarts and browser refreshes."
+  },
+  {
+    "panel": "Managed Databases",
+    "workflow": "MongoDB NoSQL Document Querying (MQL)",
+    "classification": "REAL_LOCAL",
+    "rationale": "Executes real MQL queries (find, insertOne, deleteMany) against file-backed JSON document collection service."
+  },
+  {
+    "panel": "Managed Databases",
+    "workflow": "Redis Key-Value In-Memory Command Execution",
+    "classification": "REAL_LOCAL",
+    "rationale": "Executes real Redis commands (SET, GET, KEYS, DEL, PING) against file-backed key-value store."
+  },
+  {
+    "panel": "Object Storage",
+    "workflow": "S3-Compatible Bucket & File Upload Lifecycle",
+    "classification": "REAL_FILESYSTEM",
+    "rationale": "LocalStorageProvider creates real bucket directories and writes actual file bytes to local disk (anarva-local-storage/)."
+  },
+  {
+    "panel": "Compute Instances",
+    "workflow": "Compute Container Instance Lifecycle",
+    "classification": "REAL_DOCKER",
+    "rationale": "Executes real Docker CLI commands if Docker daemon is running; falls back to in-memory status if Docker CLI is absent."
+  },
+  {
+    "panel": "Virtual Networks",
+    "workflow": "VPC & Subnet Topology Provisioning",
+    "classification": "CONTROL_PLANE_ONLY",
+    "rationale": "Allocates network CIDR block metadata and persists topology in database repository without mutating Linux kernel network interfaces."
+  },
+  {
+    "panel": "Edge Load Balancers",
+    "workflow": "Load Balancer & Routing Rule Configuration",
+    "classification": "CONTROL_PLANE_ONLY",
+    "rationale": "Persists listener rules, health check thresholds, and TLS certificates in database repository without binding live TCP ports."
+  },
+  {
+    "panel": "Backups & Recovery",
+    "workflow": "Snapshot & Point-in-Time Recovery",
+    "classification": "CONTROL_PLANE_ONLY",
+    "rationale": "Copies table state snapshots to ./data/backups/ metadata files."
+  },
+  {
+    "panel": "IAM & Access",
+    "workflow": "API Key Creation & Secret Revocation",
+    "classification": "REAL_LOCAL",
+    "rationale": "Generates secure API key hashes, redacts secret upon readback, and revokes credentials upon deletion."
+  },
+  {
+    "panel": "Operations",
+    "workflow": "Control-Plane Operation Recovery Worker",
+    "classification": "REAL_LOCAL",
+    "rationale": "Go background daemon actively reconciles stale/interrupted control-plane operations."
+  }
+]

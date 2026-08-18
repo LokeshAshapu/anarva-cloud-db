@@ -1,0 +1,25 @@
+{
+  "authentication_tests": {
+    "missing_token": "HTTP 401 Unauthorized (AUTH_REQUIRED)",
+    "invalid_token": "HTTP 401 Unauthorized (INVALID_TOKEN)",
+    "expired_token": "HTTP 401 Unauthorized (INVALID_TOKEN)",
+    "valid_token": "HTTP 200 OK / HTTP 201 Created",
+    "dev_session_token": "HTTP 200 OK (usr-dev)"
+  },
+  "rbac_tests": {
+    "OWNER": "Allowed all operations",
+    "ADMIN": "Allowed instance creation, querying, branching",
+    "DEVELOPER": "Allowed query execution & object read/write",
+    "READ_ONLY": "Blocked on mutations, HTTP 403 Forbidden"
+  },
+  "tenant_isolation_tests": {
+    "org_A_vs_org_B_read": "PASS (403/404 Scope Rejection)",
+    "org_A_vs_org_B_mutation": "PASS (403 Scope Rejection)",
+    "org_A_vs_org_B_delete": "PASS (403 Scope Rejection)"
+  },
+  "security_enhancements": {
+    "path_traversal_validation": "ValidateObjectKey blocks ../, null bytes, and url-encoded traversal",
+    "presigned_url_hmac": "HMAC-SHA256 signature verification enforced for GET/PUT object URLs",
+    "secret_redaction": "API keys redacted upon retrieval (sk_anarva_***)"
+  }
+}

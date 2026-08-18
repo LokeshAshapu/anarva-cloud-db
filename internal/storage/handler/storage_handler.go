@@ -2,7 +2,9 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/storage/service"
@@ -23,9 +25,8 @@ func (h *StorageHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/v1/storage/buckets/", h.handleBucketSubroutes)
 	mux.HandleFunc("POST /api/v1/storage/buckets/", h.handleBucketSubroutes)
 
-	// S3 Compatibility Layer
-	mux.HandleFunc("GET /s3/", h.handleS3Compatibility)
-	mux.HandleFunc("PUT /s3/", h.handleS3Compatibility)
+	// S3 Compatibility Layer Endpoint
+	mux.HandleFunc("/s3/", h.handleS3Compatibility)
 }
 
 func (h *StorageHandler) handleBuckets(w http.ResponseWriter, r *http.Request) {
@@ -109,6 +110,34 @@ func (h *StorageHandler) handleBucketSubroutes(w http.ResponseWriter, r *http.Re
 				return
 			}
 			json.NewEncoder(w).Encode(map[string]interface{}{"data": objs})
+		}
+
+	case "object":
+		key := ""
+		if len(parts) > 2 {
+			key = strings.Join(parts[2:], "/")
+		}
+		sig := r.URL.Query().Get("signature")
+		expStr := r.URL.Query().Get("expires")
+		expUnix, _ := strconv.ParseInt(expStr, 10, 64)
+
+		if sig != "" && expUnix > 0 {
+			if err := h.svc.ValidateSignedURL(bucketID, key, r.Method, sig, expUnix); err != nil {
+				http.Error(w, err.Error(), http.StatusUnauthorized)
+				return
+			}
+		}
+
+		if r.Method == http.MethodGet {
+			rc, obj, err := h.svc.GetObject(r.Context(), bucketID, key)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+			defer rc.Close()
+			w.Header().Set("Content-Type", obj.ContentType)
+			_, _ = io.Copy(w, rc)
+			return
 		}
 
 	case "signed-url":

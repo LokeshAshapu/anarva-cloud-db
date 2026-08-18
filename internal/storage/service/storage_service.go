@@ -131,6 +131,10 @@ func (s *StorageService) GenerateSignedURL(ctx context.Context, bucketID, key, m
 	return s.signedUrl.GenerateSignedURL(ctx, bucketID, key, method, expiresSec)
 }
 
+func (s *StorageService) ValidateSignedURL(bucketID, key, method, signature string, expiresUnix int64) error {
+	return s.signedUrl.ValidateSignedURL(bucketID, key, method, signature, expiresUnix)
+}
+
 func (s *StorageService) CreateMultipartUpload(ctx context.Context, bucketID, key string) (*domain.MultipartUpload, error) {
 	return s.mpSvc.CreateMultipartUpload(ctx, bucketID, key)
 }

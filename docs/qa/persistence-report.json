@@ -1,0 +1,15 @@
+{
+  "server_restart_persistence": {
+    "postgresql_state": "PASS (Tables, columns, default values, and rows loaded from ./data/anarva_sql_service_state.json)",
+    "mysql_state": "PASS (Tables & rows persisted to disk)",
+    "mongodb_state": "PASS (BSON collections & documents loaded from ./data/anarva_mql_service_state.json)",
+    "redis_state": "PASS (Keys & values loaded from ./data/anarva_redis_service_state.json)",
+    "object_storage_state": "PASS (Files stored in local disk root anarva-local-storage/)"
+  },
+  "browser_refresh_persistence": {
+    "active_database_id": "PASS (Restored via localStorage.anarva_active_db_id)",
+    "active_console_tab": "PASS (Restored via localStorage.anarva_active_db_tab_<id>)",
+    "typed_sql_statement": "PASS (Restored via localStorage.anarva_sql_query_text_<id>)",
+    "table_query_results": "PASS (Restored via localStorage.anarva_sql_query_cache_<id>)"
+  }
+}

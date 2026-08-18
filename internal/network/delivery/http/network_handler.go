@@ -39,7 +39,7 @@ func (h *NetworkHandler) handleNetworks(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		respondJSON(w, http.StatusOK, list)
+		respondJSON(w, http.StatusOK, map[string]interface{}{"data": list})
 
 	case http.MethodPost:
 		var req domain.Network
@@ -75,7 +75,7 @@ func (h *NetworkHandler) handleNetworks(w http.ResponseWriter, r *http.Request) 
 			})
 		}
 
-		respondJSON(w, http.StatusCreated, created)
+		respondJSON(w, http.StatusCreated, map[string]interface{}{"data": created})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

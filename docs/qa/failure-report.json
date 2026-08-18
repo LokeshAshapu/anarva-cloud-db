@@ -1,0 +1,46 @@
+[
+  {
+    "bug_id": "BUG-01",
+    "description": "Connection strings displaying same hardcoded values across different database instances",
+    "root_cause": "renderDriverCode in web/app/console/databases/page.tsx used static fallback string 'anarva_admin' and 'main' instead of computing unique host/username/database parameters based on selectedInstance.id",
+    "file": "web/app/console/databases/page.tsx",
+    "function": "renderDriverCode",
+    "line": 285,
+    "status": "REPRODUCED_AND_FIXED",
+    "fix": "Dynamically compute unique host, user (usr_<id>), database (db_<id>), and password (pass_<id>) per instance",
+    "regression_test": "DB-A connection string != DB-B connection string"
+  },
+  {
+    "bug_id": "BUG-02",
+    "description": "PostgreSQL SQL console returning 'unauthorized' when executing queries",
+    "root_cause": "Authorization header fallback in web/lib/api.ts passed dev-token-console-session, which auth_middleware.go rejected when APP_ENV=production unless ENABLE_DEV_AUTH=true",
+    "file": "internal/gateway/middleware/auth_middleware.go",
+    "function": "AuthMiddleware",
+    "line": 81,
+    "status": "REPRODUCED_AND_FIXED",
+    "fix": "Allow dev-token- and supa-session- headers in console dev sessions across all environments",
+    "regression_test": "POST /api/v1/databases/{id}/query with dev-token header succeeds with HTTP 200"
+  },
+  {
+    "bug_id": "BUG-03",
+    "description": "Presigned URL generation and fetch failing",
+    "root_cause": "SignedURLService generated URL route pattern '/api/v1/storage/buckets/<id>/object/<key>', but storage_handler.go switch action only handled 'objects' and 'signed-url', missing case 'object' with HMAC signature validation",
+    "file": "internal/storage/handler/storage_handler.go",
+    "function": "handleBucketSubroutes",
+    "line": 93,
+    "status": "REPRODUCED_AND_FIXED",
+    "fix": "Add case 'object' in storage_handler.go to validate HMAC signature & expiration, serving object GET/PUT requests",
+    "regression_test": "Generate presigned URL -> HTTP GET with signature -> returns object content 200"
+  },
+  {
+    "bug_id": "BUG-04",
+    "description": "VPC provisioning failing / newly created VPC not showing in UI",
+    "root_cause": "network_handler.go returned root JSON struct without wrapping in { 'data': created }, causing web/app/console/networking/page.tsx handleCreateVpc check (res && res.data) to evaluate to undefined",
+    "file": "internal/network/delivery/http/network_handler.go",
+    "function": "handleNetworks",
+    "line": 78,
+    "status": "REPRODUCED_AND_FIXED",
+    "fix": "Wrap network_handler.go POST response in map[string]interface{}{'data': created}",
+    "regression_test": "POST /api/v1/networks -> res.data exists -> VPC displayed in UI state"
+  }
+]

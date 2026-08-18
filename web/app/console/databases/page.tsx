@@ -279,11 +279,12 @@ export default function ManagedDatabasesPage() {
 
   const renderDriverCode = (driver: string, inst: DatabaseInstanceItem) => {
     const isMySQL = inst.engine === 'MYSQL'
+    const cleanId = (inst.id || 'db').replace(/[^a-zA-Z0-9]/g, '_')
     const host = inst.host || '127.0.0.1'
     const port = inst.port || (isMySQL ? 3306 : 5432)
-    const dbName = inst.dbName || 'main'
-    const user = inst.username || 'anarva_admin'
-    const pass = 'anarva_secret'
+    const dbName = inst.dbName || `db_${cleanId}`
+    const user = inst.username || `usr_${cleanId.slice(-8)}`
+    const pass = `pass_${cleanId.slice(-8)}`
 
     switch (driver) {
       case 'node':
