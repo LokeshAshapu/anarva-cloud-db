@@ -71,6 +71,19 @@ func (s *SQLService) loadFromFile() {
 	}
 	var loaded map[string]map[string]*TableState
 	if err := json.Unmarshal(data, &loaded); err == nil && loaded != nil {
+		for _, instance := range loaded {
+			for _, tbl := range instance {
+				for rIdx, row := range tbl.Rows {
+					for cIdx, val := range row {
+						if f, ok := val.(float64); ok {
+							if f == float64(int(f)) {
+								tbl.Rows[rIdx][cIdx] = int(f)
+							}
+						}
+					}
+				}
+			}
+		}
 		s.instanceTables = loaded
 	}
 }

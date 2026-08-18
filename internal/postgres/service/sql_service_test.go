@@ -2,7 +2,9 @@ package service_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,7 +15,7 @@ import (
 func TestSQLService_StatefulExecution(t *testing.T) {
 	svc := service.NewSQLService()
 	ctx := context.Background()
-	instID := "test-db-inst-01"
+	instID := fmt.Sprintf("test-db-inst-%d", time.Now().UnixNano())
 
 	t.Run("Duplicate CREATE TABLE returns relation already exists error", func(t *testing.T) {
 		res, err := svc.ExecuteQuery(ctx, instID, "CREATE TABLE users (id INT, username TEXT)")
@@ -110,5 +112,27 @@ func TestSQLService_StatefulExecution(t *testing.T) {
 		res2, err2 := svc.ExecuteQuery(ctx, instID, "SELECT * FROM orders")
 		assert.Error(t, err2)
 		assert.Nil(t, res2)
+	})
+
+	t.Run("Server restart simulation retains created tables and rows permanently", func(t *testing.T) {
+		restartInstID := fmt.Sprintf("persistent-restart-db-%d", time.Now().UnixNano())
+
+		// Instance 1 creates table and inserts data
+		svc1 := service.NewSQLService()
+		_, err := svc1.ExecuteQuery(ctx, restartInstID, "CREATE TABLE persistent_products (id INT, product_name TEXT, is_in_stock BOOLEAN DEFAULT true)")
+		require.NoError(t, err)
+
+		_, err = svc1.ExecuteQuery(ctx, restartInstID, "INSERT INTO persistent_products (id, product_name) VALUES (501, 'MacBook Pro M4')")
+		require.NoError(t, err)
+
+		// Simulate complete backend restart by creating a brand new Service instance (reading from disk)
+		svc2 := service.NewSQLService()
+		resSelect, err := svc2.ExecuteQuery(ctx, restartInstID, "SELECT * FROM persistent_products")
+		require.NoError(t, err)
+		require.Equal(t, 1, resSelect.RowCount)
+		assert.Equal(t, []string{"id", "product_name", "is_in_stock"}, resSelect.Columns)
+		assert.Equal(t, 501, resSelect.Rows[0][0])
+		assert.Equal(t, "MacBook Pro M4", resSelect.Rows[0][1])
+		assert.Equal(t, true, resSelect.Rows[0][2])
 	})
 }
