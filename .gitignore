@@ -23,6 +23,8 @@ web/yarn-error.log*
 .env.production.local
 storage_data/
 backups_data/
+data/
+*anarva_sql_service_state.json
 *.log
 
 # OS & IDE

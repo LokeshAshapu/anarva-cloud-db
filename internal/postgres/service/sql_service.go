@@ -35,12 +35,29 @@ type SQLService struct {
 }
 
 func NewSQLService() *SQLService {
-	filePath := filepath.Join(os.TempDir(), "anarva_sql_service_state.json")
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./data"
+	}
+	_ = os.MkdirAll(dataDir, 0755)
+
+	filePath := filepath.Join(dataDir, "anarva_sql_service_state.json")
 	svc := &SQLService{
 		filePath:       filePath,
 		instanceTables: make(map[string]map[string]*TableState),
 	}
 	svc.loadFromFile()
+
+	// Fallback load from temp dir if primary data file is empty
+	if len(svc.instanceTables) == 0 {
+		tmpPath := filepath.Join(os.TempDir(), "anarva_sql_service_state.json")
+		if _, err := os.Stat(tmpPath); err == nil {
+			svc.filePath = tmpPath
+			svc.loadFromFile()
+			svc.filePath = filePath
+		}
+	}
+
 	return svc
 }
 
@@ -66,7 +83,13 @@ func (s *SQLService) saveToFileLocked() {
 	if err != nil {
 		return
 	}
+
+	// Write to primary persistent path
 	_ = os.WriteFile(s.filePath, data, 0644)
+
+	// Backup write to temp dir
+	tmpPath := filepath.Join(os.TempDir(), "anarva_sql_service_state.json")
+	_ = os.WriteFile(tmpPath, data, 0644)
 }
 
 func (s *SQLService) getOrInitTables(instanceID string) map[string]*TableState {
