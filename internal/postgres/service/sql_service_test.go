@@ -28,6 +28,21 @@ func TestSQLService_StatefulExecution(t *testing.T) {
 		assert.NotNil(t, res)
 	})
 
+	t.Run("INSERT INTO users with explicit column mapping (name, email)", func(t *testing.T) {
+		res, err := svc.ExecuteQuery(ctx, instID, "INSERT INTO users (name, email) VALUES ('Alice Johnson', 'alice@example.com'), ('Bob Smith', 'bob@example.com')")
+		require.NoError(t, err)
+		assert.Equal(t, 2, res.RowCount)
+
+		// Verify SELECT * FROM users LIMIT 10
+		resSelect, err := svc.ExecuteQuery(ctx, instID, "SELECT * FROM users LIMIT 10")
+		require.NoError(t, err)
+		assert.Equal(t, 4, resSelect.RowCount) // 2 default + 2 inserted
+		assert.Equal(t, 3, resSelect.Rows[2][0]) // id = 3
+		assert.Equal(t, "Alice Johnson", resSelect.Rows[2][1]) // username = Alice Johnson
+		assert.Equal(t, "alice@example.com", resSelect.Rows[2][2]) // email = alice@example.com
+		assert.Equal(t, "ACTIVE", resSelect.Rows[2][3]) // status = ACTIVE
+	})
+
 	t.Run("CREATE TABLE orders creates new table schema", func(t *testing.T) {
 		res, err := svc.ExecuteQuery(ctx, instID, "CREATE TABLE orders (id INT, item TEXT, price FLOAT)")
 		require.NoError(t, err)

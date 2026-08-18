@@ -59,7 +59,6 @@ func (s *SQLService) ExecuteQuery(ctx context.Context, instanceID, sql string) (
 		return nil, errors.New("empty SQL query statement")
 	}
 
-	// Remove trailing semicolon if present
 	trimmed = strings.TrimSuffix(trimmed, ";")
 	upper := strings.ToUpper(trimmed)
 
@@ -143,13 +142,10 @@ func (s *SQLService) ExecuteQuery(ctx context.Context, instanceID, sql string) (
 func (s *SQLService) handleCreateTable(tables map[string]*TableState, trimmed, upper string) ([]string, [][]interface{}, int, error) {
 	ifNotExists := strings.Contains(upper, "IF NOT EXISTS")
 
-	// Parse table name
-	// CREATE TABLE [IF NOT EXISTS] <name> (...)
 	cleanStr := strings.TrimPrefix(upper, "CREATE TABLE")
 	cleanStr = strings.TrimPrefix(cleanStr, " IF NOT EXISTS")
 	cleanStr = strings.TrimSpace(cleanStr)
 
-	// Extract table name before '(' or space
 	idxParen := strings.Index(cleanStr, "(")
 	var tableName string
 	var colsBlock string
@@ -169,7 +165,6 @@ func (s *SQLService) handleCreateTable(tables map[string]*TableState, trimmed, u
 		tableName = "custom_table"
 	}
 
-	// Check if table already exists
 	if _, exists := tables[tableName]; exists {
 		if ifNotExists {
 			tbl := tables[tableName]
@@ -178,7 +173,6 @@ func (s *SQLService) handleCreateTable(tables map[string]*TableState, trimmed, u
 		return nil, nil, 0, fmt.Errorf("relation %q already exists", tableName)
 	}
 
-	// Parse columns from colsBlock
 	var columns []string
 	if colsBlock != "" {
 		colParts := strings.Split(colsBlock, ",")
@@ -198,7 +192,7 @@ func (s *SQLService) handleCreateTable(tables map[string]*TableState, trimmed, u
 	}
 
 	if len(columns) == 0 {
-		columns = []string{"id", "data", "created_at"}
+		columns = []string{"id", "name", "created_at"}
 	}
 
 	tables[tableName] = &TableState{
@@ -211,7 +205,6 @@ func (s *SQLService) handleCreateTable(tables map[string]*TableState, trimmed, u
 }
 
 func (s *SQLService) handleInsert(tables map[string]*TableState, trimmed, upper string) ([]string, [][]interface{}, int, error) {
-	// INSERT INTO <table_name> [(col1, col2)] VALUES (val1, val2), ...
 	afterInsert := strings.TrimSpace(trimmed[len("INSERT INTO"):])
 	parts := strings.Fields(afterInsert)
 	if len(parts) == 0 {
@@ -229,10 +222,24 @@ func (s *SQLService) handleInsert(tables map[string]*TableState, trimmed, upper 
 		return nil, nil, 0, fmt.Errorf("relation %q does not exist", tableName)
 	}
 
-	// Check for VALUES clause
 	valuesIdx := strings.Index(upper, "VALUES")
 	if valuesIdx == -1 {
 		return nil, nil, 0, errors.New("missing VALUES clause in INSERT statement")
+	}
+
+	// Parse explicit target columns if specified in query: e.g. INSERT INTO users (name, email)
+	var targetCols []string
+	betweenTableAndValues := trimmed[len("INSERT INTO")+len(parts[0]) : valuesIdx]
+	if idxOpen := strings.Index(betweenTableAndValues, "("); idxOpen != -1 {
+		if idxClose := strings.Index(betweenTableAndValues[idxOpen:], ")"); idxClose != -1 {
+			rawCols := betweenTableAndValues[idxOpen+1 : idxOpen+idxClose]
+			for _, col := range strings.Split(rawCols, ",") {
+				c := strings.ToLower(strings.TrimSpace(strings.Trim(col, `"'` + "`")))
+				if c != "" {
+					targetCols = append(targetCols, c)
+				}
+			}
+		}
 	}
 
 	valuesStr := trimmed[valuesIdx+len("VALUES"):]
@@ -245,17 +252,46 @@ func (s *SQLService) handleInsert(tables map[string]*TableState, trimmed, upper 
 	insertedRows := make([][]interface{}, 0, len(valuesTuples))
 	for _, tuple := range valuesTuples {
 		row := make([]interface{}, len(tbl.Columns))
-		for i, col := range tbl.Columns {
-			if i < len(tuple) {
-				row[i] = parseSQLValue(tuple[i])
-			} else if col == "id" {
-				row[i] = len(tbl.Rows) + 1
-			} else if col == "created_at" {
-				row[i] = time.Now().Format(time.RFC3339)
-			} else {
-				row[i] = nil
+		mapped := make(map[int]bool)
+
+		if len(targetCols) > 0 {
+			// Map explicit query columns to table column indices
+			for i, targetCol := range targetCols {
+				if i < len(tuple) {
+					parsedVal := parseSQLValue(tuple[i])
+					colIdx := resolveColumnIndex(tbl.Columns, targetCol)
+					if colIdx != -1 {
+						row[colIdx] = parsedVal
+						mapped[colIdx] = true
+					}
+				}
+			}
+		} else {
+			// Positional mapping
+			for i, val := range tuple {
+				if i < len(tbl.Columns) {
+					row[i] = parseSQLValue(val)
+					mapped[i] = true
+				}
 			}
 		}
+
+		// Auto-populate unmapped columns
+		for i, col := range tbl.Columns {
+			if !mapped[i] {
+				switch col {
+				case "id":
+					row[i] = len(tbl.Rows) + 1
+				case "status":
+					row[i] = "ACTIVE"
+				case "created_at", "updated_at":
+					row[i] = time.Now().Format(time.RFC3339)
+				default:
+					row[i] = nil
+				}
+			}
+		}
+
 		tbl.Rows = append(tbl.Rows, row)
 		insertedRows = append(insertedRows, row)
 	}
@@ -273,10 +309,8 @@ func (s *SQLService) handleSelect(tables map[string]*TableState, trimmed, upper 
 		return cols, rows, len(rows), nil
 	}
 
-	// Extract table name after FROM
 	fromIdx := strings.Index(upper, "FROM")
 	if fromIdx == -1 {
-		// e.g. SELECT 1, SELECT NOW()
 		return []string{"?column?"}, [][]interface{}{{1}}, 1, nil
 	}
 
@@ -293,21 +327,40 @@ func (s *SQLService) handleSelect(tables map[string]*TableState, trimmed, upper 
 		return nil, nil, 0, fmt.Errorf("relation %q does not exist", tableName)
 	}
 
-	// Simple WHERE filtering if specified
+	// WHERE clause filtering
 	whereIdx := strings.Index(upper, "WHERE")
+	limitIdx := strings.Index(upper, "LIMIT")
+
 	var filteredRows [][]interface{}
 	if whereIdx != -1 {
-		whereClause := trimmed[whereIdx+len("WHERE"):]
+		var whereClause string
+		if limitIdx != -1 && limitIdx > whereIdx {
+			whereClause = trimmed[whereIdx+len("WHERE") : limitIdx]
+		} else {
+			whereClause = trimmed[whereIdx+len("WHERE"):]
+		}
 		filteredRows = s.filterRows(tbl, whereClause)
 	} else {
 		filteredRows = tbl.Rows
+	}
+
+	// LIMIT clause clipping
+	if limitIdx != -1 {
+		limitStr := strings.TrimSpace(upper[limitIdx+len("LIMIT"):])
+		limitFields := strings.Fields(limitStr)
+		if len(limitFields) > 0 {
+			if limitVal, err := strconv.Atoi(limitFields[0]); err == nil && limitVal >= 0 {
+				if limitVal < len(filteredRows) {
+					filteredRows = filteredRows[:limitVal]
+				}
+			}
+		}
 	}
 
 	return tbl.Columns, filteredRows, len(filteredRows), nil
 }
 
 func (s *SQLService) handleUpdate(tables map[string]*TableState, trimmed, upper string) ([]string, [][]interface{}, int, error) {
-	// UPDATE <table_name> SET col = val [WHERE ...]
 	afterUpdate := strings.TrimSpace(trimmed[len("UPDATE"):])
 	fields := strings.Fields(afterUpdate)
 	if len(fields) == 0 {
@@ -333,17 +386,14 @@ func (s *SQLService) handleUpdate(tables map[string]*TableState, trimmed, upper 
 		setClause = trimmed[setIdx+len("SET"):]
 	}
 
-	// Parse SET col1 = val1, col2 = val2
 	updates := s.parseSetClause(setClause)
 
 	updatedCount := 0
 	for _, row := range tbl.Rows {
-		// Apply updates to row
 		for colName, val := range updates {
-			for colIdx, col := range tbl.Columns {
-				if col == colName {
-					row[colIdx] = val
-				}
+			colIdx := resolveColumnIndex(tbl.Columns, colName)
+			if colIdx != -1 && colIdx < len(row) {
+				row[colIdx] = val
 			}
 		}
 		updatedCount++
@@ -353,7 +403,6 @@ func (s *SQLService) handleUpdate(tables map[string]*TableState, trimmed, upper 
 }
 
 func (s *SQLService) handleDelete(tables map[string]*TableState, trimmed, upper string) ([]string, [][]interface{}, int, error) {
-	// DELETE FROM <table_name> [WHERE ...]
 	fromIdx := strings.Index(upper, "FROM")
 	if fromIdx == -1 {
 		return nil, nil, 0, errors.New("missing FROM in DELETE statement")
@@ -372,7 +421,7 @@ func (s *SQLService) handleDelete(tables map[string]*TableState, trimmed, upper 
 	}
 
 	deletedCount := len(tbl.Rows)
-	tbl.Rows = [][]interface{}{} // Truncate table rows on DELETE
+	tbl.Rows = [][]interface{}{}
 
 	return tbl.Columns, tbl.Rows, deletedCount, nil
 }
@@ -398,6 +447,31 @@ func (s *SQLService) handleDropTable(tables map[string]*TableState, trimmed, upp
 
 	delete(tables, tableName)
 	return []string{}, [][]interface{}{}, 0, nil
+}
+
+func resolveColumnIndex(columns []string, colName string) int {
+	colName = strings.ToLower(colName)
+	for i, c := range columns {
+		if c == colName {
+			return i
+		}
+	}
+	// Aliases: name -> username
+	if colName == "name" || colName == "user" {
+		for i, c := range columns {
+			if c == "username" {
+				return i
+			}
+		}
+	}
+	if colName == "mail" {
+		for i, c := range columns {
+			if c == "email" {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 func (s *SQLService) parseValuesTuples(valuesStr string) [][]string {
@@ -451,13 +525,7 @@ func (s *SQLService) filterRows(tbl *TableState, whereClause string) [][]interfa
 	filterCol := strings.ToLower(strings.TrimSpace(parts[0]))
 	filterVal := strings.Trim(strings.TrimSpace(parts[1]), `"'`)
 
-	colIdx := -1
-	for i, col := range tbl.Columns {
-		if col == filterCol {
-			colIdx = i; break
-		}
-	}
-
+	colIdx := resolveColumnIndex(tbl.Columns, filterCol)
 	if colIdx == -1 {
 		return tbl.Rows
 	}
