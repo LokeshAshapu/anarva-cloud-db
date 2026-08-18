@@ -19,9 +19,10 @@ type SQLQueryResult struct {
 }
 
 type TableState struct {
-	Name    string
-	Columns []string
-	Rows    [][]interface{}
+	Name           string
+	Columns        []string
+	ColumnDefaults map[string]interface{}
+	Rows           [][]interface{}
 }
 
 type SQLService struct {
@@ -43,6 +44,10 @@ func (s *SQLService) getOrInitTables(instanceID string) map[string]*TableState {
 		tables["users"] = &TableState{
 			Name:    "users",
 			Columns: []string{"id", "username", "email", "status", "created_at"},
+			ColumnDefaults: map[string]interface{}{
+				"status":     "ACTIVE",
+				"created_at": nowStr,
+			},
 			Rows: [][]interface{}{
 				{1, "anarva_admin", "admin@anarva.io", "ACTIVE", nowStr},
 				{2, "app_user", "user@anarva.io", "ACTIVE", nowStr},
@@ -174,6 +179,8 @@ func (s *SQLService) handleCreateTable(tables map[string]*TableState, trimmed, u
 	}
 
 	var columns []string
+	defaults := make(map[string]interface{})
+
 	if colsBlock != "" {
 		colParts := strings.Split(colsBlock, ",")
 		for _, part := range colParts {
@@ -186,6 +193,16 @@ func (s *SQLService) handleCreateTable(tables map[string]*TableState, trimmed, u
 				colName := strings.ToLower(strings.Trim(colFields[0], `"'` + "`"))
 				if colName != "primary" && colName != "foreign" && colName != "constraint" && colName != "unique" {
 					columns = append(columns, colName)
+
+					// Check for DEFAULT value clause
+					upperPart := strings.ToUpper(part)
+					if defIdx := strings.Index(upperPart, "DEFAULT"); defIdx != -1 {
+						afterDef := strings.TrimSpace(part[defIdx+len("DEFAULT"):])
+						defFields := strings.Fields(afterDef)
+						if len(defFields) > 0 {
+							defaults[colName] = parseSQLValue(defFields[0])
+						}
+					}
 				}
 			}
 		}
@@ -196,9 +213,10 @@ func (s *SQLService) handleCreateTable(tables map[string]*TableState, trimmed, u
 	}
 
 	tables[tableName] = &TableState{
-		Name:    tableName,
-		Columns: columns,
-		Rows:    [][]interface{}{},
+		Name:           tableName,
+		Columns:        columns,
+		ColumnDefaults: defaults,
+		Rows:           [][]interface{}{},
 	}
 
 	return columns, [][]interface{}{}, 0, nil
@@ -227,7 +245,6 @@ func (s *SQLService) handleInsert(tables map[string]*TableState, trimmed, upper 
 		return nil, nil, 0, errors.New("missing VALUES clause in INSERT statement")
 	}
 
-	// Parse explicit target columns if specified in query: e.g. INSERT INTO users (name, email)
 	var targetCols []string
 	betweenTableAndValues := trimmed[len("INSERT INTO")+len(parts[0]) : valuesIdx]
 	if idxOpen := strings.Index(betweenTableAndValues, "("); idxOpen != -1 {
@@ -255,7 +272,6 @@ func (s *SQLService) handleInsert(tables map[string]*TableState, trimmed, upper 
 		mapped := make(map[int]bool)
 
 		if len(targetCols) > 0 {
-			// Map explicit query columns to table column indices
 			for i, targetCol := range targetCols {
 				if i < len(tuple) {
 					parsedVal := parseSQLValue(tuple[i])
@@ -267,7 +283,6 @@ func (s *SQLService) handleInsert(tables map[string]*TableState, trimmed, upper 
 				}
 			}
 		} else {
-			// Positional mapping
 			for i, val := range tuple {
 				if i < len(tbl.Columns) {
 					row[i] = parseSQLValue(val)
@@ -276,17 +291,20 @@ func (s *SQLService) handleInsert(tables map[string]*TableState, trimmed, upper 
 			}
 		}
 
-		// Auto-populate unmapped columns
+		// Auto-populate unmapped columns from ColumnDefaults or dynamic rules
 		for i, col := range tbl.Columns {
 			if !mapped[i] {
-				switch col {
-				case "id":
+				if defVal, ok := tbl.ColumnDefaults[col]; ok && defVal != nil {
+					row[i] = defVal
+				} else if col == "id" {
 					row[i] = len(tbl.Rows) + 1
-				case "status":
+				} else if strings.HasPrefix(col, "is_") || strings.HasPrefix(col, "has_") || col == "active" || col == "enabled" {
+					row[i] = true
+				} else if col == "status" {
 					row[i] = "ACTIVE"
-				case "created_at", "updated_at":
+				} else if col == "created_at" || col == "updated_at" {
 					row[i] = time.Now().Format(time.RFC3339)
-				default:
+				} else {
 					row[i] = nil
 				}
 			}
@@ -327,7 +345,6 @@ func (s *SQLService) handleSelect(tables map[string]*TableState, trimmed, upper 
 		return nil, nil, 0, fmt.Errorf("relation %q does not exist", tableName)
 	}
 
-	// WHERE clause filtering
 	whereIdx := strings.Index(upper, "WHERE")
 	limitIdx := strings.Index(upper, "LIMIT")
 
@@ -344,7 +361,6 @@ func (s *SQLService) handleSelect(tables map[string]*TableState, trimmed, upper 
 		filteredRows = tbl.Rows
 	}
 
-	// LIMIT clause clipping
 	if limitIdx != -1 {
 		limitStr := strings.TrimSpace(upper[limitIdx+len("LIMIT"):])
 		limitFields := strings.Fields(limitStr)
@@ -456,7 +472,6 @@ func resolveColumnIndex(columns []string, colName string) int {
 			return i
 		}
 	}
-	// Aliases: name -> username
 	if colName == "name" || colName == "user" {
 		for i, c := range columns {
 			if c == "username" {

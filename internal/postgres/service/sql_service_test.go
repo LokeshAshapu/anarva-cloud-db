@@ -28,6 +28,32 @@ func TestSQLService_StatefulExecution(t *testing.T) {
 		assert.NotNil(t, res)
 	})
 
+	t.Run("CREATE TABLE custom_users with DEFAULT values and INSERT", func(t *testing.T) {
+		createSQL := `CREATE TABLE custom_users (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(100) NOT NULL,
+			email VARCHAR(150) UNIQUE NOT NULL,
+			is_active BOOLEAN DEFAULT true,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`
+		resCreate, err := svc.ExecuteQuery(ctx, instID, createSQL)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"id", "name", "email", "is_active", "created_at"}, resCreate.Columns)
+
+		insertSQL := `INSERT INTO custom_users (name, email) VALUES
+			('Alice Johnson', 'alice@example.com'),
+			('Bob Smith', 'bob@example.com'),
+			('Charlie Brown', 'charlie@example.com')`
+		resInsert, err := svc.ExecuteQuery(ctx, instID, insertSQL)
+		require.NoError(t, err)
+		assert.Equal(t, 3, resInsert.RowCount)
+
+		// Verify is_active is boolean true instead of null
+		assert.Equal(t, true, resInsert.Rows[0][3])
+		assert.Equal(t, "Alice Johnson", resInsert.Rows[0][1])
+		assert.Equal(t, "alice@example.com", resInsert.Rows[0][2])
+	})
+
 	t.Run("INSERT INTO users with explicit column mapping (name, email)", func(t *testing.T) {
 		res, err := svc.ExecuteQuery(ctx, instID, "INSERT INTO users (name, email) VALUES ('Alice Johnson', 'alice@example.com'), ('Bob Smith', 'bob@example.com')")
 		require.NoError(t, err)
