@@ -48,7 +48,6 @@ func NewSQLService() *SQLService {
 	}
 	svc.loadFromFile()
 
-	// Fallback load from temp dir if primary data file is empty
 	if len(svc.instanceTables) == 0 {
 		tmpPath := filepath.Join(os.TempDir(), "anarva_sql_service_state.json")
 		if _, err := os.Stat(tmpPath); err == nil {
@@ -97,10 +96,8 @@ func (s *SQLService) saveToFileLocked() {
 		return
 	}
 
-	// Write to primary persistent path
 	_ = os.WriteFile(s.filePath, data, 0644)
 
-	// Backup write to temp dir
 	tmpPath := filepath.Join(os.TempDir(), "anarva_sql_service_state.json")
 	_ = os.WriteFile(tmpPath, data, 0644)
 }
@@ -157,9 +154,28 @@ func (s *SQLService) ExecuteQuery(ctx context.Context, instanceID, sql string) (
 	var rowCount int
 
 	switch {
+	case upper == "BEGIN" || upper == "START TRANSACTION" || upper == "COMMIT" || upper == "END" || upper == "ROLLBACK":
+		columns = []string{"status"}
+		rows = [][]interface{}{{upper}}
+		rowCount = 1
+
 	case strings.HasPrefix(upper, "CREATE TABLE"):
 		var err error
 		columns, rows, rowCount, err = s.handleCreateTable(tables, trimmed, upper)
+		if err != nil {
+			return nil, err
+		}
+
+	case strings.HasPrefix(upper, "ALTER TABLE"):
+		var err error
+		columns, rows, rowCount, err = s.handleAlterTable(tables, trimmed, upper)
+		if err != nil {
+			return nil, err
+		}
+
+	case strings.HasPrefix(upper, "TRUNCATE"):
+		var err error
+		columns, rows, rowCount, err = s.handleTruncate(tables, trimmed, upper)
 		if err != nil {
 			return nil, err
 		}
@@ -192,6 +208,13 @@ func (s *SQLService) ExecuteQuery(ctx context.Context, instanceID, sql string) (
 			return nil, err
 		}
 
+	case strings.HasPrefix(upper, "DESCRIBE") || strings.HasPrefix(upper, "\\D") || strings.HasPrefix(upper, "EXPLAIN"):
+		var err error
+		columns, rows, rowCount, err = s.handleDescribeOrExplain(tables, trimmed, upper)
+		if err != nil {
+			return nil, err
+		}
+
 	default: // SELECT, SHOW, or other queries
 		var err error
 		columns, rows, rowCount, err = s.handleSelect(tables, trimmed, upper)
@@ -200,8 +223,7 @@ func (s *SQLService) ExecuteQuery(ctx context.Context, instanceID, sql string) (
 		}
 	}
 
-	// Save state to disk on any state-modifying query
-	if strings.HasPrefix(upper, "CREATE TABLE") || strings.HasPrefix(upper, "INSERT INTO") || strings.HasPrefix(upper, "UPDATE") || strings.HasPrefix(upper, "DELETE FROM") || strings.HasPrefix(upper, "DROP TABLE") {
+	if strings.HasPrefix(upper, "CREATE TABLE") || strings.HasPrefix(upper, "ALTER TABLE") || strings.HasPrefix(upper, "TRUNCATE") || strings.HasPrefix(upper, "INSERT INTO") || strings.HasPrefix(upper, "UPDATE") || strings.HasPrefix(upper, "DELETE FROM") || strings.HasPrefix(upper, "DROP TABLE") {
 		s.saveToFileLocked()
 	}
 
@@ -294,6 +316,123 @@ func (s *SQLService) handleCreateTable(tables map[string]*TableState, trimmed, u
 	}
 
 	return columns, [][]interface{}{}, 0, nil
+}
+
+func (s *SQLService) handleAlterTable(tables map[string]*TableState, trimmed, upper string) ([]string, [][]interface{}, int, error) {
+	after := strings.TrimSpace(trimmed[len("ALTER TABLE"):])
+	fields := strings.Fields(after)
+	if len(fields) < 2 {
+		return nil, nil, 0, errors.New("syntax error in ALTER TABLE statement")
+	}
+
+	tableName := strings.ToLower(strings.Trim(fields[0], `"'` + "`"))
+	tbl, exists := tables[tableName]
+	if !exists {
+		return nil, nil, 0, fmt.Errorf("relation %q does not exist", tableName)
+	}
+
+	action := strings.ToUpper(fields[1])
+	switch action {
+	case "ADD":
+		afterAdd := strings.TrimSpace(after[strings.Index(strings.ToUpper(after), "ADD")+len("ADD"):])
+		afterAdd = strings.TrimPrefix(afterAdd, "COLUMN ")
+		afterAdd = strings.TrimPrefix(afterAdd, "column ")
+		addFields := strings.Fields(afterAdd)
+		if len(addFields) == 0 {
+			return nil, nil, 0, errors.New("missing column name in ALTER TABLE ADD")
+		}
+		newCol := strings.ToLower(strings.Trim(addFields[0], `"'` + "`"))
+
+		for _, c := range tbl.Columns {
+			if c == newCol {
+				return nil, nil, 0, fmt.Errorf("column %q of relation %q already exists", newCol, tableName)
+			}
+		}
+
+		tbl.Columns = append(tbl.Columns, newCol)
+
+		var defVal interface{} = nil
+		if defIdx := strings.Index(strings.ToUpper(afterAdd), "DEFAULT"); defIdx != -1 {
+			afterDef := strings.TrimSpace(afterAdd[defIdx+len("DEFAULT"):])
+			defFields := strings.Fields(afterDef)
+			if len(defFields) > 0 {
+				defVal = parseSQLValue(defFields[0])
+			}
+		}
+
+		if defVal != nil {
+			if tbl.ColumnDefaults == nil {
+				tbl.ColumnDefaults = make(map[string]interface{})
+			}
+			tbl.ColumnDefaults[newCol] = defVal
+		}
+
+		for i := range tbl.Rows {
+			tbl.Rows[i] = append(tbl.Rows[i], defVal)
+		}
+
+		return tbl.Columns, tbl.Rows, 0, nil
+
+	case "DROP":
+		afterDrop := strings.TrimSpace(after[strings.Index(strings.ToUpper(after), "DROP")+len("DROP"):])
+		afterDrop = strings.TrimPrefix(afterDrop, "COLUMN ")
+		afterDrop = strings.TrimPrefix(afterDrop, "column ")
+		dropFields := strings.Fields(afterDrop)
+		if len(dropFields) == 0 {
+			return nil, nil, 0, errors.New("missing column name in ALTER TABLE DROP")
+		}
+		dropCol := strings.ToLower(strings.Trim(dropFields[0], `"'` + "`"))
+
+		colIdx := resolveColumnIndex(tbl.Columns, dropCol)
+		if colIdx == -1 {
+			return nil, nil, 0, fmt.Errorf("column %q of relation %q does not exist", dropCol, tableName)
+		}
+
+		tbl.Columns = append(tbl.Columns[:colIdx], tbl.Columns[colIdx+1:]...)
+
+		for i, row := range tbl.Rows {
+			if colIdx < len(row) {
+				tbl.Rows[i] = append(row[:colIdx], row[colIdx+1:]...)
+			}
+		}
+
+		return tbl.Columns, tbl.Rows, 0, nil
+
+	case "RENAME":
+		toIdx := strings.Index(strings.ToUpper(after), "TO")
+		if toIdx == -1 {
+			return nil, nil, 0, errors.New("syntax error in ALTER TABLE RENAME TO")
+		}
+		newName := strings.ToLower(strings.TrimSpace(after[toIdx+2:]))
+		newName = strings.Trim(strings.Fields(newName)[0], `"'` + "`")
+
+		delete(tables, tableName)
+		tbl.Name = newName
+		tables[newName] = tbl
+
+		return tbl.Columns, tbl.Rows, 0, nil
+	}
+
+	return tbl.Columns, tbl.Rows, 0, nil
+}
+
+func (s *SQLService) handleTruncate(tables map[string]*TableState, trimmed, upper string) ([]string, [][]interface{}, int, error) {
+	after := strings.TrimPrefix(upper, "TRUNCATE")
+	after = strings.TrimPrefix(after, " TABLE")
+	tableName := strings.ToLower(strings.TrimSpace(after))
+	fields := strings.Fields(tableName)
+	if len(fields) > 0 {
+		tableName = strings.Trim(fields[0], `"'` + "`")
+	}
+
+	tbl, exists := tables[tableName]
+	if !exists {
+		return nil, nil, 0, fmt.Errorf("relation %q does not exist", tableName)
+	}
+
+	rowCount := len(tbl.Rows)
+	tbl.Rows = [][]interface{}{}
+	return tbl.Columns, [][]interface{}{}, rowCount, nil
 }
 
 func (s *SQLService) handleInsert(tables map[string]*TableState, trimmed, upper string) ([]string, [][]interface{}, int, error) {
@@ -391,11 +530,25 @@ func (s *SQLService) handleInsert(tables map[string]*TableState, trimmed, upper 
 }
 
 func (s *SQLService) handleSelect(tables map[string]*TableState, trimmed, upper string) ([]string, [][]interface{}, int, error) {
-	if upper == "SHOW TABLES" || strings.Contains(upper, "INFORMATION_SCHEMA.TABLES") {
-		cols := []string{"table_name"}
+	if strings.Contains(upper, "VERSION()") {
+		return []string{"version"}, [][]interface{}{{"PostgreSQL 17.2 (ANARVA Cloud Enterprise Database v2.4)"}}, 1, nil
+	}
+
+	if upper == "SHOW DATABASES" || upper == "\\L" {
+		cols := []string{"datname", "encoding", "collate"}
+		rows := [][]interface{}{
+			{"main", "UTF8", "en_US.utf8"},
+			{"postgres", "UTF8", "en_US.utf8"},
+			{"anarva_db", "UTF8", "en_US.utf8"},
+		}
+		return cols, rows, len(rows), nil
+	}
+
+	if upper == "SHOW TABLES" || strings.Contains(upper, "INFORMATION_SCHEMA.TABLES") || upper == "\\DT" {
+		cols := []string{"table_name", "table_type"}
 		rows := make([][]interface{}, 0, len(tables))
 		for name := range tables {
-			rows = append(rows, []interface{}{name})
+			rows = append(rows, []interface{}{name, "BASE TABLE"})
 		}
 		return cols, rows, len(rows), nil
 	}
@@ -434,6 +587,10 @@ func (s *SQLService) handleSelect(tables map[string]*TableState, trimmed, upper 
 		filteredRows = tbl.Rows
 	}
 
+	if strings.Contains(upper, "COUNT(") {
+		return []string{"count"}, [][]interface{}{{len(filteredRows)}}, 1, nil
+	}
+
 	if limitIdx != -1 {
 		limitStr := strings.TrimSpace(upper[limitIdx+len("LIMIT"):])
 		limitFields := strings.Fields(limitStr)
@@ -447,6 +604,47 @@ func (s *SQLService) handleSelect(tables map[string]*TableState, trimmed, upper 
 	}
 
 	return tbl.Columns, filteredRows, len(filteredRows), nil
+}
+
+func (s *SQLService) handleDescribeOrExplain(tables map[string]*TableState, trimmed, upper string) ([]string, [][]interface{}, int, error) {
+	if strings.HasPrefix(upper, "EXPLAIN") {
+		cols := []string{"QUERY PLAN"}
+		planStr := "Seq Scan on table (cost=0.00..1.05 rows=3 width=64)\n  Filter: (status = 'ACTIVE')\nExecution Time: 0.12 ms"
+		return cols, [][]interface{}{{planStr}}, 1, nil
+	}
+
+	fields := strings.Fields(trimmed)
+	if len(fields) < 2 {
+		return nil, nil, 0, errors.New("syntax error in DESCRIBE statement")
+	}
+
+	tableName := strings.ToLower(strings.Trim(fields[1], `"'` + "`;"))
+	tbl, exists := tables[tableName]
+	if !exists {
+		return nil, nil, 0, fmt.Errorf("relation %q does not exist", tableName)
+	}
+
+	cols := []string{"column_name", "data_type", "default_value"}
+	rows := make([][]interface{}, 0, len(tbl.Columns))
+	for _, c := range tbl.Columns {
+		dt := "VARCHAR"
+		if c == "id" {
+			dt = "SERIAL PRIMARY KEY"
+		} else if strings.HasPrefix(c, "is_") || strings.HasPrefix(c, "has_") {
+			dt = "BOOLEAN"
+		} else if c == "created_at" || c == "updated_at" {
+			dt = "TIMESTAMP"
+		}
+
+		defVal := "NULL"
+		if v, ok := tbl.ColumnDefaults[c]; ok && v != nil {
+			defVal = fmt.Sprintf("%v", v)
+		}
+
+		rows = append(rows, []interface{}{c, dt, defVal})
+	}
+
+	return cols, rows, len(rows), nil
 }
 
 func (s *SQLService) handleUpdate(tables map[string]*TableState, trimmed, upper string) ([]string, [][]interface{}, int, error) {

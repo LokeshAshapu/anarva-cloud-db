@@ -317,43 +317,61 @@ export default function ManagedDatabasesPage() {
         <CloudTabs tabs={detailTabs} activeTab={activeTab} onChange={handleTabChange} />
 
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-mono text-xs">
-            <CloudCard title="Engine Metadata">
-              <div className="space-y-2 text-slate-300">
-                <div>Engine: <strong className="text-purple-400">{selectedInstance.engine}</strong></div>
-                <div>Version: <strong>{selectedInstance.version}</strong></div>
-                <div>Port: <strong className="text-emerald-400">{selectedInstance.port}</strong></div>
-                <div>Label: <strong className="text-blue-400">{selectedInstance.realityLabel}</strong></div>
-              </div>
-            </CloudCard>
-            <CloudCard title="Compute & Sizing">
-              <div className="text-2xl font-bold text-emerald-400 mb-1">{selectedInstance.cpu} vCPUs / {selectedInstance.memoryMb} MB</div>
-              <p className="text-slate-400 font-sans text-xs">Dedicated ACU allocation</p>
-            </CloudCard>
-            <CloudCard title="High Availability & Multi-AZ">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-bold text-white flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-mono">
-                      HA_ENABLED (MULTI-AZ)
-                    </span>
-                    <span className="text-xs font-mono text-slate-400">
-                      Primary: <strong className="text-white">ap-south-1a</strong> | Standby: <strong className="text-white">ap-south-1b</strong>
-                    </span>
-                  </div>
-                  <p className="text-slate-400 font-sans text-xs mt-1">
-                    AWS RDS manages synchronous physical standby replication across independent availability zones.
-                  </p>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 font-mono text-xs">
+              <CloudCard title="Queries Per Sec (QPS)">
+                <div className="text-2xl font-bold text-emerald-400">42.5 <span className="text-xs text-slate-400">qps</span></div>
+                <div className="text-[10px] text-slate-500 mt-1">P99 Latency: 0.45 ms</div>
+              </CloudCard>
+              <CloudCard title="Active Connections">
+                <div className="text-2xl font-bold text-blue-400">14 / 100</div>
+                <div className="text-[10px] text-slate-500 mt-1">PgBouncer Pool Mode: Transaction</div>
+              </CloudCard>
+              <CloudCard title="Storage Allocation">
+                <div className="text-2xl font-bold text-purple-400">3.2 / {selectedInstance.storageGb} GB</div>
+                <div className="text-[10px] text-slate-500 mt-1">Auto-scaling IOPS: 3,000 gp3</div>
+              </CloudCard>
+              <CloudCard title="Replication Health">
+                <div className="text-2xl font-bold text-emerald-400">0.02 ms</div>
+                <div className="text-[10px] text-slate-500 mt-1">Multi-AZ Standby Sync: OK</div>
+              </CloudCard>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-mono text-xs">
+              <CloudCard title="Engine Metadata">
+                <div className="space-y-2 text-slate-300">
+                  <div>Engine: <strong className="text-purple-400">{selectedInstance.engine}</strong></div>
+                  <div>Version: <strong>{selectedInstance.version}</strong></div>
+                  <div>Port: <strong className="text-emerald-400">{selectedInstance.port}</strong></div>
+                  <div>Label: <strong className="text-blue-400">{selectedInstance.realityLabel}</strong></div>
                 </div>
-                <CloudButton
-                  variant="outline"
-                  size="sm"
-                  onClick={() => alert('Controlled RDS Multi-AZ Failover Initiated! Swapping primary to ap-south-1b.')}
-                >
-                  ⚡ Trigger Failover
-                </CloudButton>
-              </div>
-            </CloudCard>
+              </CloudCard>
+              <CloudCard title="Compute & Sizing">
+                <div className="text-2xl font-bold text-emerald-400 mb-1">{selectedInstance.cpu} vCPUs / {selectedInstance.memoryMb} MB</div>
+                <p className="text-slate-400 font-sans text-xs">Dedicated ACU allocation</p>
+              </CloudCard>
+              <CloudCard title="High Availability & Multi-AZ">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-bold text-white flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-mono">
+                        HA_ENABLED (MULTI-AZ)
+                      </span>
+                    </div>
+                    <p className="text-slate-400 font-sans text-xs mt-1">
+                      Synchronous physical standby replication across independent availability zones.
+                    </p>
+                  </div>
+                  <CloudButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => alert('Controlled RDS Multi-AZ Failover Initiated! Swapping primary availability zone.')}
+                  >
+                    ⚡ Trigger Failover
+                  </CloudButton>
+                </div>
+              </CloudCard>
+            </div>
           </div>
         )}
 
@@ -385,12 +403,32 @@ export default function ManagedDatabasesPage() {
           <CloudCard title={`${selectedInstance.engine} Web SQL Query Console`}>
             <form onSubmit={handleExecuteSql} className="space-y-4 font-mono text-xs">
               <div>
-                <label className="block text-slate-300 font-bold mb-1">SQL STATEMENT</label>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-slate-300 font-bold">SQL STATEMENT</label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {[
+                      { label: 'SELECT *', query: 'SELECT * FROM users LIMIT 10;' },
+                      { label: 'CREATE TABLE', query: 'CREATE TABLE products (\n  id SERIAL PRIMARY KEY,\n  name VARCHAR(100) NOT NULL,\n  price FLOAT NOT NULL,\n  is_available BOOLEAN DEFAULT true,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);' },
+                      { label: 'INSERT INTO', query: "INSERT INTO users (name, email) VALUES\n('Alice Johnson', 'alice@example.com'),\n('Bob Smith', 'bob@example.com');" },
+                      { label: 'SHOW TABLES', query: 'SHOW TABLES;' },
+                      { label: 'SELECT VERSION()', query: 'SELECT VERSION();' },
+                    ].map((tpl) => (
+                      <button
+                        key={tpl.label}
+                        type="button"
+                        onClick={() => setSqlQuery(tpl.query)}
+                        className="px-2 py-0.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded text-[10px]"
+                      >
+                        + {tpl.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <textarea
-                  rows={4}
+                  rows={5}
                   value={sqlQuery}
                   onChange={(e) => setSqlQuery(e.target.value)}
-                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none"
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded text-slate-100 focus:outline-none font-mono"
                 />
               </div>
 
