@@ -37,7 +37,8 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 		}
 
 		// Explicit Public Routes
-		if path == "/health" || path == "/readiness" || path == "/metrics" || path == "/api/v1/security/status" ||
+		if path == "/health" || path == "/readiness" || path == "/metrics" ||
+			path == "/api/v1/health/persistence" || path == "/api/v1/version" || path == "/api/v1/system/status" || path == "/api/v1/security/status" ||
 			strings.HasPrefix(path, "/api/v1/auth/login") ||
 			strings.HasPrefix(path, "/api/v1/auth/signup") ||
 			strings.HasPrefix(path, "/api/v1/auth/verify-email") {

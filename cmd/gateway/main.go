@@ -510,7 +510,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 		})
 	})
 
-	// Persistence Health Endpoint
+	// Safe Public Persistence Health Endpoint (No Authentication Required)
 	mux.HandleFunc("GET /api/v1/health/persistence", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		reqID := r.Header.Get("X-Request-ID")
@@ -519,25 +519,82 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 		}
 		w.Header().Set("X-Request-ID", reqID)
 
-		dbConn := dbPool != nil
-		mode := "POSTGRESQL"
-		if !dbConn {
-			mode = "FILE_SYNCED_JSON"
-		}
-		status := "HEALTHY"
-		if appEnv == "production" && !dbConn {
-			status = "UNHEALTHY"
+		dbConfigured := (os.Getenv("DATABASE_URL") != "" || (cfg.Database.Host != "" && cfg.Database.Host != "localhost"))
+		var dbConnected bool
+		var pingErr error
+
+		if dbPool != nil {
+			pingCtx, pingCancel := context.WithTimeout(r.Context(), 3*time.Second)
+			defer pingCancel()
+			pingErr = dbPool.HealthCheck(pingCtx)
+			dbConnected = (pingErr == nil)
 		}
 
+		// Handle Production Configuration / Connection Failures with 503
+		if appEnv == "production" && !dbConfigured {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":     "production persistence not configured",
+				"code":      "DATABASE_NOT_CONFIGURED",
+				"message":   "DATABASE_URL is required in production",
+				"requestId": reqID,
+			})
+			return
+		}
+
+		if dbConfigured && !dbConnected {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			msg := "Production PostgreSQL database is configured but unreachable"
+			if pingErr != nil {
+				msg += ": " + pingErr.Error()
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":     "persistence unavailable",
+				"code":      "DATABASE_UNAVAILABLE",
+				"message":   msg,
+				"requestId": reqID,
+			})
+			return
+		}
+
+		mode := "POSTGRESQL"
+		persMode := "POSTGRESQL"
+		if !dbConnected {
+			mode = "FILE_SYNCED_JSON"
+			persMode = "FILE_SYNCED_JSON"
+		}
+
+		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": map[string]interface{}{
-				"status":                       status,
-				"mode":                         mode,
-				"environment":                  appEnv,
-				"database_configured":          dbConn,
-				"database_connected":           dbConn,
-				"fallback_repository_disabled": appEnv == "production",
-				"storage_provider":             "LOCAL_FILESYSTEM (DEVELOPMENT_ONLY)",
+				"status":      "HEALTHY",
+				"environment": appEnv,
+				"mode":        mode,
+				"database": map[string]interface{}{
+					"configured":    dbConfigured,
+					"connected":     dbConnected,
+					"provider":      "postgresql",
+					"database_name": "anarva_db",
+				},
+				"fallback_repository": map[string]interface{}{
+					"enabled": appEnv != "production" && !dbConnected,
+				},
+				"persistence": map[string]interface{}{
+					"users":         persMode,
+					"organizations": persMode,
+					"projects":      persMode,
+					"databases":     persMode,
+					"networking":    persMode,
+					"load_balancers": persMode,
+					"backups":       persMode,
+					"iam":           persMode,
+					"operations":    persMode,
+					"audit":         persMode,
+				},
+				"storage": map[string]interface{}{
+					"provider": "LOCAL_FILESYSTEM",
+					"mode":     "DEVELOPMENT_ONLY",
+				},
 			},
 			"requestId": reqID,
 		})
