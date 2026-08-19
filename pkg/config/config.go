@@ -30,7 +30,7 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	URL             string        `mapstructure:"DATABASE_URL"`
+	URL             string        `mapstructure:"URL"`
 	Host            string        `mapstructure:"HOST"`
 	Port            int           `mapstructure:"PORT"`
 	User            string        `mapstructure:"USER"`

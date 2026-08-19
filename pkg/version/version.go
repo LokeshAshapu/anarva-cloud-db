@@ -2,7 +2,6 @@ package version
 
 import (
 	"runtime"
-	"time"
 )
 
 const (
@@ -20,8 +19,8 @@ type VersionInfo struct {
 }
 
 var (
-	gitCommit = "23f0d1045198"
-	buildTime = time.Now().Format(time.RFC3339)
+	gitCommit = "phase-60-cd8ca2a"
+	buildTime = "2026-08-19T20:45:00Z"
 )
 
 func GetVersionInfo(environment string) VersionInfo {

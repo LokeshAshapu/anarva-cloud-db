@@ -222,7 +222,49 @@ func main() {
 		appEnv = cfg.Environment
 	}
 
-	// Phase 59 Production Database Initialization & Startup Assertion
+	// Phase 60 Safe Database Forensic Startup Diagnostics
+	diagHost := cfg.Database.Host
+	diagDB := cfg.Database.DBName
+	diagSSL := cfg.Database.SSLMode
+	if raw := cfg.Database.DSN(); raw != "" {
+		if u, pErr := url.Parse(raw); pErr == nil && u.Scheme != "" {
+			diagHost = u.Hostname()
+			diagDB = strings.TrimPrefix(u.Path, "/")
+			if ssl := u.Query().Get("sslmode"); ssl != "" {
+				diagSSL = ssl
+			}
+		}
+	}
+
+	log.Info(fmt.Sprintf(`
+============================================================
+ANARVA DATABASE CONFIGURATION FORENSIC LOG (PHASE 60)
+============================================================
+Environment: ANARVA_ENV=%s, APP_ENV=%s, Resolved=%s
+DATABASE_URL: PRESENT=%t
+DatabaseConfig.URL: PRESENT=%t
+Final DSN Source: %s
+Diagnostic Hostname: %s
+Diagnostic Database: %s
+Diagnostic SSLMode: %s
+============================================================`,
+		os.Getenv("ANARVA_ENV"),
+		os.Getenv("APP_ENV"),
+		appEnv,
+		os.Getenv("DATABASE_URL") != "",
+		cfg.Database.URL != "",
+		func() string {
+			if cfg.Database.URL != "" || os.Getenv("DATABASE_URL") != "" {
+				return "DATABASE_URL"
+			}
+			return "STRUCTURED_DEFAULT"
+		}(),
+		diagHost,
+		diagDB,
+		diagSSL,
+	))
+
+	// Phase 59/60 Production Database Initialization & Startup Assertion
 	if appEnv == "production" {
 		rawDSN := cfg.Database.DSN()
 		if strings.TrimSpace(rawDSN) == "" {
@@ -607,6 +649,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 				"status":      "HEALTHY",
 				"environment": appEnv,
 				"mode":        mode,
+				"build":       pkgVersion.GetVersionInfo(appEnv),
 				"database": map[string]interface{}{
 					"configuration_source": configSource,
 					"configured":           dbConfigured,
