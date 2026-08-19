@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/service"
 )
@@ -186,20 +187,45 @@ func (h *PostgresHandler) handleDatabaseSubroutes(w http.ResponseWriter, r *http
 
 	case "sql", "query":
 		var req struct {
-			SQL string `json:"sql"`
+			SQL   string `json:"sql"`
+			Query string `json:"query"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			respondStructuredError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error(), r.Header.Get("X-Request-ID"))
 			return
 		}
-		res, err := h.sqlService.ExecuteQuery(r.Context(), instanceID, req.SQL)
+		sqlText := req.SQL
+		if sqlText == "" {
+			sqlText = req.Query
+		}
+
+		if sqlText == "" {
+			respondStructuredError(w, http.StatusBadRequest, "EMPTY_QUERY", "empty SQL query statement", r.Header.Get("X-Request-ID"))
+			return
+		}
+
+		res, err := h.sqlService.ExecuteQuery(r.Context(), instanceID, sqlText)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			respondStructuredError(w, http.StatusBadRequest, "SQL_EXECUTION_ERROR", err.Error(), r.Header.Get("X-Request-ID"))
 			return
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{"data": res})
 
 	default:
-		http.Error(w, "Subroute not found", http.StatusNotFound)
+		respondStructuredError(w, http.StatusNotFound, "NOT_FOUND", "Subroute not found", r.Header.Get("X-Request-ID"))
 	}
+}
+
+func respondStructuredError(w http.ResponseWriter, status int, code, msg, reqID string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if reqID == "" {
+		reqID = "req-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"error":      msg,
+		"code":       code,
+		"request_id": reqID,
+		"details":    msg,
+	})
 }

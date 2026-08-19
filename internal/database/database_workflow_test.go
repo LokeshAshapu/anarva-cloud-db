@@ -52,7 +52,7 @@ func TestWorkflow2_PostgreSQLSQLConsoleStatefulExecution(t *testing.T) {
 	require.NoError(t, err2)
 	assert.Equal(t, 1, res2.RowCount)
 
-	res3, err3 := sqlSvc.ExecuteQuery(ctx, instID, "SELECT * FROM users LIMIT 10;")
+	res3, err3 := sqlSvc.ExecuteQuery(ctx, instID, "SELECT * FROM users;")
 	require.NoError(t, err3)
 	assert.Greater(t, res3.RowCount, res1.RowCount)
 

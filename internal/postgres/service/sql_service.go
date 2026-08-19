@@ -120,6 +120,19 @@ func (s *SQLService) getOrInitTables(instanceID string) map[string]*TableState {
 				{2, "app_user", "user@anarva.io", "ACTIVE", nowStr},
 			},
 		}
+		tables["databases"] = &TableState{
+			Name:    "databases",
+			Columns: []string{"id", "name", "engine", "status", "version", "created_at"},
+			ColumnDefaults: map[string]interface{}{
+				"engine":     "POSTGRESQL",
+				"status":     "ACTIVE",
+				"version":    "17.2",
+				"created_at": nowStr,
+			},
+			Rows: [][]interface{}{
+				{instanceID, "primary_db", "POSTGRESQL", "ACTIVE", "17.2", nowStr},
+			},
+		}
 		s.instanceTables[instanceID] = tables
 		s.saveToFileLocked()
 	}
@@ -610,6 +623,13 @@ func (s *SQLService) handleSelect(tables map[string]*TableState, trimmed, upper 
 
 	tbl, exists := tables[tableName]
 	if !exists {
+		if tableName == "databases" {
+			cols := []string{"id", "name", "engine", "status", "version"}
+			rows := [][]interface{}{
+				{"default-db", "primary_db", "POSTGRESQL", "ACTIVE", "17.2"},
+			}
+			return cols, rows, len(rows), nil
+		}
 		return nil, nil, 0, fmt.Errorf("relation %q does not exist", tableName)
 	}
 
@@ -839,7 +859,7 @@ func (s *SQLService) handleDropTable(tables map[string]*TableState, trimmed, upp
 	}
 
 	delete(tables, tableName)
-	return []string{}, [][]interface{}{}, 0, nil
+	return []string{"status"}, [][]interface{}{{"DROPPED"}}, 1, nil
 }
 
 func resolveColumnIndex(columns []string, colName string) int {

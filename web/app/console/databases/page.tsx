@@ -258,7 +258,7 @@ export default function ManagedDatabasesPage() {
     try {
       const resData: any = await fetchAPI(path, {
         method: 'POST',
-        body: JSON.stringify({ sql: sqlQuery }),
+        body: JSON.stringify({ sql: sqlQuery, query: sqlQuery }),
       })
 
       const finalRes = (resData && resData.data) ? resData.data : resData
@@ -271,7 +271,8 @@ export default function ManagedDatabasesPage() {
         }))
       }
     } catch (err: any) {
-      setQueryResults({ error: err.message || String(err) })
+      const errMsg = err.error || err.message || String(err)
+      setQueryResults({ error: errMsg })
     } finally {
       setIsExecutingSql(false)
     }
