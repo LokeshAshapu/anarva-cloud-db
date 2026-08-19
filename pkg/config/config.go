@@ -30,7 +30,7 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	URL             string        `mapstructure:"URL"`
+	URL             string        `mapstructure:"DATABASE_URL"`
 	Host            string        `mapstructure:"HOST"`
 	Port            int           `mapstructure:"PORT"`
 	User            string        `mapstructure:"USER"`
@@ -43,12 +43,31 @@ type DatabaseConfig struct {
 }
 
 func (db DatabaseConfig) DSN() string {
-	if db.URL != "" {
-		return db.URL
+	urlStr := strings.TrimSpace(db.URL)
+	if urlStr == "" {
+		urlStr = strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	}
-	if envURL := os.Getenv("DATABASE_URL"); envURL != "" {
-		return envURL
+	if urlStr == "" {
+		urlStr = strings.TrimSpace(os.Getenv("POSTGRES_URL"))
 	}
+	if urlStr == "" {
+		urlStr = strings.TrimSpace(os.Getenv("DB_URL"))
+	}
+
+	if urlStr != "" {
+		return urlStr
+	}
+
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("ANARVA_ENV")))
+	if env == "" {
+		env = strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	}
+
+	// Production Fail-Closed Requirement: Never fall back to localhost in production
+	if env == "production" {
+		return ""
+	}
+
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		db.Host, db.Port, db.User, db.Password, db.DBName, db.SSLMode)
 }
@@ -100,6 +119,11 @@ func LoadConfig(path string) (*Config, error) {
 	v.SetDefault("SERVER.READ_TIMEOUT", 15*time.Second)
 	v.SetDefault("SERVER.WRITE_TIMEOUT", 15*time.Second)
 
+	v.BindEnv("DATABASE.DATABASE_URL", "DATABASE_URL")
+	v.BindEnv("DATABASE.DATABASE_URL", "POSTGRES_URL")
+	v.BindEnv("DATABASE.DATABASE_URL", "DB_URL")
+	v.SetDefault("DATABASE.DATABASE_URL", "")
+
 	v.SetDefault("DATABASE.HOST", "localhost")
 	v.SetDefault("DATABASE.PORT", 5432)
 	v.SetDefault("DATABASE.USER", "anarva_admin")
@@ -148,6 +172,14 @@ func LoadConfig(path string) (*Config, error) {
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("unable to decode into config struct: %w", err)
+	}
+
+	if dbURL := strings.TrimSpace(os.Getenv("DATABASE_URL")); dbURL != "" {
+		cfg.Database.URL = dbURL
+	} else if dbURL := strings.TrimSpace(os.Getenv("POSTGRES_URL")); dbURL != "" {
+		cfg.Database.URL = dbURL
+	} else if dbURL := strings.TrimSpace(os.Getenv("DB_URL")); dbURL != "" {
+		cfg.Database.URL = dbURL
 	}
 
 	if strings.ToLower(cfg.Environment) == "production" {

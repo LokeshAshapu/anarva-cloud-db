@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -220,15 +222,28 @@ func main() {
 		appEnv = cfg.Environment
 	}
 
-	if os.Getenv("DATABASE_URL") != "" || (cfg.Database.Host != "" && cfg.Database.Host != "localhost") {
+	// Phase 59 Production Database Initialization & Startup Assertion
+	if appEnv == "production" {
+		rawDSN := cfg.Database.DSN()
+		if strings.TrimSpace(rawDSN) == "" {
+			log.Fatal("FATAL: Production mode (ANARVA_ENV=production) requires a valid DATABASE_URL environment variable. Gateway will fail-closed.")
+		}
+		if u, pErr := url.Parse(rawDSN); pErr == nil && u.Scheme != "" {
+			if u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" {
+				log.Fatal("FATAL: Production DATABASE_URL resolves to localhost/127.0.0.1. Production MUST connect to managed PostgreSQL.")
+			}
+		}
+	}
+
+	if cfg.Database.DSN() != "" {
 		dbPool, err = pkgDatabase.NewPostgresDB(cfg.Database)
 	} else {
-		err = fmt.Errorf("no external DATABASE_URL configured")
+		err = fmt.Errorf("no DATABASE_URL configured")
 	}
 
 	// Production Fail-Closed Requirement: Production MUST NOT silently fall back to memory or JSON
 	if appEnv == "production" && (dbPool == nil || err != nil) {
-		log.Fatal(fmt.Sprintf("FATAL: Production control-plane PostgreSQL database connection required. ANARVA_ENV=production requires a valid DATABASE_URL connection string: %v", err))
+		log.Fatal(fmt.Sprintf("FATAL: Production control-plane PostgreSQL database connection required: %v", err))
 	}
 
 	if err != nil {
@@ -519,7 +534,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 		}
 		w.Header().Set("X-Request-ID", reqID)
 
-		dbConfigured := (os.Getenv("DATABASE_URL") != "" || (cfg.Database.Host != "" && cfg.Database.Host != "localhost"))
+		dbConfigured := strings.TrimSpace(cfg.Database.DSN()) != ""
 		var dbConnected bool
 		var pingErr error
 
@@ -533,14 +548,20 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 		forensicRes := pkgDatabase.PerformForensicDiagnostics(cfg.Database)
 
 		// Handle Production Configuration / Connection Failures with 503
-		if appEnv == "production" && !dbConfigured {
+		if appEnv == "production" && (!dbConfigured || forensicRes.Hostname == "localhost" || forensicRes.Hostname == "127.0.0.1") {
 			w.WriteHeader(http.StatusServiceUnavailable)
+			code := "DATABASE_CONFIG_MISSING"
+			msg := "DATABASE_URL is required in production"
+			if forensicRes.Hostname == "localhost" || forensicRes.Hostname == "127.0.0.1" {
+				code = "DATABASE_CONFIGURATION_INVALID"
+				msg = "Production DATABASE_URL resolves to localhost. Production MUST connect to managed PostgreSQL."
+			}
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":        "production persistence not configured",
-				"code":         "DATABASE_CONFIG_MISSING",
-				"message":      "DATABASE_URL is required in production",
-				"diagnostics":  forensicRes,
-				"requestId":    reqID,
+				"error":       "production persistence not configured",
+				"code":        code,
+				"message":     msg,
+				"diagnostics": forensicRes,
+				"requestId":   reqID,
 			})
 			return
 		}
@@ -575,6 +596,11 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 			persMode = "FILE_SYNCED_JSON"
 		}
 
+		configSource := "DATABASE_URL"
+		if strings.TrimSpace(cfg.Database.URL) == "" && strings.TrimSpace(os.Getenv("DATABASE_URL")) == "" {
+			configSource = "DEVELOPMENT_CONFIG"
+		}
+
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": map[string]interface{}{
@@ -582,14 +608,15 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 				"environment": appEnv,
 				"mode":        mode,
 				"database": map[string]interface{}{
-					"configured":    dbConfigured,
-					"connected":     dbConnected,
-					"provider":      "postgresql",
-					"database_name": forensicRes.Database,
-					"hostname":      forensicRes.Hostname,
-					"port":          forensicRes.Port,
-					"sslmode":       forensicRes.SSLMode,
-					"driver":        forensicRes.DatabaseDriver,
+					"configuration_source": configSource,
+					"configured":           dbConfigured,
+					"connected":            dbConnected,
+					"provider":             "postgresql",
+					"database_name":        forensicRes.Database,
+					"hostname":             forensicRes.Hostname,
+					"port":                 forensicRes.Port,
+					"sslmode":              forensicRes.SSLMode,
+					"driver":               forensicRes.DatabaseDriver,
 				},
 				"diagnostics":       forensicRes,
 				"database_identity": dbIdentity,
