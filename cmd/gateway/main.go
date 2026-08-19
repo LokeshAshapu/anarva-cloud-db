@@ -377,15 +377,23 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 		queryExecutor = query.NewPostgresExecutor()
 	}
 
-	// Storage provider & Drivers
-	sProvider, _ := storage.NewLocalStorageProvider(cfg.Storage.LocalPath)
+	// Phase 62 Storage Provider Initialization via Factory
+	sProvider, sErr := storageProvider.NewStorageProvider(cfg.Storage, appEnv)
+	if sErr != nil && appEnv == "production" {
+		log.Fatal(fmt.Sprintf("FATAL: Production storage provider initialization failed: %v", sErr))
+	} else if sErr != nil {
+		log.Info(fmt.Sprintf("Development Notice: Storage provider initialization returned: %v. Falling back to local storage.", sErr))
+		sProvider = storageProvider.NewLocalStorageProvider(cfg.Storage.LocalPath)
+	}
 	pDriver := databaseDriver.NewMockProvisionerDriver()
+
+	pkgStorageProvider, _ := storage.NewLocalStorageProvider(cfg.Storage.LocalPath)
 
 	// UseCases
 	aUC := authUsecase.NewAuthUseCase(uRepo, sRepo, kRepo, tRepo, aRepo, jwtManager, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 	pUC := projectUsecase.NewProjectUseCase(oRepo, pRepo, mRepo, iRepo)
 	dUC := databaseUsecase.NewDatabaseUseCase(dRepo, pDriver, cfg.JWT.Secret)
-	bUC := backupUsecase.NewBackupUseCase(bRepo, sProvider)
+	bUC := backupUsecase.NewBackupUseCase(bRepo, pkgStorageProvider)
 	_ = bUC
 
 	// Phase 4 Centralized Resource Registry & Activity Stream
@@ -393,7 +401,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	actStream := activity.NewStream()
 	authSvc := iamService.NewAuthorizationService()
 	obsSvc := observabilityService.NewObservabilityService()
-	bakProv := backupProvider.NewControlPlaneBackupProvider(storageProvider.NewLocalStorageProvider(""))
+	bakProv := backupProvider.NewControlPlaneBackupProvider(sProvider)
 	compProv := computeProvider.NewLocalDockerComputeProvider()
 	compUC := computeUsecase.NewComputeUseCase(newMemComputeRepo(), nil, compProv)
 	netProv := networkProvider.NewLocalDockerNetworkProvider()
@@ -660,6 +668,11 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 					"port":                 forensicRes.Port,
 					"sslmode":              forensicRes.SSLMode,
 					"driver":               forensicRes.DatabaseDriver,
+				},
+				"object_storage": map[string]interface{}{
+					"provider":   sProvider.GetProviderType(),
+					"configured": sProvider.GetProviderType() == "S3",
+					"bucket":     cfg.Storage.S3Bucket,
 				},
 				"diagnostics":       forensicRes,
 				"database_identity": dbIdentity,

@@ -90,6 +90,7 @@ type StorageConfig struct {
 	Driver          string `mapstructure:"DRIVER"` // local or s3
 	LocalPath       string `mapstructure:"LOCAL_PATH"`
 	S3Endpoint      string `mapstructure:"S3_ENDPOINT"`
+	S3Region        string `mapstructure:"S3_REGION"`
 	S3Bucket        string `mapstructure:"S3_BUCKET"`
 	S3AccessKey     string `mapstructure:"S3_ACCESS_KEY"`
 	S3SecretKey     string `mapstructure:"S3_SECRET_KEY"`
@@ -144,8 +145,16 @@ func LoadConfig(path string) (*Config, error) {
 	v.SetDefault("JWT.REFRESH_EXPIRY", 7*24*time.Hour)
 	v.SetDefault("JWT.ISSUER", "anarva-cloud-db")
 
+	v.BindEnv("STORAGE.DRIVER", "STORAGE_PROVIDER", "STORAGE_DRIVER")
+	v.BindEnv("STORAGE.S3_BUCKET", "STORAGE_S3_BUCKET")
+	v.BindEnv("STORAGE.S3_REGION", "STORAGE_S3_REGION")
+	v.BindEnv("STORAGE.S3_ACCESS_KEY", "STORAGE_S3_ACCESS_KEY")
+	v.BindEnv("STORAGE.S3_SECRET_KEY", "STORAGE_S3_SECRET_KEY")
+	v.BindEnv("STORAGE.S3_ENDPOINT", "STORAGE_S3_ENDPOINT")
+
 	v.SetDefault("STORAGE.DRIVER", "local")
 	v.SetDefault("STORAGE.LOCAL_PATH", "./data/storage")
+	v.SetDefault("STORAGE.S3_REGION", "auto")
 
 	v.SetDefault("METRICS.ENABLED", true)
 	v.SetDefault("METRICS.PATH", "/metrics")
@@ -182,6 +191,27 @@ func LoadConfig(path string) (*Config, error) {
 		cfg.Database.URL = dbURL
 	}
 
+	if prov := strings.TrimSpace(os.Getenv("STORAGE_PROVIDER")); prov != "" {
+		cfg.Storage.Driver = prov
+	} else if prov := strings.TrimSpace(os.Getenv("STORAGE_DRIVER")); prov != "" {
+		cfg.Storage.Driver = prov
+	}
+	if bkt := strings.TrimSpace(os.Getenv("STORAGE_S3_BUCKET")); bkt != "" {
+		cfg.Storage.S3Bucket = bkt
+	}
+	if reg := strings.TrimSpace(os.Getenv("STORAGE_S3_REGION")); reg != "" {
+		cfg.Storage.S3Region = reg
+	}
+	if key := strings.TrimSpace(os.Getenv("STORAGE_S3_ACCESS_KEY")); key != "" {
+		cfg.Storage.S3AccessKey = key
+	}
+	if sec := strings.TrimSpace(os.Getenv("STORAGE_S3_SECRET_KEY")); sec != "" {
+		cfg.Storage.S3SecretKey = sec
+	}
+	if ep := strings.TrimSpace(os.Getenv("STORAGE_S3_ENDPOINT")); ep != "" {
+		cfg.Storage.S3Endpoint = ep
+	}
+
 	if strings.ToLower(cfg.Environment) == "production" {
 		if cfg.JWT.Secret == "" || cfg.JWT.Secret == "anarva_cloud_db_super_secret_jwt_key_2026" {
 			cfg.JWT.Secret = generateSecureProductionJWTSecret()
@@ -208,6 +238,14 @@ func ValidateProductionConfig(cfg *Config) error {
 		}
 		if cfg.JWT.Secret == "" || cfg.JWT.Secret == "anarva_cloud_db_super_secret_jwt_key_2026" {
 			return fmt.Errorf("CONFIG_VALIDATION_FAILURE: Production environment requires a strong non-default JWT_SECRET")
+		}
+		if strings.ToLower(cfg.Storage.Driver) == "local" || strings.ToLower(cfg.Storage.Driver) == "" {
+			return fmt.Errorf("CONFIG_VALIDATION_FAILURE: Production environment forbids LocalStorageProvider (STORAGE_PROVIDER=local). STORAGE_PROVIDER=s3 with valid S3/R2 credentials is required.")
+		}
+		if strings.ToLower(cfg.Storage.Driver) == "s3" {
+			if cfg.Storage.S3Bucket == "" || cfg.Storage.S3AccessKey == "" || cfg.Storage.S3SecretKey == "" {
+				return fmt.Errorf("CONFIG_VALIDATION_FAILURE: STORAGE_PROVIDER=s3 in production requires STORAGE_S3_BUCKET, STORAGE_S3_ACCESS_KEY, and STORAGE_S3_SECRET_KEY")
+			}
 		}
 		if strings.ToLower(cfg.Provider.Mode) == "real" {
 			if cfg.Provider.AWSAccessKeyID == "" || cfg.Provider.AWSSecretAccessKey == "" {
