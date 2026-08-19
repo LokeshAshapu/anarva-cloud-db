@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -14,26 +17,70 @@ import (
 	provDomain "github.com/anarva-cloud/anarva-cloud-db/internal/provisioning/domain"
 )
 
+func getControlPlaneDataFile(filename string) string {
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./data"
+	}
+	_ = os.MkdirAll(dataDir, 0755)
+	return filepath.Join(dataDir, filename)
+}
+
 // Mock Auth Repositories
 type memUserRepo struct {
-	mu    sync.RWMutex
-	users map[string]*authDomain.User
+	mu       sync.RWMutex
+	filePath string
+	users    map[string]*authDomain.User
 }
 
 func newMemUserRepo() authDomain.UserRepository {
-	repo := &memUserRepo{users: make(map[string]*authDomain.User)}
-	defaultUser := &authDomain.User{
-		ID:        "usr-default",
-		Email:     "lokeshashapu@gmail.com",
-		FullName:  "Lokesh Ashapu",
-		Role:      authDomain.RoleAdmin,
-		Status:    authDomain.UserStatusActive,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+	filePath := getControlPlaneDataFile("anarva_cp_users.json")
+	repo := &memUserRepo{
+		filePath: filePath,
+		users:    make(map[string]*authDomain.User),
 	}
-	repo.users[defaultUser.ID] = defaultUser
-	repo.users[defaultUser.Email] = defaultUser
+	repo.loadFromFile()
+
+	if len(repo.users) == 0 {
+		defaultUser := &authDomain.User{
+			ID:        "usr-default",
+			Email:     "lokeshashapu@gmail.com",
+			FullName:  "Lokesh Ashapu",
+			Role:      authDomain.RoleAdmin,
+			Status:    authDomain.UserStatusActive,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		repo.users[defaultUser.ID] = defaultUser
+		repo.users[defaultUser.Email] = defaultUser
+		repo.saveToFileLocked()
+	}
 	return repo
+}
+
+func (m *memUserRepo) loadFromFile() {
+	if m.filePath == "" {
+		return
+	}
+	data, err := os.ReadFile(m.filePath)
+	if err != nil {
+		return
+	}
+	var loaded map[string]*authDomain.User
+	if err := json.Unmarshal(data, &loaded); err == nil && loaded != nil {
+		m.users = loaded
+	}
+}
+
+func (m *memUserRepo) saveToFileLocked() {
+	if m.filePath == "" {
+		return
+	}
+	data, err := json.MarshalIndent(m.users, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(m.filePath, data, 0644)
 }
 
 func (m *memUserRepo) Create(ctx context.Context, u *authDomain.User) error {
@@ -41,6 +88,7 @@ func (m *memUserRepo) Create(ctx context.Context, u *authDomain.User) error {
 	defer m.mu.Unlock()
 	m.users[u.Email] = u
 	m.users[u.ID] = u
+	m.saveToFileLocked()
 	return nil
 }
 
@@ -79,6 +127,7 @@ func (m *memUserRepo) Update(ctx context.Context, u *authDomain.User) error {
 	defer m.mu.Unlock()
 	m.users[u.Email] = u
 	m.users[u.ID] = u
+	m.saveToFileLocked()
 	return nil
 }
 

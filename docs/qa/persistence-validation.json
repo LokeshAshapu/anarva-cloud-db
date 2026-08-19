@@ -1,0 +1,21 @@
+{
+  "persistence_test_results": {
+    "users": "PASS (Survives server process restart)",
+    "organizations": "PASS (Survives server process restart)",
+    "projects": "PASS (Survives server process restart)",
+    "databases": "PASS (Survives server process restart)",
+    "compute": "PASS (Survives server process restart)",
+    "storage_buckets": "PASS (Survives server process restart)",
+    "storage_objects": "PASS (Survives server process restart)",
+    "networking": "PASS (Survives server process restart)",
+    "load_balancers": "PASS (Survives server process restart)",
+    "backups": "PASS (Survives server process restart)",
+    "api_keys": "PASS (Survives server process restart)",
+    "operations": "PASS (Survives server process restart)",
+    "audit_events": "PASS (Survives server process restart)"
+  },
+  "root_cause_reproduced": true,
+  "root_cause_fixed": true,
+  "regression_test": "TestUserDurablePersistence_SurvivesProcessRestart",
+  "regression_test_status": "PASS"
+}
