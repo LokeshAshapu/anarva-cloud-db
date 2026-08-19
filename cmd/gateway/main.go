@@ -530,19 +530,20 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 			dbConnected = (pingErr == nil)
 		}
 
+		forensicRes := pkgDatabase.PerformForensicDiagnostics(cfg.Database)
+
 		// Handle Production Configuration / Connection Failures with 503
 		if appEnv == "production" && !dbConfigured {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":     "production persistence not configured",
-				"code":      "DATABASE_NOT_CONFIGURED",
-				"message":   "DATABASE_URL is required in production",
-				"requestId": reqID,
+				"error":        "production persistence not configured",
+				"code":         "DATABASE_CONFIG_MISSING",
+				"message":      "DATABASE_URL is required in production",
+				"diagnostics":  forensicRes,
+				"requestId":    reqID,
 			})
 			return
 		}
-
-		safeDiag := pkgDatabase.GetSafeDatabaseDiagnostics(cfg.Database)
 
 		if dbConfigured && !dbConnected {
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -551,13 +552,20 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 				msg += ": " + pingErr.Error()
 			}
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":            "persistence unavailable",
-				"code":             "DATABASE_UNAVAILABLE",
-				"message":          msg,
-				"safe_diagnostics": safeDiag,
-				"requestId":        reqID,
+				"error":       "persistence unavailable",
+				"code":        forensicRes.ConnectionErrorClass,
+				"message":     msg,
+				"diagnostics": forensicRes,
+				"requestId":   reqID,
 			})
 			return
+		}
+
+		var dbIdentity *pkgDatabase.DatabaseIdentity
+		if dbPool != nil && dbConnected {
+			idCtx, idCancel := context.WithTimeout(r.Context(), 3*time.Second)
+			dbIdentity, _ = dbPool.GetDatabaseIdentity(idCtx)
+			idCancel()
 		}
 
 		mode := "POSTGRESQL"
@@ -577,8 +585,14 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 					"configured":    dbConfigured,
 					"connected":     dbConnected,
 					"provider":      "postgresql",
-					"database_name": "anarva_db",
+					"database_name": forensicRes.Database,
+					"hostname":      forensicRes.Hostname,
+					"port":          forensicRes.Port,
+					"sslmode":       forensicRes.SSLMode,
+					"driver":        forensicRes.DatabaseDriver,
 				},
+				"diagnostics":       forensicRes,
+				"database_identity": dbIdentity,
 				"fallback_repository": map[string]interface{}{
 					"enabled": appEnv != "production" && !dbConnected,
 				},
