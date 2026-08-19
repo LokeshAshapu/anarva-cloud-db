@@ -1,0 +1,48 @@
+# ANARVA Cloud V1 — Resource Reality Matrix
+
+**Audit Date**: August 19, 2026  
+**Auditor**: Principal Cloud Architect & Forensic Auditor  
+**Repository**: `LokeshAshapu/anarva-cloud-db`  
+
+---
+
+## 1. Complete Capability Classification Table
+
+| # | Capability | Frontend Route | API Route | Service / UseCase | Repository / Provider | Actual Infrastructure | Persistence Mechanism | Tenant Isolation | Reality Classification | Status | Source Code Evidence |
+|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|
+| 01 | Authentication | `/login`, `/signup` | `POST /api/v1/auth/login` | `authUsecase` | `authRepo.UserRepository` | Postgres DB / File JSON | Postgres GORM / Disk JSON | User ID Claim | `CONTROL_PLANE_ONLY` | PASS | `internal/auth/delivery/http/auth_handler.go` |
+| 02 | Sessions | `/console/settings` | `GET /api/v1/auth/me` | `authUsecase` | `authRepo.SessionRepository` | Postgres DB / File JSON | Postgres GORM / Disk JSON | JWT Token ID | `CONTROL_PLANE_ONLY` | PASS | `internal/auth/repository/session_repository.go` |
+| 03 | IAM & RBAC | `/console/iam` | `GET /api/v1/iam/roles` | `authorizationService` | `authorizationService` | Gateway Memory | In-Memory Rules | Role Hierarchy | `CONTROL_PLANE_ONLY` | PASS | `internal/iam/service/authorization_service.go` |
+| 04 | API Keys | `/dashboard/apikeys` | `GET /api/v1/developer/keys` | `authUsecase` | `authRepo.APIKeyRepository` | Postgres DB | Postgres GORM | User ID | `CONTROL_PLANE_ONLY` | PASS | `internal/auth/repository/api_key_repository.go` |
+| 05 | Organizations | `/console/home` | `GET /api/v1/organizations` | `projectUsecase` | `projectRepo.OrganizationRepository` | Postgres DB | Postgres GORM | Org Membership | `CONTROL_PLANE_ONLY` | PASS | `internal/project/usecase/project_usecase.go` |
+| 06 | Projects | `/dashboard/projects` | `POST /api/v1/projects` | `projectUsecase` | `projectRepo.ProjectRepository` | Postgres DB | Postgres GORM | TenantContext Org ID | `CONTROL_PLANE_ONLY` | PASS | `internal/project/repository/project_repository.go` |
+| 07 | Multi-tenancy | All Console Pages | All `/api/v1/*` | Middleware | `AuthMiddleware` | HTTP Context | Request Context | TenantContext | `CONTROL_PLANE_ONLY` | PASS | `internal/gateway/middleware/auth_middleware.go` |
+| 08 | Managed PostgreSQL | `/console/databases` | `POST /api/v1/postgres/instances` | `postgresService` | `postgresProvider.DockerProvider` | Local Host Docker | Docker Host Volume | Container Isolation | `REAL_LOCAL` | PARTIAL | `internal/postgres/provider/docker_provider.go` |
+| 09 | Managed MySQL | `/console/databases` | `POST /api/v1/mysql/instances` | `mysqlService` | `mysqlProvider.DockerProvider` | Local Host Docker | Docker Host Volume | Container Isolation | `REAL_LOCAL` | PARTIAL | `internal/mysql/provider/docker_provider.go` |
+| 10 | Managed MongoDB | `/console/databases` | `POST /api/v1/databases` | `databaseUsecase` | `databaseDriver.MockProvisioner` | Control Plane DB | Postgres GORM (Metadata) | Project ID | `SIMULATED` | PARTIAL | `internal/database/driver/mock_provisioner.go` |
+| 11 | Managed Redis | `/console/databases` | `POST /api/v1/databases` | `databaseUsecase` | `databaseDriver.MockProvisioner` | Control Plane DB | Postgres GORM (Metadata) | Project ID | `SIMULATED` | PARTIAL | `internal/database/driver/mock_provisioner.go` |
+| 12 | Object Storage | `/console/storage` | `POST /api/v1/storage/buckets` | `storageService` | `storageProvider.LocalStorage` | Server Disk (`./data/storage`) | Ephemeral Local Filesystem | Bucket Path Prefix | `DEVELOPMENT_ONLY` | FAIL_ON_RENDER | `internal/storage/provider/local_storage_provider.go` |
+| 13 | Compute Engine | `/console/compute` | `POST /api/v1/compute/instances` | `computeUsecase` | `newMemComputeRepo` | Gateway Memory | In-Memory Map | Project ID | `SIMULATED` | PARTIAL | `cmd/gateway/main.go:398` |
+| 14 | Networking / VPC | `/console/networking` | `POST /api/v1/networking/vnets` | `networkingService` | `networkingRepo.PostgresRepository` | Postgres DB | Postgres GORM | Project ID | `CONTROL_PLANE_ONLY` | PASS | `internal/networking/repository/postgres_repository.go` |
+| 15 | Subnets | `/console/networking` | `POST /api/v1/networking/subnets` | `networkingService` | `networkingRepo.PostgresRepository` | Postgres DB | Postgres GORM | Project ID | `CONTROL_PLANE_ONLY` | PASS | `internal/networking/repository/postgres_repository.go` |
+| 16 | Security Groups | `/console/security` | `POST /api/v1/networking/security-groups` | `networkingService` | `networkingRepo.PostgresRepository` | Postgres DB | Postgres GORM | Project ID | `CONTROL_PLANE_ONLY` | PASS | `internal/networking/repository/postgres_repository.go` |
+| 17 | Load Balancers | `/console/loadbalancers` | `POST /api/v1/loadbalancers` | `lbService` | `lbRepo.LoadBalancerRepository` | Gateway Memory | In-Memory Map | Project ID | `CONTROL_PLANE_ONLY` | EPHEMERAL | `internal/loadbalancer/repository/lb_repository.go` |
+| 18 | WAF & Edge SSRF | `/console/security` | `GET /api/v1/security/status` | `lbSsrfSvc` | `lbEdge.SSRFValidationService` | In-Memory Validator | In-Memory Engine | Rule Evaluator | `CONTROL_PLANE_ONLY` | PASS | `internal/loadbalancer/edge/ssrf_validation.go` |
+| 19 | Backup Control | `/console/backups` | `POST /api/v1/backups` | `backupUsecase` | `backupRepo.BackupRepository` | Postgres DB + Server Disk | Postgres GORM + Local Files | Project ID | `DEVELOPMENT_ONLY` | PARTIAL | `internal/backup/repository/backup_repository.go` |
+| 20 | PITR Recovery | `/console/backups` | `POST /api/v1/backups/pitr` | `backupUsecase` | `backupRepo.BackupRepository` | Control Plane DB | Postgres GORM | Project ID | `SIMULATED` | PARTIAL | `internal/backup/usecase/backup_usecase.go` |
+| 21 | Operations | `/console/operations` | `GET /api/v1/reliability/operations` | `reliabilityUsecase` | `reliabilityRepo.ReliabilityRepository` | Postgres DB | Postgres GORM | Tenant ID | `CONTROL_PLANE_ONLY` | PASS | `internal/reliability/repository/reliability_repository.go` |
+| 22 | Recovery Worker | Background | Internal Go Routine | `recWorker` | `reliabilityUsecase.RecoveryWorker` | Gateway Worker Thread | Postgres DB Updates | Background Process | `CONTROL_PLANE_ONLY` | PASS | `cmd/gateway/main.go:507` |
+| 23 | Monitoring | `/console/monitoring` | `GET /api/v1/observability/metrics` | `observabilityService` | `auditLogRepository` | Postgres DB / Prometheus | Postgres GORM / Memory | Tenant ID | `CONTROL_PLANE_ONLY` | PASS | `internal/observability/service/observability_service.go` |
+| 24 | Metrics Engine | `/console/monitoring` | `/metrics` | `pkg/metrics` | `prometheus.Collector` | Gateway Process Memory | Prometheus Registry | Public Endpoint | `CONTROL_PLANE_ONLY` | PASS | `pkg/metrics/metrics.go` |
+| 25 | Audit Logs | `/console/audit` | `GET /api/v1/audit-logs` | `observabilityService` | `authRepo.AuditLogRepository` | Postgres DB | Postgres GORM | Tenant ID | `CONTROL_PLANE_ONLY` | PASS | `internal/auth/repository/audit_log_repository.go` |
+| 26 | Billing Engine | `/console/billing` | `GET /api/v1/billing/usage` | `billingUsecase` | `billingUsecase` | Gateway Memory | In-Memory Quota Engine | Org ID | `SIMULATED` | DEMO_ONLY | `internal/billing/usecase/billing_usecase.go` |
+| 27 | Quotas Engine | `/console/billing` | `GET /api/v1/billing/quotas` | `billingUsecase` | `reliabilityRepo.ReliabilityRepository` | Postgres DB | Postgres GORM | Tenant ID | `CONTROL_PLANE_ONLY` | PASS | `internal/reliability/repository/reliability_repository.go` |
+| 28 | Developer APIs | `/console/developer` | `POST /api/v1/webhooks` | `whUC` | `whUsecase.WebhookUseCase` | Gateway Memory | In-Memory Map | User ID | `CONTROL_PLANE_ONLY` | PARTIAL | `internal/webhook/usecase/webhook_usecase.go` |
+| 29 | Provider Mapping | `/console/providers` | `GET /api/v1/providers/mappings` | `providerService` | `prvMapping.MappingRepository` | Gateway Memory | In-Memory Map | Tenant ID | `CONTROL_PLANE_ONLY` | PASS | `internal/providers/mapping/mapping_repository.go` |
+| 30 | Provisioning | `/console/provisioning` | `POST /api/v1/provisioning/apply` | `provUC` | `provProvider.ProviderRegistry` | Docker / AWS SDK | In-Memory State | Project ID | `SIMULATED` | PARTIAL | `internal/provisioning/usecase/provisioning_usecase.go` |
+| 31 | Applications | `/console/applications` | `GET /api/v1/applications` | Frontend Proxy | Static App Metadata | Frontend Memory | Frontend State | Client Session | `SIMULATED` | DEMO_ONLY | `web/app/console/applications/page.tsx` |
+| 32 | DevTools | `/console/devtools` | `POST /api/v1/query` | `sqlService` | `sqlService.Execute` | Target DB Engine | Target Database | Database Credentials | `REAL_LOCAL` | PASS | `cmd/gateway/main.go:524` |
+| 33 | Frontend Auth | Frontend Router | Client Navigation | React Context | Browser LocalStorage | Browser Storage | LocalStorage JWT | Client Token | `CONTROL_PLANE_ONLY` | PASS | `web/app/login/page.tsx` |
+| 34 | Backend Auth | Gateway Mux | All `/api/v1/*` Routes | `authMiddleware` | `security.JWTManager` | Server Crypto Engine | HMAC SHA-256 JWT | Server Verification | `CONTROL_PLANE_ONLY` | PASS | `internal/gateway/middleware/auth_middleware.go` |
+| 35 | Control Persistence | Gateway | Main Startup Loop | Config Loader | PostgreSQL GORM Pool | Control-Plane Postgres DB | PostgreSQL Tables | DB Schema | `CONTROL_PLANE_ONLY` | PASS | `pkg/config/config.go`, `cmd/gateway/main.go` |
+| 36 | Data Persistence | Database Engines | Managed Engines | Postgres/MySQL Service | Engine Volumes / Host Disk | Docker Host Volume / File | Host Storage Media | Engine Isolation | `REAL_LOCAL` | LOCAL_ONLY | `internal/postgres/provider/docker_provider.go` |
