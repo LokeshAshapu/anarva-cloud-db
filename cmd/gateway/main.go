@@ -12,6 +12,8 @@ import (
 
 	pkgVersion "github.com/anarva-cloud/anarva-cloud-db/pkg/version"
 
+	pkgMigration "github.com/anarva-cloud/anarva-cloud-db/internal/migration"
+
 	authHttp "github.com/anarva-cloud/anarva-cloud-db/internal/auth/delivery/http"
 	authDomain "github.com/anarva-cloud/anarva-cloud-db/internal/auth/domain"
 	authRepo "github.com/anarva-cloud/anarva-cloud-db/internal/auth/repository"
@@ -210,7 +212,10 @@ func main() {
 
 	// Phase 26 Production Control-Plane PostgreSQL Initialization
 	var dbPool *pkgDatabase.DB
-	appEnv := os.Getenv("APP_ENV")
+	appEnv := os.Getenv("ANARVA_ENV")
+	if appEnv == "" {
+		appEnv = os.Getenv("APP_ENV")
+	}
 	if appEnv == "" {
 		appEnv = cfg.Environment
 	}
@@ -221,13 +226,24 @@ func main() {
 		err = fmt.Errorf("no external DATABASE_URL configured")
 	}
 
-	// Production Fail-Closed Requirement: Production MUST NOT silently fall back to memory
+	// Production Fail-Closed Requirement: Production MUST NOT silently fall back to memory or JSON
 	if appEnv == "production" && (dbPool == nil || err != nil) {
-		log.Fatal(fmt.Sprintf("FATAL: Production control-plane PostgreSQL database connection required. APP_ENV=production requires a valid DATABASE_URL connection string: %v", err))
+		log.Fatal(fmt.Sprintf("FATAL: Production control-plane PostgreSQL database connection required. ANARVA_ENV=production requires a valid DATABASE_URL connection string: %v", err))
 	}
 
 	if err != nil {
 		log.Info(fmt.Sprintf("Development Mode Notice: %v. Initializing development fallback repositories.", err))
+		log.Info(`
+============================================================
+ANARVA PERSISTENCE DIAGNOSTICS (DEVELOPMENT MODE)
+============================================================
+Persistence Mode: FILE_SYNCED_JSON
+Environment: ` + appEnv + `
+Database Configured: NO
+Database Connected: NO
+Fallback Repositories: ENABLED (Disk Sync ./data/*.json)
+Filesystem Control-Plane Persistence: ACTIVE (./data/)
+============================================================`)
 		uRepo = newMemUserRepo()
 		sRepo = newMemSessionRepo()
 		kRepo = newMemKeyRepo()
@@ -244,6 +260,17 @@ func main() {
 
 		queryExecutor = query.NewMockExecutor()
 	} else {
+		log.Info(`
+============================================================
+ANARVA PERSISTENCE DIAGNOSTICS (PRODUCTION POSTGRESQL)
+============================================================
+Persistence Mode: POSTGRESQL
+Environment: ` + appEnv + `
+Database Configured: YES
+Database Connected: YES
+Fallback Repositories: DISABLED (Fail-Closed Enforcement)
+Filesystem Control-Plane Persistence: NOT REQUIRED
+============================================================`)
 		log.Info("Connected to Control-Plane PostgreSQL. Running AutoMigrate schema verification...")
 		err = dbPool.AutoMigrate(
 			&authDomain.User{},
@@ -272,6 +299,9 @@ func main() {
 		if err != nil && appEnv == "production" {
 			log.Fatal(fmt.Sprintf("FATAL: Failed to migrate production control-plane database schema: %v", err))
 		}
+
+		// Run JSON to PostgreSQL Migration if existing JSON files exist
+		_, _ = pkgMigration.MigrateJSONToPostgres(context.Background(), dbPool.DB, "./data")
 
 		uRepo = authRepo.NewUserRepository(dbPool.DB)
 		sRepo = authRepo.NewSessionRepository(dbPool.DB)
@@ -476,6 +506,39 @@ func main() {
 		vInfo := pkgVersion.GetVersionInfo(cfg.Environment)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data":      vInfo,
+			"requestId": reqID,
+		})
+	})
+
+	// Persistence Health Endpoint
+	mux.HandleFunc("GET /api/v1/health/persistence", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		reqID := r.Header.Get("X-Request-ID")
+		if reqID == "" {
+			reqID = "req-pers-" + time.Now().Format("20060102150405")
+		}
+		w.Header().Set("X-Request-ID", reqID)
+
+		dbConn := dbPool != nil
+		mode := "POSTGRESQL"
+		if !dbConn {
+			mode = "FILE_SYNCED_JSON"
+		}
+		status := "HEALTHY"
+		if appEnv == "production" && !dbConn {
+			status = "UNHEALTHY"
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": map[string]interface{}{
+				"status":                       status,
+				"mode":                         mode,
+				"environment":                  appEnv,
+				"database_configured":          dbConn,
+				"database_connected":           dbConn,
+				"fallback_repository_disabled": appEnv == "production",
+				"storage_provider":             "LOCAL_FILESYSTEM (DEVELOPMENT_ONLY)",
+			},
 			"requestId": reqID,
 		})
 	})
