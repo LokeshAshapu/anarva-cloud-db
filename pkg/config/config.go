@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
+	URL             string        `mapstructure:"URL"`
 	Host            string        `mapstructure:"HOST"`
 	Port            int           `mapstructure:"PORT"`
 	User            string        `mapstructure:"USER"`
@@ -41,6 +43,12 @@ type DatabaseConfig struct {
 }
 
 func (db DatabaseConfig) DSN() string {
+	if db.URL != "" {
+		return db.URL
+	}
+	if envURL := os.Getenv("DATABASE_URL"); envURL != "" {
+		return envURL
+	}
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		db.Host, db.Port, db.User, db.Password, db.DBName, db.SSLMode)
 }

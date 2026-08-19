@@ -542,6 +542,8 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 			return
 		}
 
+		safeDiag := pkgDatabase.GetSafeDatabaseDiagnostics(cfg.Database)
+
 		if dbConfigured && !dbConnected {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			msg := "Production PostgreSQL database is configured but unreachable"
@@ -549,10 +551,11 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 				msg += ": " + pingErr.Error()
 			}
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":     "persistence unavailable",
-				"code":      "DATABASE_UNAVAILABLE",
-				"message":   msg,
-				"requestId": reqID,
+				"error":            "persistence unavailable",
+				"code":             "DATABASE_UNAVAILABLE",
+				"message":          msg,
+				"safe_diagnostics": safeDiag,
+				"requestId":        reqID,
 			})
 			return
 		}

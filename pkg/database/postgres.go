@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -17,9 +18,55 @@ type DB struct {
 	*gorm.DB
 }
 
+type SafeDBDiagnostics struct {
+	Configured         bool   `json:"configured"`
+	Scheme             string `json:"scheme"`
+	HostConfigured     bool   `json:"host_configured"`
+	PortConfigured     bool   `json:"port_configured"`
+	DatabaseConfigured bool   `json:"database_configured"`
+	UsernameConfigured bool   `json:"username_configured"`
+	PasswordConfigured bool   `json:"password_configured"`
+	SSLModeConfigured  bool   `json:"sslmode_configured"`
+}
+
+func GetSafeDatabaseDiagnostics(cfg config.DatabaseConfig) SafeDBDiagnostics {
+	dsn := cfg.DSN()
+	diag := SafeDBDiagnostics{}
+	if dsn == "" {
+		return diag
+	}
+	diag.Configured = true
+
+	if u, err := url.Parse(dsn); err == nil && u.Scheme != "" {
+		diag.Scheme = u.Scheme
+		diag.HostConfigured = (u.Hostname() != "")
+		diag.PortConfigured = (u.Port() != "")
+		diag.DatabaseConfigured = (u.Path != "" && u.Path != "/")
+		if u.User != nil {
+			diag.UsernameConfigured = (u.User.Username() != "")
+			_, set := u.User.Password()
+			diag.PasswordConfigured = set
+		}
+		diag.SSLModeConfigured = u.Query().Has("sslmode")
+		return diag
+	}
+
+	diag.Scheme = "postgres"
+	diag.HostConfigured = (cfg.Host != "")
+	diag.PortConfigured = (cfg.Port > 0)
+	diag.DatabaseConfigured = (cfg.DBName != "")
+	diag.UsernameConfigured = (cfg.User != "")
+	diag.PasswordConfigured = (cfg.Password != "")
+	diag.SSLModeConfigured = (cfg.SSLMode != "")
+	return diag
+}
+
 // NewPostgresDB initializes a production-grade PostgreSQL GORM connection pool.
 func NewPostgresDB(cfg config.DatabaseConfig) (*DB, error) {
 	dsn := cfg.DSN()
+	diag := GetSafeDatabaseDiagnostics(cfg)
+	appLogger.Info(fmt.Sprintf("PostgreSQL Connection Diagnostic: configured=%t scheme=%s host_configured=%t port_configured=%t db_configured=%t user_configured=%t pass_configured=%t sslmode_configured=%t",
+		diag.Configured, diag.Scheme, diag.HostConfigured, diag.PortConfigured, diag.DatabaseConfigured, diag.UsernameConfigured, diag.PasswordConfigured, diag.SSLModeConfigured))
 
 	gormConfig := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
