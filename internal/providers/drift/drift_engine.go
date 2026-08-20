@@ -29,10 +29,10 @@ type DriftRecord struct {
 }
 
 type DriftEngine struct {
-	mappingRepo *mapping.MappingRepository
+	mappingRepo mapping.MappingRepository
 }
 
-func NewDriftEngine(mappingRepo *mapping.MappingRepository) *DriftEngine {
+func NewDriftEngine(mappingRepo mapping.MappingRepository) *DriftEngine {
 	return &DriftEngine{mappingRepo: mappingRepo}
 }
 

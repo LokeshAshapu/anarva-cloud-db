@@ -14,7 +14,7 @@ import (
 
 type ProviderService struct {
 	reg          *registry.ProviderRegistry
-	mappingRepo  *mapping.MappingRepository
+	mappingRepo  mapping.MappingRepository
 	driftEngine  *drift.DriftEngine
 	importEngine *importengine.ImportEngine
 	ssrfEng      *security.SSRFProtectionEngine
@@ -23,7 +23,7 @@ type ProviderService struct {
 
 func NewProviderService(
 	reg *registry.ProviderRegistry,
-	mappingRepo *mapping.MappingRepository,
+	mappingRepo mapping.MappingRepository,
 	driftEngine *drift.DriftEngine,
 	importEngine *importengine.ImportEngine,
 	ssrfEng *security.SSRFProtectionEngine,

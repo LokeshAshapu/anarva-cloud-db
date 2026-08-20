@@ -9,10 +9,10 @@ import (
 )
 
 type ImportEngine struct {
-	mappingRepo *mapping.MappingRepository
+	mappingRepo mapping.MappingRepository
 }
 
-func NewImportEngine(mappingRepo *mapping.MappingRepository) *ImportEngine {
+func NewImportEngine(mappingRepo mapping.MappingRepository) *ImportEngine {
 	return &ImportEngine{mappingRepo: mappingRepo}
 }
 

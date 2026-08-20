@@ -351,6 +351,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 			&networkingDomain.RouteTable{},
 			&networkingDomain.NetworkInterface{},
 			&networkingDomain.IPAllocation{},
+			&prvMapping.ProviderResourceMapping{},
 		)
 		if err != nil && appEnv == "production" {
 			log.Fatal(fmt.Sprintf("FATAL: Failed to migrate production control-plane database schema: %v", err))
@@ -471,7 +472,14 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 
 	// Phase 22 Real Cloud Provider Integration & Infrastructure Execution Layer
 	prvReg := prvRegistry.NewProviderRegistry()
-	prvMapRepo := prvMapping.NewMappingRepository()
+	var prvMapRepo prvMapping.MappingRepository
+	if dbPool != nil {
+		prvMapRepo = prvMapping.NewPostgresMappingRepository(dbPool.DB)
+	} else if appEnv == "production" {
+		log.Fatal("FATAL: Production environment requires PostgreSQL for provider resource mappings")
+	} else {
+		prvMapRepo = prvMapping.NewInMemoryMappingRepository()
+	}
 	prvDriftEng := prvDrift.NewDriftEngine(prvMapRepo)
 	prvImportEng := prvImport.NewImportEngine(prvMapRepo)
 	prvSsrfEng := prvSecurity.NewSSRFProtectionEngine()
