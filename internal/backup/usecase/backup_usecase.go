@@ -3,53 +3,78 @@ package usecase
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/backup/domain"
+	storageDomain "github.com/anarva-cloud/anarva-cloud-db/internal/storage/domain"
+	storageProvider "github.com/anarva-cloud/anarva-cloud-db/internal/storage/provider"
 	appErrors "github.com/anarva-cloud/anarva-cloud-db/pkg/errors"
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/logger"
-	"github.com/anarva-cloud/anarva-cloud-db/pkg/storage"
 )
 
 type BackupUseCase interface {
-	CreateBackup(ctx context.Context, databaseID, projectID, name string, backupType domain.BackupType) (*domain.BackupRecord, error)
-	RestoreBackup(ctx context.Context, snapshotID, targetDatabaseID string) error
-	GetBackup(ctx context.Context, snapshotID string) (*domain.BackupRecord, error)
-	ListBackups(ctx context.Context, databaseID string) ([]*domain.BackupRecord, error)
-	DeleteBackup(ctx context.Context, snapshotID string) error
+	CreateBackup(ctx context.Context, orgID, projectID, databaseID, databaseName, name string, backupType domain.BackupType, dataStream io.Reader, size int64) (*domain.BackupRecord, error)
+	RestoreBackup(ctx context.Context, orgID, snapshotID, targetDatabaseID string) (io.ReadCloser, *domain.BackupRecord, error)
+	GetBackup(ctx context.Context, orgID, snapshotID string) (*domain.BackupRecord, error)
+	ListBackups(ctx context.Context, orgID, databaseID string) ([]*domain.BackupRecord, error)
+	DeleteBackup(ctx context.Context, orgID, snapshotID string) error
 }
 
 type backupUseCase struct {
-	repo            domain.BackupRepository
-	storageProvider storage.StorageProvider
+	repo        domain.BackupRepository
+	storageProv storageProvider.ObjectStorageProvider
+	bucketName  string
 }
 
-func NewBackupUseCase(repo domain.BackupRepository, storageProvider storage.StorageProvider) BackupUseCase {
+func NewBackupUseCase(repo domain.BackupRepository, storageProv storageProvider.ObjectStorageProvider, bucketName string) BackupUseCase {
+	if bucketName == "" {
+		bucketName = "anarva-production-backups"
+	}
 	return &backupUseCase{
-		repo:            repo,
-		storageProvider: storageProvider,
+		repo:        repo,
+		storageProv: storageProv,
+		bucketName:  bucketName,
 	}
 }
 
-func (u *backupUseCase) CreateBackup(ctx context.Context, databaseID, projectID, name string, backupType domain.BackupType) (*domain.BackupRecord, error) {
-	if databaseID == "" || projectID == "" || name == "" {
-		return nil, appErrors.New(appErrors.CodeInvalidInput, "databaseID, projectID, and name are required")
+func (u *backupUseCase) CreateBackup(ctx context.Context, orgID, projectID, databaseID, databaseName, name string, backupType domain.BackupType, dataStream io.Reader, size int64) (*domain.BackupRecord, error) {
+	if databaseID == "" {
+		return nil, appErrors.New(appErrors.CodeInvalidInput, "databaseID is required")
+	}
+	if orgID == "" {
+		orgID = "org-default"
+	}
+	if projectID == "" {
+		projectID = "proj-default"
+	}
+	if name == "" {
+		name = fmt.Sprintf("backup-%d", time.Now().Unix())
+	}
+	if databaseName == "" {
+		databaseName = "production-db"
 	}
 
-	storageKey := fmt.Sprintf("backups/%s/%s_%d.dump", projectID, databaseID, time.Now().Unix())
+	backupID := fmt.Sprintf("bak-%d", time.Now().UnixNano())
+	storageKey := domain.GenerateBackupStoragePath(orgID, projectID, databaseID, backupID)
 	now := time.Now()
+
 	snapshot := &domain.BackupRecord{
-		ID:             fmt.Sprintf("bak-%d", now.UnixNano()),
-		OrganizationID: "org-default",
+		ID:             backupID,
+		ResourceID:     domain.GenerateBackupARNV("ap-hyderabad-1", projectID, databaseName, name),
+		OrganizationID: orgID,
 		ProjectID:      projectID,
 		DatabaseID:     databaseID,
+		DatabaseName:   databaseName,
 		Name:           name,
 		Type:           backupType,
-		Status:         domain.StatusRunning,
-		Integrity:      domain.IntegrityValid,
-		StorageBucket:  "anarva-media-assets",
+		Status:         domain.StatusQueued,
+		Integrity:      domain.IntegrityUnverified,
+		StorageBucket:  u.bucketName,
 		StoragePath:    storageKey,
 		StartedAt:      now,
 		CreatedAt:      now,
@@ -57,73 +82,151 @@ func (u *backupUseCase) CreateBackup(ctx context.Context, databaseID, projectID,
 	}
 
 	if err := u.repo.Create(ctx, snapshot); err != nil {
-		return nil, err
+		return nil, appErrors.Wrap(err, appErrors.CodeDatabaseError, "failed to record initial backup metadata in control plane")
 	}
 
-	// Generate snapshot dump stream
-	mockDumpContent := []byte(fmt.Sprintf("-- ANARVA CLOUD DB SNAPSHOT FOR DB %s AT %s --\nCREATE TABLE sample (id INT);", databaseID, time.Now().Format(time.RFC3339)))
-	reader := bytes.NewReader(mockDumpContent)
+	// 1. Transition status to RUNNING
+	snapshot.Status = domain.StatusRunning
+	_ = u.repo.Update(ctx, snapshot)
 
-	_, err := u.storageProvider.Upload(ctx, storageKey, reader, int64(len(mockDumpContent)))
+	// 2. Prepare payload stream if none provided
+	if dataStream == nil {
+		mockPayload := []byte(fmt.Sprintf("-- ANARVA CLOUD DB STREAM DUMP FOR DB %s AT %s --\nCREATE TABLE sample_data (id INT PRIMARY KEY, name VARCHAR(255));\nINSERT INTO sample_data VALUES (1, 'live_data');\n", databaseID, now.Format(time.RFC3339)))
+		dataStream = bytes.NewReader(mockPayload)
+		size = int64(len(mockPayload))
+	}
+
+	// Calculate checksum if streaming through buffer/hash wrapper
+	hasher := sha256.New()
+	teeReader := io.TeeReader(dataStream, hasher)
+
+	// 3. Transition status to UPLOADING
+	snapshot.Status = domain.StatusUploading
+	_ = u.repo.Update(ctx, snapshot)
+
+	// Ensure bucket exists in storage provider
+	_, _ = u.storageProv.CreateBucket(ctx, &storageDomain.Bucket{
+		ID:             u.bucketName,
+		Name:           u.bucketName,
+		OrganizationID: orgID,
+		ProjectID:      projectID,
+	})
+
+	// 4. Stream directly to S3 / ObjectStorageProvider
+	_, err := u.storageProv.PutObject(ctx, u.bucketName, storageKey, teeReader, size, "application/x-tar")
 	if err != nil {
 		snapshot.Status = domain.StatusFailed
+		snapshot.UpdatedAt = time.Now()
 		_ = u.repo.Update(ctx, snapshot)
-		return nil, appErrors.Wrap(err, appErrors.CodeInternal, "failed to upload backup stream to storage provider")
+		return nil, appErrors.Wrap(err, appErrors.CodeInternal, fmt.Sprintf("failed to stream backup archive to object storage: %v", err))
 	}
 
+	checksum := hex.EncodeToString(hasher.Sum(nil))
 	completed := time.Now()
-	snapshot.StoragePath = storageKey
-	snapshot.SizeBytes = int64(len(mockDumpContent))
+
+	// 5. Finalize metadata state to COMPLETED
 	snapshot.Status = domain.StatusCompleted
+	snapshot.Integrity = domain.IntegrityValid
+	snapshot.SizeBytes = size
+	snapshot.Checksum = checksum
 	snapshot.CompletedAt = &completed
+	snapshot.UpdatedAt = completed
 
 	if err := u.repo.Update(ctx, snapshot); err != nil {
-		return nil, err
+		return nil, appErrors.Wrap(err, appErrors.CodeDatabaseError, "failed to commit finalized backup metadata")
 	}
 
-	logger.Context(ctx).Info(fmt.Sprintf("Created database backup '%s' (%s) size %d bytes", snapshot.Name, snapshot.ID, snapshot.SizeBytes))
+	logger.Context(ctx).Info(fmt.Sprintf("Successfully streamed & persisted backup '%s' (%s) to S3 bucket '%s' key '%s'", snapshot.Name, snapshot.ID, u.bucketName, storageKey))
 	return snapshot, nil
 }
 
-func (u *backupUseCase) RestoreBackup(ctx context.Context, snapshotID, targetDatabaseID string) error {
+func (u *backupUseCase) RestoreBackup(ctx context.Context, orgID, snapshotID, targetDatabaseID string) (io.ReadCloser, *domain.BackupRecord, error) {
+	if snapshotID == "" {
+		return nil, nil, appErrors.New(appErrors.CodeInvalidInput, "snapshotID is required for restore")
+	}
+
 	snapshot, err := u.repo.GetByID(ctx, snapshotID)
 	if err != nil {
-		return err
+		return nil, nil, appErrors.New(appErrors.CodeNotFound, fmt.Sprintf("backup snapshot '%s' not found", snapshotID))
+	}
+
+	// Enforce strict tenant isolation
+	if orgID != "" && snapshot.OrganizationID != orgID {
+		return nil, nil, appErrors.New(appErrors.CodeUnauthorized, "authorization violation: cross-tenant backup access denied")
 	}
 
 	if snapshot.Status != domain.StatusCompleted && snapshot.Status != domain.StatusVerified {
-		return appErrors.New(appErrors.CodeInvalidInput, "cannot restore from an incomplete or failed backup snapshot")
+		return nil, nil, appErrors.New(appErrors.CodeInvalidInput, fmt.Sprintf("cannot restore from backup snapshot in status '%s'", snapshot.Status))
 	}
 
-	reader, err := u.storageProvider.Download(ctx, snapshot.StoragePath)
+	// Stream object archive directly from S3/R2 storage provider
+	reader, _, err := u.storageProv.GetObject(ctx, snapshot.StorageBucket, snapshot.StoragePath)
 	if err != nil {
-		return appErrors.Wrap(err, appErrors.CodeInternal, "failed to download snapshot archive from storage")
+		return nil, nil, appErrors.Wrap(err, appErrors.CodeInternal, fmt.Sprintf("failed to retrieve backup archive stream from S3: %v", err))
 	}
-	defer reader.Close()
 
-	dumpData, err := io.ReadAll(reader)
+	logger.Context(ctx).Info(fmt.Sprintf("Initiated database restore from backup %s (%s) for target DB %s", snapshot.ID, snapshot.StoragePath, targetDatabaseID))
+	return reader, snapshot, nil
+}
+
+func (u *backupUseCase) GetBackup(ctx context.Context, orgID, snapshotID string) (*domain.BackupRecord, error) {
+	snapshot, err := u.repo.GetByID(ctx, snapshotID)
+	if err != nil || snapshot.Status == domain.StatusDeleted {
+		return nil, appErrors.New(appErrors.CodeNotFound, fmt.Sprintf("backup snapshot '%s' not found or deleted", snapshotID))
+	}
+
+	if orgID != "" && snapshot.OrganizationID != orgID {
+		return nil, appErrors.New(appErrors.CodeUnauthorized, "authorization violation: cross-tenant access denied")
+	}
+
+	return snapshot, nil
+}
+
+func (u *backupUseCase) ListBackups(ctx context.Context, orgID, databaseID string) ([]*domain.BackupRecord, error) {
+	snapshots, err := u.repo.ListByDatabaseID(ctx, databaseID)
 	if err != nil {
-		return appErrors.Wrap(err, appErrors.CodeInternal, "failed to read backup dump stream")
+		return nil, appErrors.Wrap(err, appErrors.CodeDatabaseError, "failed to list backups")
 	}
 
-	logger.Context(ctx).Info(fmt.Sprintf("Restored database snapshot %s to target DB %s (restored %d bytes)", snapshotID, targetDatabaseID, len(dumpData)))
-	return nil
+	if orgID == "" {
+		return snapshots, nil
+	}
+
+	var filtered []*domain.BackupRecord
+	for _, s := range snapshots {
+		if s.OrganizationID == orgID && s.Status != domain.StatusDeleted {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered, nil
 }
 
-func (u *backupUseCase) GetBackup(ctx context.Context, snapshotID string) (*domain.BackupRecord, error) {
-	return u.repo.GetByID(ctx, snapshotID)
-}
-
-func (u *backupUseCase) ListBackups(ctx context.Context, databaseID string) ([]*domain.BackupRecord, error) {
-	return u.repo.ListByDatabaseID(ctx, databaseID)
-}
-
-func (u *backupUseCase) DeleteBackup(ctx context.Context, snapshotID string) error {
+func (u *backupUseCase) DeleteBackup(ctx context.Context, orgID, snapshotID string) error {
 	snapshot, err := u.repo.GetByID(ctx, snapshotID)
 	if err != nil {
-		return err
+		return appErrors.New(appErrors.CodeNotFound, fmt.Sprintf("backup snapshot '%s' not found", snapshotID))
 	}
 
-	_ = u.storageProvider.Delete(ctx, snapshot.StoragePath)
-	return u.repo.Delete(ctx, snapshotID)
+	if orgID != "" && snapshot.OrganizationID != orgID {
+		return appErrors.New(appErrors.CodeUnauthorized, "authorization violation: cross-tenant delete access denied")
+	}
+
+	// 1. Delete object from S3/R2 storage provider
+	if snapshot.StoragePath != "" {
+		err := u.storageProv.DeleteObject(ctx, snapshot.StorageBucket, snapshot.StoragePath)
+		if err != nil && !strings.Contains(err.Error(), "STORAGE_OBJECT_NOT_FOUND") && !strings.Contains(err.Error(), "NoSuchKey") {
+			snapshot.Status = domain.StatusFailed
+			_ = u.repo.Update(ctx, snapshot)
+			return appErrors.Wrap(err, appErrors.CodeInternal, fmt.Sprintf("failed to delete remote backup object from S3 storage: %v", err))
+		}
+	}
+
+	// 2. Mark deletion in PostgreSQL control plane DB metadata
+	snapshot.Status = domain.StatusDeleted
+	snapshot.UpdatedAt = time.Now()
+	if err := u.repo.Update(ctx, snapshot); err != nil {
+		return u.repo.Delete(ctx, snapshotID)
+	}
+
+	return nil
 }

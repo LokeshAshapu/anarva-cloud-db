@@ -2,15 +2,19 @@ package http
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/activity"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/backup/domain"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/backup/provider"
+	"github.com/anarva-cloud/anarva-cloud-db/internal/backup/usecase"
 )
 
 type BackupHandler struct {
 	prov   provider.BackupProvider
+	uc     usecase.BackupUseCase
 	stream *activity.Stream
 }
 
@@ -21,10 +25,19 @@ func NewBackupHandler(prov provider.BackupProvider, stream *activity.Stream) *Ba
 	}
 }
 
+func NewBackupHandlerWithUseCase(prov provider.BackupProvider, uc usecase.BackupUseCase, stream *activity.Stream) *BackupHandler {
+	return &BackupHandler{
+		prov:   prov,
+		uc:     uc,
+		stream: stream,
+	}
+}
+
 func (h *BackupHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/databases/{id}/backups", h.ListDatabaseBackups)
 	mux.HandleFunc("POST /api/v1/databases/{id}/backups", h.CreateSnapshot)
 	mux.HandleFunc("GET /api/v1/backups/{id}", h.GetBackup)
+	mux.HandleFunc("GET /api/v1/backups/{id}/download", h.DownloadBackupArchive)
 	mux.HandleFunc("DELETE /api/v1/backups/{id}", h.DeleteBackup)
 	mux.HandleFunc("POST /api/v1/backups/{id}/restore", h.RestoreBackup)
 	mux.HandleFunc("GET /api/v1/databases/{id}/recovery-points", h.GetRecoveryPoints)
@@ -33,7 +46,8 @@ func (h *BackupHandler) RegisterRoutes(mux *http.ServeMux) {
 
 func (h *BackupHandler) ListDatabaseBackups(w http.ResponseWriter, r *http.Request) {
 	dbID := r.PathValue("id")
-	backups, err := h.prov.ListBackups(r.Context(), "org-default", dbID)
+	orgID := getOrgIDFromContext(r)
+	backups, err := h.prov.ListBackups(r.Context(), orgID, dbID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -43,12 +57,18 @@ func (h *BackupHandler) ListDatabaseBackups(w http.ResponseWriter, r *http.Reque
 
 func (h *BackupHandler) CreateSnapshot(w http.ResponseWriter, r *http.Request) {
 	dbID := r.PathValue("id")
+	orgID := getOrgIDFromContext(r)
+	projID := r.Header.Get("X-Project-ID")
+	if projID == "" {
+		projID = "proj-default"
+	}
+
 	var req struct {
 		Name          string `json:"name"`
 		DatabaseName  string `json:"databaseName"`
 		RetentionDays int    `json:"retentionDays"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
 		http.Error(w, `{"error":"invalid payload"}`, http.StatusBadRequest)
 		return
 	}
@@ -61,14 +81,13 @@ func (h *BackupHandler) CreateSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rec := &domain.BackupRecord{
-		OrganizationID: "org-default",
-		ProjectID:      "proj-default",
+		OrganizationID: orgID,
+		ProjectID:      projID,
 		DatabaseID:     dbID,
 		DatabaseName:   req.DatabaseName,
 		Name:           req.Name,
 		Type:           domain.BackupManual,
 		RetentionDays:  req.RetentionDays,
-		SizeBytes:      14589000,
 	}
 
 	created, err := h.prov.CreateBackup(r.Context(), rec)
@@ -77,31 +96,70 @@ func (h *BackupHandler) CreateSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.stream.Record(&activity.ActivityEvent{
-		OrganizationID: "org-default",
-		ProjectID:      "proj-default",
-		ResourceID:     created.ID,
-		ActorID:        "lokeshashapu@gmail.com",
-		Action:         activity.ActionBackupCompleted,
-		Metadata:       map[string]string{"name": created.Name},
-	})
+	if h.stream != nil {
+		h.stream.Record(&activity.ActivityEvent{
+			OrganizationID: orgID,
+			ProjectID:      projID,
+			ResourceID:     created.ID,
+			ActorID:        "operator@anarva.cloud",
+			Action:         activity.ActionBackupCompleted,
+			Metadata:       map[string]string{"name": created.Name},
+		})
+	}
 
 	respondJSON(w, http.StatusCreated, created)
 }
 
 func (h *BackupHandler) GetBackup(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	b, err := h.prov.GetBackup(r.Context(), id, "org-default")
+	orgID := getOrgIDFromContext(r)
+	b, err := h.prov.GetBackup(r.Context(), id, orgID)
 	if err != nil {
+		if strings.Contains(err.Error(), "authorization violation") {
+			http.Error(w, `{"error":"Forbidden: cross-tenant access denied"}`, http.StatusForbidden)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	respondJSON(w, http.StatusOK, b)
 }
 
+func (h *BackupHandler) DownloadBackupArchive(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	orgID := getOrgIDFromContext(r)
+
+	if h.uc == nil {
+		http.Error(w, `{"error":"Direct archive download requires BackupUseCase streaming engine"}`, http.StatusNotImplemented)
+		return
+	}
+
+	stream, _, err := h.uc.RestoreBackup(r.Context(), orgID, id, snapshotToTargetDB(id))
+	if err != nil {
+		if strings.Contains(err.Error(), "authorization violation") {
+			http.Error(w, `{"error":"Forbidden: cross-tenant access denied"}`, http.StatusForbidden)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	defer stream.Close()
+
+	w.Header().Set("Content-Type", "application/x-tar")
+	w.Header().Set("Content-Disposition", "attachment; filename="+id+".dump")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.Copy(w, stream)
+}
+
 func (h *BackupHandler) DeleteBackup(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := h.prov.DeleteBackup(r.Context(), id, "org-default"); err != nil {
+	orgID := getOrgIDFromContext(r)
+
+	if err := h.prov.DeleteBackup(r.Context(), id, orgID); err != nil {
+		if strings.Contains(err.Error(), "authorization violation") {
+			http.Error(w, `{"error":"Forbidden: cross-tenant access denied"}`, http.StatusForbidden)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -110,6 +168,8 @@ func (h *BackupHandler) DeleteBackup(w http.ResponseWriter, r *http.Request) {
 
 func (h *BackupHandler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
 	backupID := r.PathValue("id")
+	orgID := getOrgIDFromContext(r)
+
 	var req struct {
 		TargetDBName   string `json:"targetDbName"`
 		TargetRegionID string `json:"targetRegionId"`
@@ -120,7 +180,7 @@ func (h *BackupHandler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	job, err := h.prov.CreateRestoreJob(r.Context(), &domain.RestoreJob{
-		OrganizationID:   "org-default",
+		OrganizationID:   orgID,
 		ProjectID:        "proj-default",
 		SourceDatabaseID: "res-db-prod-1",
 		BackupID:         backupID,
@@ -129,6 +189,10 @@ func (h *BackupHandler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
 		RestoreType:      "SNAPSHOT",
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "authorization violation") {
+			http.Error(w, `{"error":"Forbidden: cross-tenant access denied"}`, http.StatusForbidden)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -138,8 +202,9 @@ func (h *BackupHandler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
 
 func (h *BackupHandler) GetRecoveryPoints(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"pitrStatus":        "PROVIDER_NOT_CONNECTED",
-		"message":           "WAL archival & continuous recovery points require bare-metal PostgreSQL replication driver attachment",
+		"pitrStatus":         "CONTROL_PLANE_ONLY",
+		"mode":               "SNAPSHOT_RECOVERY",
+		"message":            "WAL archival & continuous point-in-time recovery points require physical WAL archiving driver attachment",
 		"availableSnapshots": 1,
 	})
 }
@@ -154,6 +219,18 @@ func (h *BackupHandler) GetBackupConfig(w http.ResponseWriter, r *http.Request) 
 		PitrEnabled:    false,
 		ProviderStatus: "CONFIGURED",
 	})
+}
+
+func getOrgIDFromContext(r *http.Request) string {
+	orgID := r.Header.Get("X-Organization-ID")
+	if orgID == "" {
+		orgID = "org-default"
+	}
+	return orgID
+}
+
+func snapshotToTargetDB(id string) string {
+	return "target-db-" + id
 }
 
 func respondJSON(w http.ResponseWriter, status int, payload interface{}) {

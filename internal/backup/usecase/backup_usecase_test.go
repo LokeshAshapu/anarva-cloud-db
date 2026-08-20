@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"io"
 	"os"
 	"testing"
 
@@ -9,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/backup/domain"
+	storageProvider "github.com/anarva-cloud/anarva-cloud-db/internal/storage/provider"
 	appErrors "github.com/anarva-cloud/anarva-cloud-db/pkg/errors"
-	"github.com/anarva-cloud/anarva-cloud-db/pkg/storage"
 )
 
 type mockBackupRepo struct {
@@ -67,11 +68,9 @@ func setupBackupUseCase(t *testing.T) (BackupUseCase, string) {
 	tempDir, err := os.MkdirTemp("", "anarva_backup_uc_test_*")
 	require.NoError(t, err)
 
-	provider, err := storage.NewLocalStorageProvider(tempDir)
-	require.NoError(t, err)
-
+	provider := storageProvider.NewLocalStorageProvider(tempDir)
 	repo := newMockBackupRepo()
-	return NewBackupUseCase(repo, provider), tempDir
+	return NewBackupUseCase(repo, provider, "anarva-test-bucket"), tempDir
 }
 
 func TestBackupAndRestoreLifecycle(t *testing.T) {
@@ -80,29 +79,36 @@ func TestBackupAndRestoreLifecycle(t *testing.T) {
 
 	ctx := context.Background()
 
+	orgID := "org-uuid-111"
 	databaseID := "db-uuid-555"
 	projectID := "proj-uuid-777"
 
 	// Create Backup
-	snapshot, err := uc.CreateBackup(ctx, databaseID, projectID, "Nightly Production Backup", domain.BackupSnapshot)
+	snapshot, err := uc.CreateBackup(ctx, orgID, projectID, databaseID, "production-db", "Nightly Production Backup", domain.BackupSnapshot, nil, 0)
 	require.NoError(t, err)
 	assert.Equal(t, domain.StatusCompleted, snapshot.Status)
 	assert.True(t, snapshot.SizeBytes > 0)
 
 	// List Backups
-	list, err := uc.ListBackups(ctx, databaseID)
+	list, err := uc.ListBackups(ctx, orgID, databaseID)
 	require.NoError(t, err)
 	assert.Len(t, list, 1)
 
-	// Restore Backup to Target DB
+	// Restore Backup Stream to Target DB
 	targetDatabaseID := "db-uuid-888-restored"
-	err = uc.RestoreBackup(ctx, snapshot.ID, targetDatabaseID)
+	rc, restoredSnapshot, err := uc.RestoreBackup(ctx, orgID, snapshot.ID, targetDatabaseID)
 	require.NoError(t, err)
+	defer rc.Close()
+
+	restoredBytes, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	assert.True(t, len(restoredBytes) > 0)
+	assert.Equal(t, snapshot.ID, restoredSnapshot.ID)
 
 	// Delete Backup
-	err = uc.DeleteBackup(ctx, snapshot.ID)
+	err = uc.DeleteBackup(ctx, orgID, snapshot.ID)
 	require.NoError(t, err)
 
-	_, err = uc.GetBackup(ctx, snapshot.ID)
+	_, err = uc.GetBackup(ctx, orgID, snapshot.ID)
 	assert.Error(t, err)
 }

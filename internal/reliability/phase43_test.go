@@ -154,6 +154,12 @@ func TestPhase43_ProductionConfigurationValidation(t *testing.T) {
 		Server:      config.ServerConfig{Port: 8080},
 		JWT:         config.JWTConfig{Secret: "anarva_prod_ultra_secure_jwt_token_key_987654321"},
 		Database:    config.DatabaseConfig{Host: "prod-db.internal"},
+		Storage: config.StorageConfig{
+			Driver:      "s3",
+			S3Bucket:    "prod-bucket",
+			S3AccessKey: "key",
+			S3SecretKey: "sec",
+		},
 	}
 	require.NoError(t, config.ValidateProductionConfig(prodValidCfg))
 }

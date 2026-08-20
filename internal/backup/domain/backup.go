@@ -22,6 +22,7 @@ const (
 	StatusRequested  BackupStatus = "REQUESTED"
 	StatusQueued     BackupStatus = "QUEUED"
 	StatusRunning    BackupStatus = "RUNNING"
+	StatusUploading  BackupStatus = "UPLOADING"
 	StatusCompleted  BackupStatus = "COMPLETED"
 	StatusFailed     BackupStatus = "FAILED"
 	StatusVerifying  BackupStatus = "VERIFYING"
@@ -87,4 +88,15 @@ type BackupConfig struct {
 
 func GenerateBackupARNV(regionID, projectID, dbName, backupName string) string {
 	return arnv.GenerateARNV("BACKUP", regionID, projectID, fmt.Sprintf("database/%s/backup/%s", dbName, backupName))
+}
+
+func GenerateBackupStoragePath(orgID, projectID, databaseID, backupID string) string {
+	if orgID == "" {
+		orgID = "org-default"
+	}
+	if projectID == "" {
+		projectID = "proj-default"
+	}
+	return fmt.Sprintf("backups/organizations/%s/projects/%s/databases/%s/backups/%s/backup.dump",
+		orgID, projectID, databaseID, backupID)
 }

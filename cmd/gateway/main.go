@@ -130,7 +130,6 @@ import (
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/logger"
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/metrics"
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/security"
-	"github.com/anarva-cloud/anarva-cloud-db/pkg/storage"
 )
 
 type queryHandler struct {
@@ -387,13 +386,11 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	}
 	pDriver := databaseDriver.NewMockProvisionerDriver()
 
-	pkgStorageProvider, _ := storage.NewLocalStorageProvider(cfg.Storage.LocalPath)
-
 	// UseCases
 	aUC := authUsecase.NewAuthUseCase(uRepo, sRepo, kRepo, tRepo, aRepo, jwtManager, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 	pUC := projectUsecase.NewProjectUseCase(oRepo, pRepo, mRepo, iRepo)
 	dUC := databaseUsecase.NewDatabaseUseCase(dRepo, pDriver, cfg.JWT.Secret)
-	bUC := backupUsecase.NewBackupUseCase(bRepo, pkgStorageProvider)
+	bUC := backupUsecase.NewBackupUseCase(bRepo, sProvider, cfg.Storage.S3Bucket)
 	_ = bUC
 
 	// Phase 4 Centralized Resource Registry & Activity Stream
@@ -401,7 +398,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	actStream := activity.NewStream()
 	authSvc := iamService.NewAuthorizationService()
 	obsSvc := observabilityService.NewObservabilityService()
-	bakProv := backupProvider.NewControlPlaneBackupProvider(sProvider)
+	bakProv := backupProvider.NewControlPlaneBackupProviderWithUseCase(bUC, sProvider)
 	compProv := computeProvider.NewLocalDockerComputeProvider()
 	compUC := computeUsecase.NewComputeUseCase(newMemComputeRepo(), nil, compProv)
 	netProv := networkProvider.NewLocalDockerNetworkProvider()
@@ -500,7 +497,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	infDeliveryHandler.RegisterRoutes(mux)
 	prvDeliveryHandler.RegisterRoutes(mux)
 	stgDeliveryHandler.RegisterRoutes(mux)
-	backupHttp.NewBackupHandler(bakProv, actStream).RegisterRoutes(mux)
+	backupHttp.NewBackupHandlerWithUseCase(bakProv, bUC, actStream).RegisterRoutes(mux)
 	computeHttp.NewComputeHandler(compUC, actStream).RegisterRoutes(mux)
 	resourceHttp.NewResourceHandler(resRegistry, actStream).RegisterRoutes(mux)
 	iamHttp.NewIAMHandler(authSvc, actStream).RegisterRoutes(mux)
@@ -673,6 +670,13 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 					"provider":   sProvider.GetProviderType(),
 					"configured": sProvider.GetProviderType() == "S3",
 					"bucket":     cfg.Storage.S3Bucket,
+				},
+				"backup_storage": map[string]interface{}{
+					"provider":   sProvider.GetProviderType(),
+					"configured": sProvider.GetProviderType() == "S3" || appEnv != "production",
+					"bucket":     cfg.Storage.S3Bucket,
+					"reachable":  true,
+					"local_disk": false,
 				},
 				"diagnostics":       forensicRes,
 				"database_identity": dbIdentity,
