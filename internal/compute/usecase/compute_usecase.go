@@ -73,7 +73,9 @@ func (uc *ComputeUseCase) CreateInstance(ctx context.Context, inst *domain.Compu
 	}
 
 	if uc.repo != nil {
-		_ = uc.repo.Create(ctx, created)
+		if err := uc.repo.Create(ctx, created); err != nil {
+			return nil, err
+		}
 	}
 
 	return created, nil
@@ -98,15 +100,36 @@ func (uc *ComputeUseCase) ListInstances(ctx context.Context, projectID string) (
 }
 
 func (uc *ComputeUseCase) StartInstance(ctx context.Context, id string) error {
-	return uc.provider.StartInstance(ctx, id)
+	err := uc.provider.StartInstance(ctx, id)
+	if err == nil && uc.repo != nil {
+		if inst, getErr := uc.repo.GetByID(ctx, id); getErr == nil && inst != nil {
+			inst.Status = domain.StatusRunning
+			_ = uc.repo.Update(ctx, inst)
+		}
+	}
+	return err
 }
 
 func (uc *ComputeUseCase) StopInstance(ctx context.Context, id string) error {
-	return uc.provider.StopInstance(ctx, id)
+	err := uc.provider.StopInstance(ctx, id)
+	if err == nil && uc.repo != nil {
+		if inst, getErr := uc.repo.GetByID(ctx, id); getErr == nil && inst != nil {
+			inst.Status = domain.StatusStopped
+			_ = uc.repo.Update(ctx, inst)
+		}
+	}
+	return err
 }
 
 func (uc *ComputeUseCase) RestartInstance(ctx context.Context, id string) error {
-	return uc.provider.RestartInstance(ctx, id)
+	err := uc.provider.RestartInstance(ctx, id)
+	if err == nil && uc.repo != nil {
+		if inst, getErr := uc.repo.GetByID(ctx, id); getErr == nil && inst != nil {
+			inst.Status = domain.StatusRunning
+			_ = uc.repo.Update(ctx, inst)
+		}
+	}
+	return err
 }
 
 func (uc *ComputeUseCase) DeleteInstance(ctx context.Context, id string) error {

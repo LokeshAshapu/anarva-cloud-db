@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -845,6 +846,20 @@ func (m *memComputeRepo) GetByID(ctx context.Context, id string) (*computeDomain
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}, nil
+}
+
+func (m *memComputeRepo) GetTenantScopedByID(ctx context.Context, orgID, projID, id string) (*computeDomain.ComputeInstance, error) {
+	inst, err := m.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if orgID != "" && inst.OrganizationID != "" && inst.OrganizationID != orgID {
+		return nil, fmt.Errorf("TENANT_ISOLATION_VIOLATION: Organization '%s' is prohibited from accessing compute instance '%s'", orgID, id)
+	}
+	if projID != "" && inst.ProjectID != "" && inst.ProjectID != projID {
+		return nil, fmt.Errorf("TENANT_ISOLATION_VIOLATION: Project '%s' is prohibited from accessing compute instance '%s'", projID, id)
+	}
+	return inst, nil
 }
 
 func (m *memComputeRepo) ListByProjectID(ctx context.Context, projectID string) ([]*computeDomain.ComputeInstance, error) {

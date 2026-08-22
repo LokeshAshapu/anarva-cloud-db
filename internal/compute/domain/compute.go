@@ -1,8 +1,11 @@
 package domain
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
+
+	"gorm.io/gorm"
 
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/arnv"
 )
@@ -99,49 +102,91 @@ type InstanceSecurityPolicy struct {
 }
 
 type Volume struct {
-	ID               string    `json:"id"`
-	OrganizationID   string    `json:"organizationId"`
-	ProjectID        string    `json:"projectId"`
-	InstanceID       string    `json:"instanceId,omitempty"`
-	Name             string    `json:"name"`
-	SizeGB           int       `json:"sizeGb"`
-	RegionID         string    `json:"regionId"`
-	ZoneID           string    `json:"zoneId"`
-	Type             string    `json:"type"` // NVME_SSD, STANDARD_HDD
-	ProviderVolumeID string    `json:"providerVolumeId,omitempty"`
-	Status           string    `json:"status"` // ATTACHED, DETACHED, CREATING, DELETING
-	CreatedAt        time.Time `json:"createdAt"`
+	ID               string     `json:"id" gorm:"primaryKey;column:id;type:varchar(255)"`
+	OrganizationID   string     `json:"organizationId" gorm:"column:organization_id;type:varchar(255);index"`
+	ProjectID        string     `json:"projectId" gorm:"column:project_id;type:varchar(255);index"`
+	InstanceID       string     `json:"instanceId,omitempty" gorm:"column:instance_id;type:varchar(255);index"`
+	Name             string     `json:"name" gorm:"column:name;type:varchar(255)"`
+	SizeGB           int        `json:"sizeGb" gorm:"column:size_gb"`
+	RegionID         string     `json:"regionId" gorm:"column:region_id;type:varchar(100)"`
+	ZoneID           string     `json:"zoneId" gorm:"column:zone_id;type:varchar(100)"`
+	Type             string     `json:"type" gorm:"column:type;type:varchar(50)"`
+	ProviderVolumeID string     `json:"providerVolumeId,omitempty" gorm:"column:provider_volume_id;type:varchar(255)"`
+	Status           string     `json:"status" gorm:"column:status;type:varchar(50)"`
+	CreatedAt        time.Time  `json:"createdAt" gorm:"column:created_at"`
+	UpdatedAt        time.Time  `json:"updatedAt" gorm:"column:updated_at"`
+	DeletedAt        *time.Time `json:"deletedAt,omitempty" gorm:"column:deleted_at;index"`
+}
+
+func (Volume) TableName() string {
+	return "compute_volumes"
 }
 
 type ComputeInstance struct {
-	ID                 string                 `json:"id"`
-	ResourceID         string                 `json:"resourceId"`
-	OrganizationID     string                 `json:"organizationId"`
-	ProjectID          string                 `json:"projectId"`
-	Name               string                 `json:"name"`
-	Slug               string                 `json:"slug"`
-	RegionID           string                 `json:"regionId"`
-	ZoneID             string                 `json:"zoneId"`
-	Status             InstanceStatus         `json:"status"`
-	Health             InstanceHealth         `json:"health"`
-	PlanID             string                 `json:"planId"`
-	ACU                float64                `json:"acu"`
-	VCPU               float64                `json:"vcpu"`
-	MemoryMB           int                    `json:"memoryMb"`
-	StorageGB          int                    `json:"storageGb"`
-	ImageID            string                 `json:"imageId"`
-	DockerImage        string                 `json:"dockerImage,omitempty"`
-	NetworkID          string                 `json:"networkId"`
-	SubnetID           string                 `json:"subnetId"`
-	PrivateIP          string                 `json:"privateIp,omitempty"`
-	PublicIP           string                 `json:"publicIp,omitempty"`
-	Provider           ProviderType           `json:"provider"`
-	ProviderInstanceID string                 `json:"providerInstanceId,omitempty"`
-	Security           InstanceSecurityPolicy `json:"security"`
-	EnvVars            map[string]string      `json:"envVars,omitempty"`
-	CreatedAt          time.Time              `json:"createdAt"`
-	UpdatedAt          time.Time              `json:"updatedAt"`
-	DeletedAt          *time.Time             `json:"deletedAt,omitempty"`
+	ID                 string                 `json:"id" gorm:"primaryKey;column:id;type:varchar(255)"`
+	ResourceID         string                 `json:"resourceId" gorm:"column:resource_id;type:varchar(255);index"`
+	OrganizationID     string                 `json:"organizationId" gorm:"column:organization_id;type:varchar(255);index"`
+	ProjectID          string                 `json:"projectId" gorm:"column:project_id;type:varchar(255);index"`
+	Name               string                 `json:"name" gorm:"column:name;type:varchar(255)"`
+	Slug               string                 `json:"slug" gorm:"column:slug;type:varchar(255)"`
+	RegionID           string                 `json:"regionId" gorm:"column:region_id;type:varchar(100);index"`
+	ZoneID             string                 `json:"zoneId" gorm:"column:zone_id;type:varchar(100)"`
+	Status             InstanceStatus         `json:"status" gorm:"column:status;type:varchar(50);index"`
+	Health             InstanceHealth         `json:"health" gorm:"column:health;type:varchar(50)"`
+	PlanID             string                 `json:"planId" gorm:"column:plan_id;type:varchar(100)"`
+	ACU                float64                `json:"acu" gorm:"column:acu;type:numeric(10,2)"`
+	VCPU               float64                `json:"vcpu" gorm:"column:vcpu;type:numeric(10,2)"`
+	MemoryMB           int                    `json:"memoryMb" gorm:"column:memory_mb"`
+	StorageGB          int                    `json:"storageGb" gorm:"column:storage_gb"`
+	ImageID            string                 `json:"imageId" gorm:"column:image_id;type:varchar(100)"`
+	DockerImage        string                 `json:"dockerImage,omitempty" gorm:"column:docker_image;type:varchar(255)"`
+	NetworkID          string                 `json:"networkId" gorm:"column:network_id;type:varchar(255)"`
+	SubnetID           string                 `json:"subnetId" gorm:"column:subnet_id;type:varchar(255)"`
+	PrivateIP          string                 `json:"privateIp,omitempty" gorm:"column:private_ip;type:varchar(100)"`
+	PublicIP           string                 `json:"publicIp,omitempty" gorm:"column:public_ip;type:varchar(100)"`
+	Provider           ProviderType           `json:"provider" gorm:"column:provider;type:varchar(100);index"`
+	ProviderInstanceID string                 `json:"providerInstanceId,omitempty" gorm:"column:provider_instance_id;type:varchar(255);index"`
+	Security           InstanceSecurityPolicy `json:"security" gorm:"-"`
+	SecurityJSON       string                 `json:"-" gorm:"column:security_json;type:text"`
+	EnvVars            map[string]string      `json:"envVars,omitempty" gorm:"-"`
+	EnvVarsJSON        string                 `json:"-" gorm:"column:env_vars_json;type:text"`
+	CreatedAt          time.Time              `json:"createdAt" gorm:"column:created_at"`
+	UpdatedAt          time.Time              `json:"updatedAt" gorm:"column:updated_at"`
+	DeletedAt          *time.Time             `json:"deletedAt,omitempty" gorm:"column:deleted_at;index"`
+}
+
+func (ComputeInstance) TableName() string {
+	return "compute_instances"
+}
+
+func (c *ComputeInstance) BeforeSave(tx *gorm.DB) error {
+	if secBytes, err := json.Marshal(c.Security); err == nil {
+		c.SecurityJSON = string(secBytes)
+	}
+	if len(c.EnvVars) > 0 {
+		if envBytes, err := json.Marshal(c.EnvVars); err == nil {
+			c.EnvVarsJSON = string(envBytes)
+		}
+	} else {
+		c.EnvVarsJSON = ""
+	}
+	return nil
+}
+
+func (c *ComputeInstance) AfterFind(tx *gorm.DB) error {
+	if c.SecurityJSON != "" {
+		var sec InstanceSecurityPolicy
+		if err := json.Unmarshal([]byte(c.SecurityJSON), &sec); err == nil {
+			c.Security = sec
+		}
+	}
+	if c.EnvVarsJSON != "" {
+		var envs map[string]string
+		if err := json.Unmarshal([]byte(c.EnvVarsJSON), &envs); err == nil {
+			c.EnvVars = envs
+		}
+	}
+	return nil
 }
 
 type ComputeCapacity struct {

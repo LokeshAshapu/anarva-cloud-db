@@ -44,8 +44,10 @@ import (
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/activity"
 	backupProvider "github.com/anarva-cloud/anarva-cloud-db/internal/backup/provider"
+	computeDomain "github.com/anarva-cloud/anarva-cloud-db/internal/compute/domain"
 	computeHttp "github.com/anarva-cloud/anarva-cloud-db/internal/compute/delivery/http"
 	computeProvider "github.com/anarva-cloud/anarva-cloud-db/internal/compute/provider"
+	computeRepo "github.com/anarva-cloud/anarva-cloud-db/internal/compute/repository"
 	computeUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/compute/usecase"
 	devHttp "github.com/anarva-cloud/anarva-cloud-db/internal/developer/delivery/http"
 	devUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/developer/usecase"
@@ -352,6 +354,8 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 			&networkingDomain.NetworkInterface{},
 			&networkingDomain.IPAllocation{},
 			&prvMapping.ProviderResourceMapping{},
+			&computeDomain.ComputeInstance{},
+			&computeDomain.Volume{},
 		)
 		if err != nil && appEnv == "production" {
 			log.Fatal(fmt.Sprintf("FATAL: Failed to migrate production control-plane database schema: %v", err))
@@ -401,7 +405,17 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	obsSvc := observabilityService.NewObservabilityService()
 	bakProv := backupProvider.NewControlPlaneBackupProviderWithUseCase(bUC, sProvider)
 	compProv := computeProvider.NewLocalDockerComputeProvider()
-	compUC := computeUsecase.NewComputeUseCase(newMemComputeRepo(), nil, compProv)
+	var compRepo computeDomain.ComputeRepository
+	var volRepo computeDomain.VolumeRepository
+	if dbPool != nil {
+		compRepo = computeRepo.NewPostgresComputeRepository(dbPool.DB)
+		volRepo = computeRepo.NewPostgresVolumeRepository(dbPool.DB)
+	} else if appEnv == "production" {
+		log.Fatal("FATAL: Production environment requires PostgreSQL for compute control-plane metadata")
+	} else {
+		compRepo = newMemComputeRepo()
+	}
+	compUC := computeUsecase.NewComputeUseCase(compRepo, volRepo, compProv)
 	netProv := networkProvider.NewLocalDockerNetworkProvider()
 	netUC := networkUsecase.NewNetworkUseCase(newMemNetworkRepo(), nil, nil, nil, nil, nil, netProv)
 	_ = netUC
