@@ -136,6 +136,10 @@ func (s *PostgresService) DeleteInstance(ctx context.Context, instanceID string)
 		inst, err = s.repo.GetByID(ctx, instanceID)
 	} else {
 		inst, err = s.provider.GetInstance(ctx, instanceID)
+		if err != nil && s.dataPlaneProvider != nil && instanceID != "" {
+			inst = &domain.PostgresInstance{ID: instanceID}
+			err = nil
+		}
 	}
 	if err != nil {
 		return err

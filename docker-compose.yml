@@ -70,8 +70,26 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
 
+  customer-postgres-dataplane:
+    image: postgres:17-alpine
+    container_name: anarva-customer-postgres-dataplane
+    environment:
+      POSTGRES_USER: anarva_dataplane_admin
+      POSTGRES_PASSWORD: anarva_dataplane_secret
+      POSTGRES_DB: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - customer_postgres_dataplane_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U anarva_dataplane_admin -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
+  customer_postgres_dataplane_data:
   redis_data:
   minio_data:
   grafana_data:
