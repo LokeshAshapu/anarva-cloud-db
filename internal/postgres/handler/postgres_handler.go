@@ -15,12 +15,28 @@ import (
 type PostgresHandler struct {
 	postgresService *service.PostgresService
 	sqlService      *service.SQLService
+	sqlExecutor     *service.PostgresSQLExecutor
+	adminDSN        string
 }
 
 func NewPostgresHandler(ps *service.PostgresService, ss *service.SQLService) *PostgresHandler {
+	exec := service.NewPostgresSQLExecutor(ss)
 	return &PostgresHandler{
 		postgresService: ps,
 		sqlService:      ss,
+		sqlExecutor:     exec,
+	}
+}
+
+func NewPostgresHandlerFull(ps *service.PostgresService, ss *service.SQLService, exec *service.PostgresSQLExecutor, adminDSN string) *PostgresHandler {
+	if exec == nil {
+		exec = service.NewPostgresSQLExecutor(ss)
+	}
+	return &PostgresHandler{
+		postgresService: ps,
+		sqlService:      ss,
+		sqlExecutor:     exec,
+		adminDSN:        adminDSN,
 	}
 }
 
@@ -232,7 +248,7 @@ func (h *PostgresHandler) handleDatabaseSubroutes(w http.ResponseWriter, r *http
 			return
 		}
 
-		res, err := h.sqlService.ExecuteQuery(r.Context(), instanceID, sqlText)
+		res, err := h.sqlExecutor.Execute(r.Context(), inst, h.adminDSN, sqlText)
 		if err != nil {
 			respondStructuredError(w, http.StatusBadRequest, "SQL_EXECUTION_ERROR", err.Error(), r.Header.Get("X-Request-ID"))
 			return

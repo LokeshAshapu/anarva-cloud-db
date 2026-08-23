@@ -12,8 +12,9 @@ import (
 )
 
 type PostgresService struct {
-	repo     repository.PostgresInstanceRepository
-	provider provider.PostgresProvider
+	repo              repository.PostgresInstanceRepository
+	provider          provider.PostgresProvider
+	dataPlaneProvider provider.PostgresDataPlaneProvider
 }
 
 func NewPostgresService(p provider.PostgresProvider) *PostgresService {
@@ -24,6 +25,14 @@ func NewPostgresServiceWithRepo(repo repository.PostgresInstanceRepository, p pr
 	return &PostgresService{repo: repo, provider: p}
 }
 
+func NewPostgresServiceFull(repo repository.PostgresInstanceRepository, p provider.PostgresProvider, dp provider.PostgresDataPlaneProvider) *PostgresService {
+	return &PostgresService{
+		repo:              repo,
+		provider:          p,
+		dataPlaneProvider: dp,
+	}
+}
+
 func (s *PostgresService) CreateInstance(ctx context.Context, orgID, projectID, name, version, regionID, networkID string, cpu float64, memoryMB, storageGB int, publicAccess bool) (*domain.PostgresInstance, error) {
 	if publicAccess {
 		// Validate security policy: public access requires explicit confirmation
@@ -31,23 +40,63 @@ func (s *PostgresService) CreateInstance(ctx context.Context, orgID, projectID, 
 
 	inst := domain.NewPostgresInstance(orgID, projectID, name, version, regionID, networkID, cpu, memoryMB, storageGB)
 	inst.PublicAccess = publicAccess
+	inst.Status = domain.StatusCreating
 
-	adminPassword := fmt.Sprintf("pass_%s", uuid.New().String()[:8])
-	res, err := s.provider.CreateInstance(ctx, inst, adminPassword)
-	if err != nil {
-		return nil, err
-	}
+	// 1. Initial control-plane record persistence (PROVISIONING)
 	if s.repo != nil {
-		if err := s.repo.Create(ctx, res); err != nil {
-			return nil, err
+		if err := s.repo.Create(ctx, inst); err != nil {
+			return nil, fmt.Errorf("failed to save initial control-plane database record: %w", err)
 		}
 	}
-	return res, nil
+
+	// 2. Data Plane Provisioning
+	var password string
+	if s.dataPlaneProvider != nil {
+		res, pass, dpErr := s.dataPlaneProvider.CreateDatabase(ctx, inst)
+		if dpErr != nil {
+			inst.Status = domain.StatusFailed
+			if s.repo != nil {
+				_ = s.repo.Update(ctx, inst)
+			}
+			return nil, fmt.Errorf("data-plane database provisioning failed: %w", dpErr)
+		}
+		inst = res
+		password = pass
+	} else {
+		adminPassword := fmt.Sprintf("pass_%s", uuid.New().String()[:8])
+		res, err := s.provider.CreateInstance(ctx, inst, adminPassword)
+		if err != nil {
+			inst.Status = domain.StatusFailed
+			if s.repo != nil {
+				_ = s.repo.Update(ctx, inst)
+			}
+			return nil, err
+		}
+		inst = res
+		password = adminPassword
+	}
+
+	_ = password // Password handled securely; NOT exposed in json response or plain DB columns
+
+	inst.Status = domain.StatusAvailable
+	if s.repo != nil {
+		if err := s.repo.Update(ctx, inst); err != nil {
+			return nil, fmt.Errorf("failed to update control-plane database record to READY: %w", err)
+		}
+	}
+	return inst, nil
 }
 
 func (s *PostgresService) GetInstance(ctx context.Context, instanceID string) (*domain.PostgresInstance, error) {
 	if s.repo != nil {
 		if inst, err := s.repo.GetByID(ctx, instanceID); err == nil && inst != nil {
+			return inst, nil
+		}
+	}
+	if dpGetter, ok := s.dataPlaneProvider.(interface {
+		GetInstance(ctx context.Context, instanceID string) (*domain.PostgresInstance, error)
+	}); ok {
+		if inst, err := dpGetter.GetInstance(ctx, instanceID); err == nil && inst != nil {
 			return inst, nil
 		}
 	}
@@ -58,7 +107,7 @@ func (s *PostgresService) GetInstanceForTenant(ctx context.Context, orgID, projI
 	if s.repo != nil {
 		return s.repo.GetByIDForTenant(ctx, orgID, projID, instanceID)
 	}
-	inst, err := s.provider.GetInstance(ctx, instanceID)
+	inst, err := s.GetInstance(ctx, instanceID)
 	if err != nil {
 		return nil, err
 	}
@@ -81,10 +130,27 @@ func (s *PostgresService) ListInstances(ctx context.Context, orgID, projectID st
 }
 
 func (s *PostgresService) DeleteInstance(ctx context.Context, instanceID string) error {
+	var inst *domain.PostgresInstance
+	var err error
 	if s.repo != nil {
-		_ = s.repo.Delete(ctx, instanceID)
+		inst, err = s.repo.GetByID(ctx, instanceID)
+	} else {
+		inst, err = s.provider.GetInstance(ctx, instanceID)
 	}
-	return s.provider.DeleteInstance(ctx, instanceID)
+	if err != nil {
+		return err
+	}
+
+	if s.dataPlaneProvider != nil {
+		_ = s.dataPlaneProvider.DeleteDatabase(ctx, inst)
+	} else {
+		_ = s.provider.DeleteInstance(ctx, instanceID)
+	}
+
+	if s.repo != nil {
+		return s.repo.Delete(ctx, instanceID)
+	}
+	return nil
 }
 
 func (s *PostgresService) StartInstance(ctx context.Context, instanceID string) error {

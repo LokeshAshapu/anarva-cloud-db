@@ -438,16 +438,26 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	// Phase 15 Billing Service & Quotas Engine
 	billUC := billUsecase.NewBillingUseCase()
 
-	// Phase 17 Managed PostgreSQL Platform
+	// Phase 17 Managed PostgreSQL Platform & Data-Plane Provisioning
 	pgProvider := postgresProvider.NewLocalDockerPostgresProvider()
+	var dpProvider postgresProvider.PostgresDataPlaneProvider
+	custAdminURL := cfg.Database.CustomerAdminURL()
+	if custAdminURL != "" {
+		dpProvider = postgresProvider.NewRealPostgresDataPlaneProvider(custAdminURL)
+	} else if appEnv == "production" {
+		log.Fatal("FATAL: Production environment requires CUSTOMER_DATABASE_ADMIN_URL for real customer database provisioning")
+	} else {
+		dpProvider = postgresProvider.NewSimulatedDataPlaneProvider()
+	}
+
 	var pgService *postgresService.PostgresService
 	if dbPool != nil {
 		pgRepo := postgresRepo.NewGormPostgresInstanceRepository(dbPool.DB)
-		pgService = postgresService.NewPostgresServiceWithRepo(pgRepo, pgProvider)
+		pgService = postgresService.NewPostgresServiceFull(pgRepo, pgProvider, dpProvider)
 	} else if appEnv == "production" {
 		log.Fatal("FATAL: Production environment requires PostgreSQL for database control-plane metadata")
 	} else {
-		pgService = postgresService.NewPostgresService(pgProvider)
+		pgService = postgresService.NewPostgresServiceFull(nil, pgProvider, dpProvider)
 	}
 	sqlService := postgresService.NewSQLService()
 
@@ -523,7 +533,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
 	databaseHttp.NewDatabaseHandler(dUC).RegisterRoutes(mux)
-	postgresHandler.NewPostgresHandler(pgService, sqlService).RegisterRoutes(mux)
+	postgresHandler.NewPostgresHandlerFull(pgService, sqlService, nil, custAdminURL).RegisterRoutes(mux)
 	myDeliveryHandler.RegisterRoutes(mux)
 	vNetHandler.RegisterRoutes(mux)
 	lbDeliveryHandler.RegisterRoutes(mux)

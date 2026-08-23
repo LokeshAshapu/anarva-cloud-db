@@ -30,16 +30,25 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	URL             string        `mapstructure:"URL"`
-	Host            string        `mapstructure:"HOST"`
-	Port            int           `mapstructure:"PORT"`
-	User            string        `mapstructure:"USER"`
-	Password        string        `mapstructure:"PASSWORD"`
-	DBName          string        `mapstructure:"DB_NAME"`
-	SSLMode         string        `mapstructure:"SSL_MODE"`
-	MaxOpenConns    int           `mapstructure:"MAX_OPEN_CONNS"`
-	MaxIdleConns    int           `mapstructure:"MAX_IDLE_CONNS"`
-	ConnMaxLifetime time.Duration `mapstructure:"CONN_MAX_LIFETIME"`
+	URL                      string        `mapstructure:"URL"`
+	CustomerDatabaseAdminURL string        `mapstructure:"CUSTOMER_DATABASE_ADMIN_URL"`
+	Host                     string        `mapstructure:"HOST"`
+	Port                     int           `mapstructure:"PORT"`
+	User                     string        `mapstructure:"USER"`
+	Password                 string        `mapstructure:"PASSWORD"`
+	DBName                   string        `mapstructure:"DB_NAME"`
+	SSLMode                  string        `mapstructure:"SSL_MODE"`
+	MaxOpenConns             int           `mapstructure:"MAX_OPEN_CONNS"`
+	MaxIdleConns             int           `mapstructure:"MAX_IDLE_CONNS"`
+	ConnMaxLifetime          time.Duration `mapstructure:"CONN_MAX_LIFETIME"`
+}
+
+func (db DatabaseConfig) CustomerAdminURL() string {
+	urlStr := strings.TrimSpace(db.CustomerDatabaseAdminURL)
+	if urlStr == "" {
+		urlStr = strings.TrimSpace(os.Getenv("CUSTOMER_DATABASE_ADMIN_URL"))
+	}
+	return urlStr
 }
 
 func (db DatabaseConfig) DSN() string {
