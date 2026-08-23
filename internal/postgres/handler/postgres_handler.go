@@ -2,12 +2,14 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/service"
+	"github.com/anarva-cloud/anarva-cloud-db/internal/security"
 )
 
 type PostgresHandler struct {
@@ -29,11 +31,18 @@ func (h *PostgresHandler) RegisterRoutes(mux *http.ServeMux) {
 
 func (h *PostgresHandler) handleDatabases(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	tc := security.GetTenantContext(r.Context())
 
 	switch r.Method {
 	case http.MethodGet:
 		orgID := r.URL.Query().Get("organizationId")
 		projectID := r.URL.Query().Get("projectId")
+		if orgID == "" {
+			orgID = tc.OrganizationID
+		}
+		if projectID == "" {
+			projectID = tc.ProjectID
+		}
 		instances, err := h.postgresService.ListInstances(r.Context(), orgID, projectID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -59,6 +68,18 @@ func (h *PostgresHandler) handleDatabases(w http.ResponseWriter, r *http.Request
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if req.OrganizationID == "" {
+			req.OrganizationID = tc.OrganizationID
+		}
+		if req.ProjectID == "" {
+			req.ProjectID = tc.ProjectID
+		}
+
+		if err := tc.EnforceOwnership(req.OrganizationID, req.ProjectID); err != nil {
+			respondStructuredError(w, http.StatusForbidden, "TENANT_ISOLATION_VIOLATION", err.Error(), r.Header.Get("X-Request-ID"))
 			return
 		}
 
@@ -91,14 +112,21 @@ func (h *PostgresHandler) handleDatabaseSubroutes(w http.ResponseWriter, r *http
 		action = parts[1]
 	}
 
+	// Enforce tenant ownership validation before ANY database action or query
+	tc := security.GetTenantContext(r.Context())
+	inst, err := h.postgresService.GetInstanceForTenant(r.Context(), tc.OrganizationID, tc.ProjectID, instanceID)
+	if err != nil {
+		if strings.Contains(err.Error(), "TENANT_ISOLATION_VIOLATION") {
+			respondStructuredError(w, http.StatusForbidden, "TENANT_ISOLATION_VIOLATION", err.Error(), r.Header.Get("X-Request-ID"))
+			return
+		}
+		respondStructuredError(w, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("database instance '%s' not found", instanceID), r.Header.Get("X-Request-ID"))
+		return
+	}
+
 	switch action {
 	case "":
 		if r.Method == http.MethodGet {
-			inst, err := h.postgresService.GetInstance(r.Context(), instanceID)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusNotFound)
-				return
-			}
 			json.NewEncoder(w).Encode(map[string]interface{}{"data": inst})
 		} else if r.Method == http.MethodDelete {
 			if err := h.postgresService.DeleteInstance(r.Context(), instanceID); err != nil {

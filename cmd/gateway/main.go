@@ -60,8 +60,10 @@ import (
 	networkUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/network/usecase"
 	observabilityHttp "github.com/anarva-cloud/anarva-cloud-db/internal/observability/delivery/http"
 	observabilityService "github.com/anarva-cloud/anarva-cloud-db/internal/observability/service"
+	postgresDomain "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/domain"
 	postgresHandler "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/handler"
 	postgresProvider "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/provider"
+	postgresRepo "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/repository"
 	postgresService "github.com/anarva-cloud/anarva-cloud-db/internal/postgres/service"
 	secInternal "github.com/anarva-cloud/anarva-cloud-db/internal/security"
 	storageProvider "github.com/anarva-cloud/anarva-cloud-db/internal/storage/provider"
@@ -356,6 +358,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 			&prvMapping.ProviderResourceMapping{},
 			&computeDomain.ComputeInstance{},
 			&computeDomain.Volume{},
+			&postgresDomain.PostgresInstance{},
 		)
 		if err != nil && appEnv == "production" {
 			log.Fatal(fmt.Sprintf("FATAL: Failed to migrate production control-plane database schema: %v", err))
@@ -437,7 +440,15 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 
 	// Phase 17 Managed PostgreSQL Platform
 	pgProvider := postgresProvider.NewLocalDockerPostgresProvider()
-	pgService := postgresService.NewPostgresService(pgProvider)
+	var pgService *postgresService.PostgresService
+	if dbPool != nil {
+		pgRepo := postgresRepo.NewGormPostgresInstanceRepository(dbPool.DB)
+		pgService = postgresService.NewPostgresServiceWithRepo(pgRepo, pgProvider)
+	} else if appEnv == "production" {
+		log.Fatal("FATAL: Production environment requires PostgreSQL for database control-plane metadata")
+	} else {
+		pgService = postgresService.NewPostgresService(pgProvider)
+	}
 	sqlService := postgresService.NewSQLService()
 
 	// Phase 18 VPC / Networking / Security / DNS Platform

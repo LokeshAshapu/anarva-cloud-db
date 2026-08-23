@@ -95,6 +95,33 @@ export default function ManagedDatabasesPage() {
 
       setInstances(loadedInstances)
 
+      // Fetch authoritative database list from backend API
+      fetchAPI('/api/v1/databases')
+        .then((res: any) => {
+          const list = (res && res.data && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : [])
+          if (list.length > 0) {
+            const mapped: DatabaseInstanceItem[] = list.map((item: any) => ({
+              id: item.id,
+              name: item.name || 'database-instance',
+              engine: 'POSTGRESQL',
+              version: item.version || '17',
+              status: item.status || 'AVAILABLE',
+              regionId: item.regionId || 'ap-hyderabad-1',
+              cpu: item.cpu || 1,
+              memoryMb: item.memoryMb || 1024,
+              storageGb: item.storageGb || 25,
+              networkId: item.networkId || 'vpc-01',
+              port: item.port || 5432,
+              host: item.host || 'localhost',
+              realityLabel: item.realityLabel || 'LOCAL_POSTGRES (STATEFUL_STORAGE)',
+              createdAt: item.createdAt || new Date().toISOString(),
+            }))
+            setInstances(mapped)
+            localStorage.setItem('anarva_user_managed_dbs_v2', JSON.stringify(mapped))
+          }
+        })
+        .catch(() => null)
+
       // Restore active database instance and tab on page refresh
       const savedActiveDbId = localStorage.getItem('anarva_active_db_id')
       if (savedActiveDbId) {

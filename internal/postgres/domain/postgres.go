@@ -56,66 +56,79 @@ type PostgresVersion struct {
 
 // PostgresInstance
 type PostgresInstance struct {
-	ID                 string           `gorm:"primaryKey;type:uuid" json:"id"`
-	OrganizationID     string           `gorm:"index;not null;type:uuid" json:"organizationId"`
-	ProjectID          string           `gorm:"index;not null;type:uuid" json:"projectId"`
-	Name               string           `gorm:"not null;type:varchar(255)" json:"name"`
-	Provider           string           `gorm:"not null;type:varchar(50);default:'LOCAL_POSTGRES'" json:"provider"`
-	Version            string           `gorm:"not null;type:varchar(50);default:'17'" json:"version"`
-	Status             InstanceStatus   `gorm:"not null;type:varchar(50);default:'CREATING'" json:"status"`
-	RegionID           string           `gorm:"not null;type:varchar(100)" json:"regionId"`
-	ZoneId             string           `gorm:"type:varchar(100)" json:"zoneId"`
-	CPU                float64          `gorm:"not null;default:1.0" json:"cpu"`
-	MemoryMB           int              `gorm:"not null;default:1024" json:"memoryMb"`
-	StorageGB          int              `gorm:"not null;default:25" json:"storageGb"`
-	StorageType        string           `gorm:"not null;type:varchar(50);default:'SSD'" json:"storageType"`
-	NetworkID          string           `gorm:"not null;type:varchar(255)" json:"networkId"`
-	SubnetID           string           `gorm:"type:varchar(255)" json:"subnetId"`
-	AvailabilityMode   AvailabilityMode `gorm:"not null;type:varchar(50);default:'SINGLE'" json:"availabilityMode"`
-	BackupMode         string           `gorm:"not null;type:varchar(50);default:'DAILY_SNAPSHOT'" json:"backupMode"`
-	MaintenanceWindow  string           `gorm:"type:varchar(100);default:'Sun:03:00'" json:"maintenanceWindow"`
-	ProviderResourceId string           `gorm:"type:varchar(255)" json:"providerResourceId"`
-	Host               string           `gorm:"type:varchar(255)" json:"host"`
-	Port               int              `gorm:"default:5432" json:"port"`
-	PublicAccess       bool             `gorm:"default:false" json:"publicAccess"`
-	RealityLabel       string           `gorm:"type:varchar(100);default:'LOCAL_POSTGRES'" json:"realityLabel"`
-	CreatedAt          time.Time        `gorm:"autoCreateTime" json:"createdAt"`
-	UpdatedAt          time.Time        `gorm:"autoUpdateTime" json:"updatedAt"`
+	ID                 string           `gorm:"primaryKey;column:id;type:varchar(255)" json:"id"`
+	OrganizationID     string           `gorm:"column:organization_id;type:varchar(255);index" json:"organizationId"`
+	ProjectID          string           `gorm:"column:project_id;type:varchar(255);index" json:"projectId"`
+	Name               string           `gorm:"column:name;type:varchar(255)" json:"name"`
+	Provider           string           `gorm:"column:provider;type:varchar(50);default:'LOCAL_POSTGRES'" json:"provider"`
+	Version            string           `gorm:"column:version;type:varchar(50);default:'17'" json:"version"`
+	Status             InstanceStatus   `gorm:"column:status;type:varchar(50);default:'CREATING'" json:"status"`
+	RegionID           string           `gorm:"column:region_id;type:varchar(100)" json:"regionId"`
+	ZoneId             string           `gorm:"column:zone_id;type:varchar(100)" json:"zoneId"`
+	CPU                float64          `gorm:"column:cpu;default:1.0" json:"cpu"`
+	MemoryMB           int              `gorm:"column:memory_mb;default:1024" json:"memoryMb"`
+	StorageGB          int              `gorm:"column:storage_gb;default:25" json:"storageGb"`
+	StorageType        string           `gorm:"column:storage_type;type:varchar(50);default:'SSD'" json:"storageType"`
+	NetworkID          string           `gorm:"column:network_id;type:varchar(255)" json:"networkId"`
+	SubnetID           string           `gorm:"column:subnet_id;type:varchar(255)" json:"subnetId"`
+	AvailabilityMode   AvailabilityMode `gorm:"column:availability_mode;type:varchar(50);default:'SINGLE'" json:"availabilityMode"`
+	BackupMode         string           `gorm:"column:backup_mode;type:varchar(50);default:'DAILY_SNAPSHOT'" json:"backupMode"`
+	MaintenanceWindow  string           `gorm:"column:maintenance_window;type:varchar(100);default:'Sun:03:00'" json:"maintenanceWindow"`
+	ProviderResourceId string           `gorm:"column:provider_resource_id;type:varchar(255)" json:"providerResourceId"`
+	Host               string           `gorm:"column:host;type:varchar(255)" json:"host"`
+	Port               int              `gorm:"column:port;default:5432" json:"port"`
+	PublicAccess       bool             `gorm:"column:public_access;default:false" json:"publicAccess"`
+	RealityLabel       string           `gorm:"column:reality_label;type:varchar(100);default:'LOCAL_POSTGRES'" json:"realityLabel"`
+	CreatedAt          time.Time        `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt          time.Time        `gorm:"column:updated_at" json:"updatedAt"`
+	DeletedAt          *time.Time       `gorm:"column:deleted_at;index" json:"deletedAt,omitempty"`
+}
+
+func (PostgresInstance) TableName() string {
+	return "postgres_instances"
 }
 
 // PostgresDatabase
 type PostgresDatabase struct {
-	ID             string    `gorm:"primaryKey;type:uuid" json:"id"`
-	InstanceID     string    `gorm:"index;not null;type:uuid" json:"instanceId"`
-	Name           string    `gorm:"not null;type:varchar(255)" json:"name"`
-	OwnerReference string    `gorm:"not null;type:varchar(255)" json:"ownerReference"`
-	Encoding       string    `gorm:"not null;type:varchar(50);default:'UTF8'" json:"encoding"`
-	Collation      string    `gorm:"not null;type:varchar(50);default:'en_US.UTF-8'" json:"collation"`
-	Status         string    `gorm:"not null;type:varchar(50);default:'AVAILABLE'" json:"status"`
-	CreatedAt      time.Time `gorm:"autoCreateTime" json:"createdAt"`
-	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
+	ID             string    `gorm:"primaryKey;column:id;type:varchar(255)" json:"id"`
+	InstanceID     string    `gorm:"column:instance_id;type:varchar(255);index" json:"instanceId"`
+	Name           string    `gorm:"column:name;type:varchar(255)" json:"name"`
+	OwnerReference string    `gorm:"column:owner_reference;type:varchar(255)" json:"ownerReference"`
+	Encoding       string    `gorm:"column:encoding;type:varchar(50);default:'UTF8'" json:"encoding"`
+	Collation      string    `gorm:"column:collation;type:varchar(50);default:'en_US.UTF-8'" json:"collation"`
+	Status         string    `gorm:"column:status;type:varchar(50);default:'AVAILABLE'" json:"status"`
+	CreatedAt      time.Time `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt      time.Time `gorm:"column:updated_at" json:"updatedAt"`
+}
+
+func (PostgresDatabase) TableName() string {
+	return "postgres_databases"
 }
 
 // CredentialReference - Password / Secrets wrapper (never plaintext in DB columns)
 type CredentialReference struct {
-	ID              string    `gorm:"primaryKey;type:uuid" json:"id"`
-	Provider        string    `gorm:"not null;type:varchar(50)" json:"provider"`
-	SecretReference string    `gorm:"not null;type:varchar(255)" json:"secretReference"`
-	Type            string    `gorm:"not null;type:varchar(50);default:'POSTGRES_USER_SECRET'" json:"type"`
-	CreatedAt       time.Time `gorm:"autoCreateTime" json:"createdAt"`
-	UpdatedAt       time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
+	ID              string    `gorm:"primaryKey;column:id;type:varchar(255)" json:"id"`
+	Provider        string    `gorm:"column:provider;type:varchar(50)" json:"provider"`
+	SecretReference string    `gorm:"column:secret_reference;type:varchar(255)" json:"secretReference"`
+	Type            string    `gorm:"column:type;type:varchar(50);default:'POSTGRES_USER_SECRET'" json:"type"`
+	CreatedAt       time.Time `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt       time.Time `gorm:"column:updated_at" json:"updatedAt"`
 }
 
 // PostgresUser
 type PostgresUser struct {
-	ID                  string       `gorm:"primaryKey;type:uuid" json:"id"`
-	InstanceID          string       `gorm:"index;not null;type:uuid" json:"instanceId"`
-	Username            string       `gorm:"not null;type:varchar(255)" json:"username"`
-	Role                UserRole     `gorm:"not null;type:varchar(50);default:'READ_WRITE'" json:"role"`
-	Status              string       `gorm:"not null;type:varchar(50);default:'ACTIVE'" json:"status"`
-	CredentialReference string       `gorm:"not null;type:varchar(255)" json:"credentialReference"`
-	CreatedAt           time.Time    `gorm:"autoCreateTime" json:"createdAt"`
-	UpdatedAt           time.Time    `gorm:"autoUpdateTime" json:"updatedAt"`
+	ID                  string    `gorm:"primaryKey;column:id;type:varchar(255)" json:"id"`
+	InstanceID          string    `gorm:"column:instance_id;type:varchar(255);index" json:"instanceId"`
+	Username            string    `gorm:"column:username;type:varchar(255)" json:"username"`
+	Role                UserRole  `gorm:"column:role;type:varchar(50);default:'READ_WRITE'" json:"role"`
+	Status              string    `gorm:"column:status;type:varchar(50);default:'ACTIVE'" json:"status"`
+	CredentialReference string    `gorm:"column:credential_reference;type:varchar(255)" json:"credentialReference"`
+	CreatedAt           time.Time `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt           time.Time `gorm:"column:updated_at" json:"updatedAt"`
+}
+
+func (PostgresUser) TableName() string {
+	return "postgres_users"
 }
 
 // ConnectionInfo

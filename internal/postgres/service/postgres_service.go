@@ -7,15 +7,21 @@ import (
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/domain"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/provider"
+	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/repository"
 	"github.com/google/uuid"
 )
 
 type PostgresService struct {
+	repo     repository.PostgresInstanceRepository
 	provider provider.PostgresProvider
 }
 
 func NewPostgresService(p provider.PostgresProvider) *PostgresService {
 	return &PostgresService{provider: p}
+}
+
+func NewPostgresServiceWithRepo(repo repository.PostgresInstanceRepository, p provider.PostgresProvider) *PostgresService {
+	return &PostgresService{repo: repo, provider: p}
 }
 
 func (s *PostgresService) CreateInstance(ctx context.Context, orgID, projectID, name, version, regionID, networkID string, cpu float64, memoryMB, storageGB int, publicAccess bool) (*domain.PostgresInstance, error) {
@@ -31,31 +37,87 @@ func (s *PostgresService) CreateInstance(ctx context.Context, orgID, projectID, 
 	if err != nil {
 		return nil, err
 	}
+	if s.repo != nil {
+		if err := s.repo.Create(ctx, res); err != nil {
+			return nil, err
+		}
+	}
 	return res, nil
 }
 
 func (s *PostgresService) GetInstance(ctx context.Context, instanceID string) (*domain.PostgresInstance, error) {
+	if s.repo != nil {
+		if inst, err := s.repo.GetByID(ctx, instanceID); err == nil && inst != nil {
+			return inst, nil
+		}
+	}
 	return s.provider.GetInstance(ctx, instanceID)
 }
 
+func (s *PostgresService) GetInstanceForTenant(ctx context.Context, orgID, projID, instanceID string) (*domain.PostgresInstance, error) {
+	if s.repo != nil {
+		return s.repo.GetByIDForTenant(ctx, orgID, projID, instanceID)
+	}
+	inst, err := s.provider.GetInstance(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	if orgID != "" && inst.OrganizationID != "" && inst.OrganizationID != orgID {
+		return nil, fmt.Errorf("TENANT_ISOLATION_VIOLATION: Organization '%s' is prohibited from accessing database instance '%s'", orgID, instanceID)
+	}
+	if projID != "" && inst.ProjectID != "" && inst.ProjectID != projID {
+		return nil, fmt.Errorf("TENANT_ISOLATION_VIOLATION: Project '%s' is prohibited from accessing database instance '%s'", projID, instanceID)
+	}
+	return inst, nil
+}
+
 func (s *PostgresService) ListInstances(ctx context.Context, orgID, projectID string) ([]*domain.PostgresInstance, error) {
+	if s.repo != nil {
+		if list, err := s.repo.ListByProject(ctx, orgID, projectID); err == nil && len(list) > 0 {
+			return list, nil
+		}
+	}
 	return s.provider.ListInstances(ctx, orgID, projectID)
 }
 
 func (s *PostgresService) DeleteInstance(ctx context.Context, instanceID string) error {
+	if s.repo != nil {
+		_ = s.repo.Delete(ctx, instanceID)
+	}
 	return s.provider.DeleteInstance(ctx, instanceID)
 }
 
 func (s *PostgresService) StartInstance(ctx context.Context, instanceID string) error {
-	return s.provider.StartInstance(ctx, instanceID)
+	err := s.provider.StartInstance(ctx, instanceID)
+	if err == nil && s.repo != nil {
+		if inst, getErr := s.repo.GetByID(ctx, instanceID); getErr == nil && inst != nil {
+			inst.Status = domain.StatusAvailable
+			_ = s.repo.Update(ctx, inst)
+		}
+	}
+	return err
 }
 
 func (s *PostgresService) StopInstance(ctx context.Context, instanceID string) error {
-	return s.provider.StopInstance(ctx, instanceID)
+	err := s.provider.StopInstance(ctx, instanceID)
+	if err == nil && s.repo != nil {
+		if inst, getErr := s.repo.GetByID(ctx, instanceID); getErr == nil && inst != nil {
+			inst.Status = domain.StatusStopped
+			_ = s.repo.Update(ctx, inst)
+		}
+	}
+	return err
 }
 
 func (s *PostgresService) RestartInstance(ctx context.Context, instanceID string) error {
-	return s.provider.RestartInstance(ctx, instanceID)
+	err := s.provider.RestartInstance(ctx, instanceID)
+	if err == nil && s.repo != nil {
+		if inst, getErr := s.repo.GetByID(ctx, instanceID); getErr == nil && inst != nil {
+			inst.Status = domain.StatusAvailable
+			_ = s.repo.Update(ctx, inst)
+		}
+	}
+	return err
 }
 
 func (s *PostgresService) ScaleInstance(ctx context.Context, instanceID string, cpu float64, memoryMB, storageGB int) (*domain.PostgresInstance, error) {
