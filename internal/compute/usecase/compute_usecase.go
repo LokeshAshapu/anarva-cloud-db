@@ -7,13 +7,15 @@ import (
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/compute/domain"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/compute/provider"
+	"github.com/anarva-cloud/anarva-cloud-db/internal/providers/mapping"
 	appErrors "github.com/anarva-cloud/anarva-cloud-db/pkg/errors"
 )
 
 type ComputeUseCase struct {
-	repo     domain.ComputeRepository
-	volRepo  domain.VolumeRepository
-	provider provider.ComputeProvider
+	repo        domain.ComputeRepository
+	volRepo     domain.VolumeRepository
+	provider    provider.ComputeProvider
+	mappingRepo mapping.MappingRepository
 }
 
 func NewComputeUseCase(repo domain.ComputeRepository, volRepo domain.VolumeRepository, prov provider.ComputeProvider) *ComputeUseCase {
@@ -22,6 +24,10 @@ func NewComputeUseCase(repo domain.ComputeRepository, volRepo domain.VolumeRepos
 		volRepo:  volRepo,
 		provider: prov,
 	}
+}
+
+func (uc *ComputeUseCase) SetMappingRepository(mapRepo mapping.MappingRepository) {
+	uc.mappingRepo = mapRepo
 }
 
 func (uc *ComputeUseCase) ListPlans() []*domain.ComputePlan {
@@ -56,6 +62,10 @@ func (uc *ComputeUseCase) CreateInstance(ctx context.Context, inst *domain.Compu
 		return nil, appErrors.New(appErrors.CodeInvalidInput, "instance name is required")
 	}
 
+	if inst.ID == "" {
+		inst.ID = fmt.Sprintf("acu-inst-%d", time.Now().UnixNano()%900000+100000)
+	}
+
 	inst.Slug = inst.Name
 	inst.VCPU = inst.ACU
 	inst.MemoryMB = int(inst.ACU * 2048)
@@ -63,6 +73,7 @@ func (uc *ComputeUseCase) CreateInstance(ctx context.Context, inst *domain.Compu
 	inst.ResourceID = domain.GenerateComputeARNV(inst.RegionID, inst.ProjectID, inst.Name)
 	inst.Status = domain.StatusProvisioning
 	inst.Health = domain.HealthHealthy
+	inst.DeletedAt = nil
 	inst.CreatedAt = time.Now()
 	inst.UpdatedAt = time.Now()
 
@@ -78,32 +89,124 @@ func (uc *ComputeUseCase) CreateInstance(ctx context.Context, inst *domain.Compu
 		}
 	}
 
+	if uc.mappingRepo != nil {
+		_ = uc.mappingRepo.SaveMapping(&mapping.ProviderResourceMapping{
+			AnarvaResourceID:     created.ID,
+			OrganizationID:       created.OrganizationID,
+			ProjectID:            created.ProjectID,
+			Provider:             string(created.Provider),
+			ProviderResourceID:   created.ProviderInstanceID,
+			ProviderResourceType: "COMPUTE_INSTANCE",
+			Region:               created.RegionID,
+			Zone:                 created.ZoneID,
+			Status:               string(created.Status),
+			Managed:              true,
+		})
+	}
+
 	return created, nil
 }
 
 func (uc *ComputeUseCase) GetInstance(ctx context.Context, id string) (*domain.ComputeInstance, error) {
-	if uc.repo != nil {
-		if inst, err := uc.repo.GetByID(ctx, id); err == nil && inst != nil {
-			return inst, nil
-		}
+	if inst, err := uc.ensureProviderRehydrated(ctx, id); err == nil && inst != nil {
+		return inst, nil
 	}
 	return uc.provider.GetInstance(ctx, id)
+}
+
+func (uc *ComputeUseCase) GetInstanceForTenant(ctx context.Context, orgID, projID, id string) (*domain.ComputeInstance, error) {
+	var inst *domain.ComputeInstance
+	var err error
+
+	if uc.repo != nil {
+		inst, err = uc.repo.GetTenantScopedByID(ctx, orgID, projID, id)
+	} else {
+		inst, err = uc.GetInstance(ctx, id)
+		if err == nil {
+			if orgID != "" && inst.OrganizationID != "" && inst.OrganizationID != orgID {
+				return nil, fmt.Errorf("TENANT_ISOLATION_VIOLATION: Organization '%s' is prohibited from accessing compute instance '%s'", orgID, id)
+			}
+			if projID != "" && inst.ProjectID != "" && inst.ProjectID != projID {
+				return nil, fmt.Errorf("TENANT_ISOLATION_VIOLATION: Project '%s' is prohibited from accessing compute instance '%s'", projID, id)
+			}
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if rehydratable, ok := uc.provider.(provider.RehydratableProvider); ok && inst != nil {
+		if rehydrErr := rehydratable.RehydrateInstance(ctx, inst); rehydrErr != nil {
+			return nil, rehydrErr
+		}
+	}
+
+	return inst, nil
+}
+
+func (uc *ComputeUseCase) ensureProviderRehydrated(ctx context.Context, id string) (*domain.ComputeInstance, error) {
+	if uc.repo == nil {
+		return nil, fmt.Errorf("repository is nil")
+	}
+	inst, err := uc.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if rehydratable, ok := uc.provider.(provider.RehydratableProvider); ok && inst != nil {
+		if rehydrErr := rehydratable.RehydrateInstance(ctx, inst); rehydrErr != nil {
+			return nil, rehydrErr
+		}
+	}
+	return inst, nil
 }
 
 func (uc *ComputeUseCase) ListInstances(ctx context.Context, projectID string) ([]*domain.ComputeInstance, error) {
 	if uc.repo != nil {
 		if list, err := uc.repo.ListByProjectID(ctx, projectID); err == nil && len(list) > 0 {
+			for _, inst := range list {
+				if rehydratable, ok := uc.provider.(provider.RehydratableProvider); ok && inst != nil {
+					_ = rehydratable.RehydrateInstance(ctx, inst)
+				}
+			}
 			return list, nil
 		}
 	}
 	return uc.provider.ListInstances(ctx, projectID)
 }
 
+func (uc *ComputeUseCase) ListInstancesForTenant(ctx context.Context, orgID, projectID string) ([]*domain.ComputeInstance, error) {
+	var list []*domain.ComputeInstance
+	var err error
+	if uc.repo != nil {
+		list, err = uc.repo.ListByProjectID(ctx, projectID)
+	} else {
+		list, err = uc.provider.ListInstances(ctx, projectID)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]*domain.ComputeInstance, 0)
+	for _, inst := range list {
+		if (orgID == "" || inst.OrganizationID == "" || inst.OrganizationID == orgID) &&
+			(projectID == "" || inst.ProjectID == "" || inst.ProjectID == projectID) {
+			if rehydratable, ok := uc.provider.(provider.RehydratableProvider); ok && inst != nil {
+				_ = rehydratable.RehydrateInstance(ctx, inst)
+			}
+			filtered = append(filtered, inst)
+		}
+	}
+	return filtered, nil
+}
+
 func (uc *ComputeUseCase) StartInstance(ctx context.Context, id string) error {
+	_, _ = uc.ensureProviderRehydrated(ctx, id)
 	err := uc.provider.StartInstance(ctx, id)
 	if err == nil && uc.repo != nil {
 		if inst, getErr := uc.repo.GetByID(ctx, id); getErr == nil && inst != nil {
 			inst.Status = domain.StatusRunning
+			inst.Health = domain.HealthHealthy
 			_ = uc.repo.Update(ctx, inst)
 		}
 	}
@@ -111,10 +214,12 @@ func (uc *ComputeUseCase) StartInstance(ctx context.Context, id string) error {
 }
 
 func (uc *ComputeUseCase) StopInstance(ctx context.Context, id string) error {
+	_, _ = uc.ensureProviderRehydrated(ctx, id)
 	err := uc.provider.StopInstance(ctx, id)
 	if err == nil && uc.repo != nil {
 		if inst, getErr := uc.repo.GetByID(ctx, id); getErr == nil && inst != nil {
 			inst.Status = domain.StatusStopped
+			inst.Health = domain.HealthUnavailable
 			_ = uc.repo.Update(ctx, inst)
 		}
 	}
@@ -122,10 +227,12 @@ func (uc *ComputeUseCase) StopInstance(ctx context.Context, id string) error {
 }
 
 func (uc *ComputeUseCase) RestartInstance(ctx context.Context, id string) error {
+	_, _ = uc.ensureProviderRehydrated(ctx, id)
 	err := uc.provider.RestartInstance(ctx, id)
 	if err == nil && uc.repo != nil {
 		if inst, getErr := uc.repo.GetByID(ctx, id); getErr == nil && inst != nil {
 			inst.Status = domain.StatusRunning
+			inst.Health = domain.HealthHealthy
 			_ = uc.repo.Update(ctx, inst)
 		}
 	}
@@ -133,6 +240,10 @@ func (uc *ComputeUseCase) RestartInstance(ctx context.Context, id string) error 
 }
 
 func (uc *ComputeUseCase) DeleteInstance(ctx context.Context, id string) error {
+	_, _ = uc.ensureProviderRehydrated(ctx, id)
+	if uc.mappingRepo != nil {
+		_ = uc.mappingRepo.DeleteMapping(ctx, id)
+	}
 	if uc.repo != nil {
 		_ = uc.repo.Delete(ctx, id)
 	}
@@ -143,9 +254,11 @@ func (uc *ComputeUseCase) ExecuteCommand(ctx context.Context, id string, req *do
 	if req.Command == "" {
 		return nil, appErrors.New(appErrors.CodeInvalidInput, "command payload cannot be empty")
 	}
+	_, _ = uc.ensureProviderRehydrated(ctx, id)
 	return uc.provider.ExecuteCommand(ctx, id, req)
 }
 
 func (uc *ComputeUseCase) GetInstanceMetrics(ctx context.Context, id string) (map[string]interface{}, error) {
+	_, _ = uc.ensureProviderRehydrated(ctx, id)
 	return uc.provider.GetInstanceMetrics(ctx, id)
 }

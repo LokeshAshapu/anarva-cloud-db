@@ -13,6 +13,7 @@ import (
 	"time"
 
 	pkgVersion "github.com/anarva-cloud/anarva-cloud-db/pkg/version"
+	"github.com/anarva-cloud/anarva-cloud-db/pkg/crypto"
 
 	pkgMigration "github.com/anarva-cloud/anarva-cloud-db/internal/migration"
 
@@ -407,6 +408,36 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	authSvc := iamService.NewAuthorizationService()
 	obsSvc := observabilityService.NewObservabilityService()
 	bakProv := backupProvider.NewControlPlaneBackupProviderWithUseCase(bUC, sProvider)
+	// Compute Secret Encryption Setup & Production Fail-Closed assertion
+	compKeyHex := strings.TrimSpace(cfg.Compute.SecretEncryptionKey)
+	if compKeyHex == "" {
+		compKeyHex = strings.TrimSpace(os.Getenv("COMPUTE_SECRET_ENCRYPTION_KEY"))
+	}
+
+	if appEnv == "production" {
+		if compKeyHex == "" {
+			log.Fatal("FATAL: Production environment requires COMPUTE_SECRET_ENCRYPTION_KEY for secret encryption")
+		}
+		compCipher, err := crypto.NewAESGCMCipher(compKeyHex, "v1")
+		if err != nil {
+			log.Fatal(fmt.Sprintf("FATAL: Invalid COMPUTE_SECRET_ENCRYPTION_KEY in production: %v", err))
+		}
+		crypto.SetGlobalCipher(compCipher)
+		log.Info("[Gateway Production] Compute secret encryption initialized with AES-256-GCM (v1)")
+	} else {
+		if compKeyHex != "" {
+			compCipher, err := crypto.NewAESGCMCipher(compKeyHex, "v1")
+			if err == nil {
+				crypto.SetGlobalCipher(compCipher)
+				log.Info("[Gateway] Compute secret encryption initialized with configured key")
+			} else {
+				log.Info(fmt.Sprintf("[Gateway Warning] Invalid COMPUTE_SECRET_ENCRYPTION_KEY: %v. Using local dev key.", err))
+			}
+		} else {
+			log.Info("[Gateway Development] COMPUTE_SECRET_ENCRYPTION_KEY not set. Using local development key.")
+		}
+	}
+
 	compProv := computeProvider.NewLocalDockerComputeProvider()
 	var compRepo computeDomain.ComputeRepository
 	var volRepo computeDomain.VolumeRepository
@@ -515,6 +546,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	} else {
 		prvMapRepo = prvMapping.NewInMemoryMappingRepository()
 	}
+	compUC.SetMappingRepository(prvMapRepo)
 	prvDriftEng := prvDrift.NewDriftEngine(prvMapRepo)
 	prvImportEng := prvImport.NewImportEngine(prvMapRepo)
 	prvSsrfEng := prvSecurity.NewSSRFProtectionEngine()

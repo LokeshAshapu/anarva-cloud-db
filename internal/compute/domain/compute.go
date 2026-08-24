@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/arnv"
+	"github.com/anarva-cloud/anarva-cloud-db/pkg/crypto"
 )
 
 type InstanceStatus string
@@ -165,7 +166,16 @@ func (c *ComputeInstance) BeforeSave(tx *gorm.DB) error {
 	}
 	if len(c.EnvVars) > 0 {
 		if envBytes, err := json.Marshal(c.EnvVars); err == nil {
-			c.EnvVarsJSON = string(envBytes)
+			cipher := crypto.GetGlobalCipher()
+			if cipher != nil {
+				if encrypted, err := cipher.Encrypt(envBytes); err == nil {
+					c.EnvVarsJSON = encrypted
+				} else {
+					return err
+				}
+			} else {
+				c.EnvVarsJSON = string(envBytes)
+			}
 		}
 	} else {
 		c.EnvVarsJSON = ""
@@ -181,12 +191,37 @@ func (c *ComputeInstance) AfterFind(tx *gorm.DB) error {
 		}
 	}
 	if c.EnvVarsJSON != "" {
-		var envs map[string]string
-		if err := json.Unmarshal([]byte(c.EnvVarsJSON), &envs); err == nil {
-			c.EnvVars = envs
+		cipher := crypto.GetGlobalCipher()
+		var decryptedBytes []byte
+		var err error
+
+		if cipher != nil {
+			decryptedBytes, err = cipher.Decrypt(c.EnvVarsJSON)
+			if err != nil {
+				return err
+			}
+		} else {
+			decryptedBytes = []byte(c.EnvVarsJSON)
+		}
+
+		if len(decryptedBytes) > 0 {
+			var envs map[string]string
+			if err := json.Unmarshal(decryptedBytes, &envs); err == nil {
+				c.EnvVars = envs
+			}
 		}
 	}
 	return nil
+}
+
+func (c *ComputeInstance) RedactSecrets() *ComputeInstance {
+	if c == nil {
+		return nil
+	}
+	cp := *c
+	cp.EnvVars = nil
+	cp.EnvVarsJSON = ""
+	return &cp
 }
 
 type ComputeCapacity struct {

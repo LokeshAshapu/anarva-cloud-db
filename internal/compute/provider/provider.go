@@ -27,6 +27,10 @@ type ComputeProvider interface {
 	ExecuteCommand(ctx context.Context, id string, req *domain.CommandExecutionRequest) (*domain.CommandExecutionResult, error)
 }
 
+type RehydratableProvider interface {
+	RehydrateInstance(ctx context.Context, inst *domain.ComputeInstance) error
+}
+
 // LocalDockerComputeProvider executes actual Docker container tasks if Docker desktop/daemon is present
 type LocalDockerComputeProvider struct {
 	mu        sync.RWMutex
@@ -55,6 +59,7 @@ func (p *LocalDockerComputeProvider) CreateInstance(ctx context.Context, inst *d
 	inst.Provider = domain.ProviderLocalDocker
 	inst.Status = domain.StatusRunning
 	inst.Health = domain.HealthHealthy
+	inst.DeletedAt = nil
 
 	if p.hasDocker && inst.DockerImage != "" {
 		// Attempt real docker container run with CPU/memory limits
@@ -82,6 +87,36 @@ func (p *LocalDockerComputeProvider) CreateInstance(ctx context.Context, inst *d
 
 	p.instances[inst.ID] = inst
 	return inst, nil
+}
+
+func (p *LocalDockerComputeProvider) RehydrateInstance(ctx context.Context, inst *domain.ComputeInstance) error {
+	if inst == nil || inst.ID == "" {
+		return fmt.Errorf("invalid instance for re-hydration")
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	isSimulated := strings.HasPrefix(inst.ProviderInstanceID, "local-sim-") || strings.HasPrefix(inst.ProviderInstanceID, "docker-sim-")
+	if p.hasDocker && inst.ProviderInstanceID != "" && !isSimulated {
+		cmd := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.State.Status}}", inst.ProviderInstanceID)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			// Container no longer exists on host Docker engine
+			return fmt.Errorf("compute instance provider resource '%s' no longer exists on host infrastructure", inst.ProviderInstanceID)
+		}
+		statusStr := strings.TrimSpace(string(out))
+		if statusStr == "running" {
+			inst.Status = domain.StatusRunning
+			inst.Health = domain.HealthHealthy
+		} else {
+			inst.Status = domain.StatusStopped
+			inst.Health = domain.HealthUnavailable
+		}
+	}
+
+	p.instances[inst.ID] = inst
+	return nil
 }
 
 func (p *LocalDockerComputeProvider) GetInstance(ctx context.Context, id string) (*domain.ComputeInstance, error) {

@@ -20,6 +20,11 @@ type Config struct {
 	Storage     StorageConfig  `mapstructure:"STORAGE"`
 	Metrics     MetricsConfig  `mapstructure:"METRICS"`
 	Provider    ProviderConfig `mapstructure:"PROVIDER"`
+	Compute     ComputeConfig  `mapstructure:"COMPUTE"`
+}
+
+type ComputeConfig struct {
+	SecretEncryptionKey string `mapstructure:"SECRET_ENCRYPTION_KEY"`
 }
 
 type ServerConfig struct {

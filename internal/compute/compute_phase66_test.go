@@ -3,6 +3,7 @@ package compute_test
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ func TestComputeDomain_JSONSerializationHooks(t *testing.T) {
 	err := inst.BeforeSave(nil)
 	require.NoError(t, err)
 	assert.Contains(t, inst.SecurityJSON, "key-1")
-	assert.Contains(t, inst.EnvVarsJSON, "production")
+	assert.True(t, strings.HasPrefix(inst.EnvVarsJSON, "anarva:v1:"), "EnvVarsJSON must be encrypted with anarva:v1: prefix")
 
 	// Create new struct, set JSON strings, trigger AfterFind hook
 	restored := &domain.ComputeInstance{

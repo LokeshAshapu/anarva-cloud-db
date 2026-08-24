@@ -60,11 +60,8 @@ export default function ComputeEnginePage() {
   const [isProvisioning, setIsProvisioning] = useState(false)
 
   // Web Terminal state
-  const [termCommand, setTermCommand] = useState('uname -a')
-  const [termHistory, setTermHistory] = useState<string[]>([
-    '$ uname -a',
-    'Linux anarva-worker-01 6.6.13-anarva #1 SMP PREEMPT_DYNAMIC x86_64 GNU/Linux',
-  ])
+  const [termCommand, setTermCommand] = useState('')
+  const [termHistory, setTermHistory] = useState<string[]>([])
   const [isExec, setIsExec] = useState(false)
 
   // Scale Modal state
@@ -196,27 +193,48 @@ export default function ComputeEnginePage() {
     }
   }
 
-  const handleExecuteCommand = (e: React.FormEvent) => {
+  const handleExecuteCommand = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!termCommand.trim() || !selectedInstance) return
 
     setIsExec(true)
-    const cmd = termCommand
+    const cmd = termCommand.trim()
     setTermCommand('')
 
-    setTimeout(() => {
-      let output = ''
-      if (cmd === 'ps aux') {
-        output = 'PID   USER     TIME   COMMAND\n1     root     0:02   /init\n14    anarva   0:15   node /app/server.js'
-      } else if (cmd.startsWith('cat')) {
-        output = 'ANARVA_CLOUD_REGION=us-east-1\nANARVA_ACU=1.0\nSTATUS=HEALTHY'
-      } else {
-        output = `[ANARVA CONTAINER EXECUTOR] Executed '${cmd}' inside container ${selectedInstance.name}\nOutput: Exit code 0.`
-      }
+    try {
+      const authHeaders = getAuthHeaders()
+      const res = await fetch(`${API_BASE_URL}/api/v1/compute/instances/${selectedInstance.id}/execute`, {
+        method: 'POST',
+        headers: {
+          ...authHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ command: cmd }),
+      })
 
-      setTermHistory((prev) => [...prev, `$ ${cmd}`, output])
+      const data = await res.json().catch(() => null)
+
+      if (res.ok && data) {
+        let output = data.stdout || ''
+        if (data.stderr) {
+          output += (output ? '\n' : '') + data.stderr
+        }
+        if (data.exitCode !== undefined && data.exitCode !== 0) {
+          output += (output ? '\n' : '') + `[Exit code ${data.exitCode}]`
+        }
+        if (!output) {
+          output = '[Command executed with no output]'
+        }
+        setTermHistory((prev) => [...prev, `$ ${cmd}`, output])
+      } else {
+        const errMsg = data?.message || data?.error || `Execution failed with HTTP ${res.status}`
+        setTermHistory((prev) => [...prev, `$ ${cmd}`, `[ERROR] ${errMsg}`])
+      }
+    } catch (err: any) {
+      setTermHistory((prev) => [...prev, `$ ${cmd}`, `[ERROR] ${err?.message || 'Network request failed'}`])
+    } finally {
       setIsExec(false)
-    }, 400)
+    }
   }
 
   const handleScaleACU = () => {
