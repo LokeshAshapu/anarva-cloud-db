@@ -1,5 +1,6 @@
 import './globals.css'
 import React from 'react'
+import { Analytics } from '@vercel/analytics/next'
 
 export const metadata = {
   title: 'Anarva Cloud DB - Enterprise Managed Database Platform',
@@ -15,6 +16,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-slate-950 text-slate-100 antialiased min-h-screen">
         {children}
+        <Analytics />
       </body>
     </html>
   )
