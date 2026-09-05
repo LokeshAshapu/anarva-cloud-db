@@ -141,6 +141,7 @@ type ComputeInstance struct {
 	StorageGB          int                    `json:"storageGb" gorm:"column:storage_gb"`
 	ImageID            string                 `json:"imageId" gorm:"column:image_id;type:varchar(100)"`
 	DockerImage        string                 `json:"dockerImage,omitempty" gorm:"column:docker_image;type:varchar(255)"`
+	Command            []string               `json:"command,omitempty" gorm:"-"`
 	NetworkID          string                 `json:"networkId" gorm:"column:network_id;type:varchar(255)"`
 	SubnetID           string                 `json:"subnetId" gorm:"column:subnet_id;type:varchar(255)"`
 	PrivateIP          string                 `json:"privateIp,omitempty" gorm:"column:private_ip;type:varchar(100)"`

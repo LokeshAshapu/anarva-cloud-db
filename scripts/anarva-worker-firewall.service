@@ -1,0 +1,14 @@
+[Unit]
+Description=ANARVA Compute Worker Firewall Protection
+Documentation=https://docs.anarva.cloud
+After=docker.service
+Requires=docker.service
+Before=anarva-worker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/anarva-worker-firewall
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

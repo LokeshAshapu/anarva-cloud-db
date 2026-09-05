@@ -1,0 +1,28 @@
+[Unit]
+Description=ANARVA Compute Worker Data Plane Service
+Documentation=https://docs.anarva.cloud
+After=network-online.target docker.service anarva-worker-firewall.service
+Requires=docker.service anarva-worker-firewall.service
+
+[Service]
+Type=simple
+User=anarva-worker
+Group=docker
+WorkingDirectory=/var/lib/anarva-worker
+EnvironmentFile=/etc/anarva/worker.env
+ExecStart=/usr/local/bin/worker
+
+Restart=always
+RestartSec=5s
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Systemd Security Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/anarva-worker /etc/anarva
+
+[Install]
+WantedBy=multi-user.target

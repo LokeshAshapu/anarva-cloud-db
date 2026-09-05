@@ -24,6 +24,13 @@ type Config struct {
 }
 
 type ComputeConfig struct {
+	ProviderType        string `mapstructure:"PROVIDER"`
+	WorkerEndpoint      string `mapstructure:"WORKER_ENDPOINT"`
+	WorkerToken         string `mapstructure:"WORKER_TOKEN"`
+	WorkerCACert        string `mapstructure:"WORKER_CA_CERT"`
+	WorkerClientCert    string `mapstructure:"WORKER_CLIENT_CERT"`
+	WorkerClientKey     string `mapstructure:"WORKER_CLIENT_KEY"`
+	WorkerServerName    string `mapstructure:"WORKER_SERVER_NAME"`
 	SecretEncryptionKey string `mapstructure:"SECRET_ENCRYPTION_KEY"`
 }
 
@@ -37,6 +44,7 @@ type ServerConfig struct {
 type DatabaseConfig struct {
 	URL                      string        `mapstructure:"URL"`
 	CustomerDatabaseAdminURL string        `mapstructure:"CUSTOMER_DATABASE_ADMIN_URL"`
+	SecretEncryptionKey      string        `mapstructure:"SECRET_ENCRYPTION_KEY"`
 	Host                     string        `mapstructure:"HOST"`
 	Port                     int           `mapstructure:"PORT"`
 	User                     string        `mapstructure:"USER"`
@@ -55,7 +63,13 @@ func (db DatabaseConfig) CustomerAdminURL() string {
 	}
 	return urlStr
 }
-
+func (db DatabaseConfig) SecretEncryptionKeyValue() string {
+	key := strings.TrimSpace(db.SecretEncryptionKey)
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("POSTGRES_SECRET_ENCRYPTION_KEY"))
+	}
+	return key
+}
 func (db DatabaseConfig) DSN() string {
 	urlStr := strings.TrimSpace(db.URL)
 	if urlStr == "" {
@@ -101,14 +115,14 @@ type JWTConfig struct {
 }
 
 type StorageConfig struct {
-	Driver          string `mapstructure:"DRIVER"` // local or s3
-	LocalPath       string `mapstructure:"LOCAL_PATH"`
-	S3Endpoint      string `mapstructure:"S3_ENDPOINT"`
-	S3Region        string `mapstructure:"S3_REGION"`
-	S3Bucket        string `mapstructure:"S3_BUCKET"`
-	S3AccessKey     string `mapstructure:"S3_ACCESS_KEY"`
-	S3SecretKey     string `mapstructure:"S3_SECRET_KEY"`
-	S3UseSSL        bool   `mapstructure:"S3_USE_SSL"`
+	Driver      string `mapstructure:"DRIVER"` // local or s3
+	LocalPath   string `mapstructure:"LOCAL_PATH"`
+	S3Endpoint  string `mapstructure:"S3_ENDPOINT"`
+	S3Region    string `mapstructure:"S3_REGION"`
+	S3Bucket    string `mapstructure:"S3_BUCKET"`
+	S3AccessKey string `mapstructure:"S3_ACCESS_KEY"`
+	S3SecretKey string `mapstructure:"S3_SECRET_KEY"`
+	S3UseSSL    bool   `mapstructure:"S3_USE_SSL"`
 }
 
 type MetricsConfig struct {

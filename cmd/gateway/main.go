@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	pkgVersion "github.com/anarva-cloud/anarva-cloud-db/pkg/version"
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/crypto"
+	pkgVersion "github.com/anarva-cloud/anarva-cloud-db/pkg/version"
 
 	pkgMigration "github.com/anarva-cloud/anarva-cloud-db/internal/migration"
 
@@ -26,17 +26,12 @@ import (
 	backupDomain "github.com/anarva-cloud/anarva-cloud-db/internal/backup/domain"
 	backupRepo "github.com/anarva-cloud/anarva-cloud-db/internal/backup/repository"
 	backupUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/backup/usecase"
+	databaseDomain "github.com/anarva-cloud/anarva-cloud-db/internal/database/domain"
 
 	reliabilityHttp "github.com/anarva-cloud/anarva-cloud-db/internal/reliability/delivery/http"
 	reliabilityDomain "github.com/anarva-cloud/anarva-cloud-db/internal/reliability/domain"
 	reliabilityRepo "github.com/anarva-cloud/anarva-cloud-db/internal/reliability/repository"
 	reliabilityUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/reliability/usecase"
-
-	databaseHttp "github.com/anarva-cloud/anarva-cloud-db/internal/database/delivery/http"
-	databaseDomain "github.com/anarva-cloud/anarva-cloud-db/internal/database/domain"
-	databaseDriver "github.com/anarva-cloud/anarva-cloud-db/internal/database/driver"
-	databaseRepo "github.com/anarva-cloud/anarva-cloud-db/internal/database/repository"
-	databaseUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/database/usecase"
 
 	projectHttp "github.com/anarva-cloud/anarva-cloud-db/internal/project/delivery/http"
 	projectDomain "github.com/anarva-cloud/anarva-cloud-db/internal/project/domain"
@@ -45,8 +40,8 @@ import (
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/activity"
 	backupProvider "github.com/anarva-cloud/anarva-cloud-db/internal/backup/provider"
-	computeDomain "github.com/anarva-cloud/anarva-cloud-db/internal/compute/domain"
 	computeHttp "github.com/anarva-cloud/anarva-cloud-db/internal/compute/delivery/http"
+	computeDomain "github.com/anarva-cloud/anarva-cloud-db/internal/compute/domain"
 	computeProvider "github.com/anarva-cloud/anarva-cloud-db/internal/compute/provider"
 	computeRepo "github.com/anarva-cloud/anarva-cloud-db/internal/compute/repository"
 	computeUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/compute/usecase"
@@ -126,9 +121,9 @@ import (
 	billHttp "github.com/anarva-cloud/anarva-cloud-db/internal/billing/delivery/http"
 	billUsecase "github.com/anarva-cloud/anarva-cloud-db/internal/billing/usecase"
 
+	"github.com/anarva-cloud/anarva-cloud-db/internal/query"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/resource"
 	resourceHttp "github.com/anarva-cloud/anarva-cloud-db/internal/resource/delivery/http"
-	"github.com/anarva-cloud/anarva-cloud-db/internal/query"
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/config"
 	pkgDatabase "github.com/anarva-cloud/anarva-cloud-db/pkg/database"
 	appErrors "github.com/anarva-cloud/anarva-cloud-db/pkg/errors"
@@ -211,7 +206,6 @@ func main() {
 	var mRepo projectDomain.MemberRepository
 	var iRepo projectDomain.InvitationRepository
 
-	var dRepo databaseDomain.InstanceRepository
 	var bRepo backupDomain.BackupRepository
 
 	var queryExecutor query.Executor
@@ -316,7 +310,6 @@ Filesystem Control-Plane Persistence: ACTIVE (./data/)
 		mRepo = newMemMemberRepo()
 		iRepo = newMemInvRepo()
 
-		dRepo = newMemInstanceRepo()
 		bRepo = newMemBackupRepo()
 
 		queryExecutor = query.NewMockExecutor()
@@ -360,6 +353,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 			&computeDomain.ComputeInstance{},
 			&computeDomain.Volume{},
 			&postgresDomain.PostgresInstance{},
+			&postgresDomain.PostgresUser{},
 		)
 		if err != nil && appEnv == "production" {
 			log.Fatal(fmt.Sprintf("FATAL: Failed to migrate production control-plane database schema: %v", err))
@@ -379,7 +373,6 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 		mRepo = projectRepo.NewMemberRepository(dbPool.DB)
 		iRepo = projectRepo.NewInvitationRepository(dbPool.DB)
 
-		dRepo = databaseRepo.NewInstanceRepository(dbPool.DB)
 		bRepo = backupRepo.NewBackupRepository(dbPool.DB)
 
 		queryExecutor = query.NewPostgresExecutor()
@@ -393,12 +386,10 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 		log.Info(fmt.Sprintf("Development Notice: Storage provider initialization returned: %v. Falling back to local storage.", sErr))
 		sProvider = storageProvider.NewLocalStorageProvider(cfg.Storage.LocalPath)
 	}
-	pDriver := databaseDriver.NewMockProvisionerDriver()
 
 	// UseCases
 	aUC := authUsecase.NewAuthUseCase(uRepo, sRepo, kRepo, tRepo, aRepo, jwtManager, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 	pUC := projectUsecase.NewProjectUseCase(oRepo, pRepo, mRepo, iRepo)
-	dUC := databaseUsecase.NewDatabaseUseCase(dRepo, pDriver, cfg.JWT.Secret)
 	bUC := backupUsecase.NewBackupUseCase(bRepo, sProvider, cfg.Storage.S3Bucket)
 	_ = bUC
 
@@ -438,7 +429,75 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 		}
 	}
 
-	compProv := computeProvider.NewLocalDockerComputeProvider()
+	// Provider selection (local vs remote)
+	compProvType := strings.ToLower(strings.TrimSpace(cfg.Compute.ProviderType))
+	if compProvType == "" {
+		compProvType = strings.ToLower(strings.TrimSpace(os.Getenv("COMPUTE_PROVIDER")))
+	}
+
+	var activeCompProv computeProvider.ComputeProvider
+	if compProvType == "remote" || (appEnv == "production" && compProvType != "local") {
+		workerEndpoint := strings.TrimSpace(cfg.Compute.WorkerEndpoint)
+		if workerEndpoint == "" {
+			workerEndpoint = strings.TrimSpace(os.Getenv("COMPUTE_WORKER_ENDPOINT"))
+		}
+		workerToken := strings.TrimSpace(cfg.Compute.WorkerToken)
+		if workerToken == "" {
+			workerToken = strings.TrimSpace(os.Getenv("COMPUTE_WORKER_TOKEN"))
+		}
+
+		workerCA := strings.TrimSpace(cfg.Compute.WorkerCACert)
+		if workerCA == "" {
+			workerCA = strings.TrimSpace(os.Getenv("COMPUTE_WORKER_CA_CERT"))
+		}
+		workerClientCert := strings.TrimSpace(cfg.Compute.WorkerClientCert)
+		if workerClientCert == "" {
+			workerClientCert = strings.TrimSpace(os.Getenv("COMPUTE_WORKER_CLIENT_CERT"))
+		}
+		workerClientKey := strings.TrimSpace(cfg.Compute.WorkerClientKey)
+		if workerClientKey == "" {
+			workerClientKey = strings.TrimSpace(os.Getenv("COMPUTE_WORKER_CLIENT_KEY"))
+		}
+		workerServerName := strings.TrimSpace(cfg.Compute.WorkerServerName)
+		if workerServerName == "" {
+			workerServerName = strings.TrimSpace(os.Getenv("COMPUTE_WORKER_SERVER_NAME"))
+		}
+
+		if workerEndpoint == "" {
+			log.Fatal("FATAL: Production or remote compute mode requires COMPUTE_WORKER_ENDPOINT")
+		}
+
+		if appEnv == "production" {
+			if strings.HasPrefix(strings.ToLower(workerEndpoint), "http://") {
+				log.Fatal("FATAL: Insecure http endpoint is prohibited for remote compute worker in production mode; https is required")
+			}
+			if workerCA == "" {
+				log.Fatal("FATAL: Production remote compute mode requires COMPUTE_WORKER_CA_CERT")
+			}
+			if workerClientCert == "" || workerClientKey == "" {
+				log.Fatal("FATAL: Production remote compute mode requires mTLS client certificate and private key (COMPUTE_WORKER_CLIENT_CERT / COMPUTE_WORKER_CLIENT_KEY)")
+			}
+		}
+
+		tlsOpts := &computeProvider.TLSConfigOptions{
+			CACertPEM:     workerCA,
+			ClientCertPEM: workerClientCert,
+			ClientKeyPEM:  workerClientKey,
+			ServerName:    workerServerName,
+			InsecureHTTP:  appEnv != "production",
+		}
+
+		remoteP, err := computeProvider.NewRemoteComputeProviderWithTLS(workerEndpoint, workerToken, tlsOpts, nil)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("FATAL: Failed to initialize RemoteComputeProvider with TLS: %v", err))
+		}
+		activeCompProv = remoteP
+		log.Info(fmt.Sprintf("[Gateway] RemoteComputeProvider initialized with mTLS transport (Endpoint: %s)", workerEndpoint))
+	} else {
+		activeCompProv = computeProvider.NewLocalDockerComputeProvider()
+		log.Info("[Gateway Development] LocalDockerComputeProvider initialized for local environment")
+	}
+
 	var compRepo computeDomain.ComputeRepository
 	var volRepo computeDomain.VolumeRepository
 	if dbPool != nil {
@@ -449,7 +508,7 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	} else {
 		compRepo = newMemComputeRepo()
 	}
-	compUC := computeUsecase.NewComputeUseCase(compRepo, volRepo, compProv)
+	compUC := computeUsecase.NewComputeUseCase(compRepo, volRepo, activeCompProv)
 	netProv := networkProvider.NewLocalDockerNetworkProvider()
 	netUC := networkUsecase.NewNetworkUseCase(newMemNetworkRepo(), nil, nil, nil, nil, nil, netProv)
 	_ = netUC
@@ -480,15 +539,44 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	} else {
 		dpProvider = postgresProvider.NewSimulatedDataPlaneProvider()
 	}
+	postgresKey := strings.TrimSpace(cfg.Database.SecretEncryptionKey)
+	if postgresKey == "" {
+		postgresKey = strings.TrimSpace(os.Getenv("POSTGRES_SECRET_ENCRYPTION_KEY"))
+	}
 
+	var postgresEncryptionKey []byte
+	if postgresKey != "" {
+		postgresEncryptionKey = []byte(postgresKey)
+	}
+
+	if appEnv == "production" {
+		if len(postgresEncryptionKey) != 32 {
+			log.Fatal("FATAL: Production environment requires POSTGRES_SECRET_ENCRYPTION_KEY to be exactly 32 bytes")
+		}
+	} else if len(postgresEncryptionKey) != 0 && len(postgresEncryptionKey) != 32 {
+		log.Fatal("FATAL: POSTGRES_SECRET_ENCRYPTION_KEY must be exactly 32 bytes when configured")
+	}
 	var pgService *postgresService.PostgresService
 	if dbPool != nil {
 		pgRepo := postgresRepo.NewGormPostgresInstanceRepository(dbPool.DB)
-		pgService = postgresService.NewPostgresServiceFull(pgRepo, pgProvider, dpProvider)
+		userRepo := postgresRepo.NewGormPostgresUserRepository(dbPool.DB)
+		pgService = postgresService.NewPostgresServiceFull(
+			pgRepo,
+			userRepo,
+			pgProvider,
+			dpProvider,
+			postgresEncryptionKey,
+		)
 	} else if appEnv == "production" {
 		log.Fatal("FATAL: Production environment requires PostgreSQL for database control-plane metadata")
 	} else {
-		pgService = postgresService.NewPostgresServiceFull(nil, pgProvider, dpProvider)
+		pgService = postgresService.NewPostgresServiceFull(
+			nil,
+			nil,
+			pgProvider,
+			dpProvider,
+			postgresEncryptionKey,
+		)
 	}
 	sqlService := postgresService.NewSQLService()
 
@@ -564,7 +652,6 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 	// ALWAYS Register All Delivery Handlers into Gateway Mux
 	authHttp.NewAuthHandler(aUC).RegisterRoutes(mux)
 	projectHttp.NewProjectHandler(pUC).RegisterRoutes(mux)
-	databaseHttp.NewDatabaseHandler(dUC).RegisterRoutes(mux)
 	postgresHandler.NewPostgresHandlerFull(pgService, sqlService, nil, custAdminURL).RegisterRoutes(mux)
 	myDeliveryHandler.RegisterRoutes(mux)
 	vNetHandler.RegisterRoutes(mux)
@@ -759,16 +846,16 @@ Filesystem Control-Plane Persistence: NOT REQUIRED
 					"enabled": appEnv != "production" && !dbConnected,
 				},
 				"persistence": map[string]interface{}{
-					"users":         persMode,
-					"organizations": persMode,
-					"projects":      persMode,
-					"databases":     persMode,
-					"networking":    persMode,
+					"users":          persMode,
+					"organizations":  persMode,
+					"projects":       persMode,
+					"databases":      persMode,
+					"networking":     persMode,
 					"load_balancers": persMode,
-					"backups":       persMode,
-					"iam":           persMode,
-					"operations":    persMode,
-					"audit":         persMode,
+					"backups":        persMode,
+					"iam":            persMode,
+					"operations":     persMode,
+					"audit":          persMode,
 				},
 				"storage": map[string]interface{}{
 					"provider": "LOCAL_FILESYSTEM",

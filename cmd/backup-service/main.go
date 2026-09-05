@@ -15,6 +15,8 @@ import (
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/logger"
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/metrics"
 	"github.com/anarva-cloud/anarva-cloud-db/pkg/storage"
+        "github.com/anarva-cloud/anarva-cloud-db/internal/activity"
+	backupProvider "github.com/anarva-cloud/anarva-cloud-db/internal/backup/provider"
 )
 
 func main() {
@@ -37,25 +39,49 @@ func main() {
 		log.Fatal(fmt.Sprintf("Failed to connect to metadata database: %v", err))
 	}
 
-	// Auto-Migrate Backup metadata tables
-	if err := db.AutoMigrate(
-		&domain.BackupSnapshot{},
-	); err != nil {
-		log.Fatal(fmt.Sprintf("Failed to auto-migrate backup database schema: %v", err))
-	}
+	// Auto-Migrate current Backup metadata schema.
+if err := db.AutoMigrate(&domain.BackupRecord{}); err != nil {
+        log.Fatal(fmt.Sprintf("Failed to auto-migrate backup database schema: %v", err))
+}
 
-	// Storage Provider Driver (Local or MinIO/S3)
-	storageProvider, err := storage.NewLocalStorageProvider(cfg.Storage.LocalPath)
-	if err != nil {
-		log.Fatal(fmt.Sprintf("Failed to initialize storage provider driver: %v", err))
-	}
+// Storage Provider Driver.
+sProvider, err := storage.NewStorageProvider(cfg.Storage, cfg.Environment)
+if err != nil {
+        if cfg.Environment == "production" {
+                log.Fatal(fmt.Sprintf("Failed to initialize storage provider: %v", err))
+        }
 
-	// Repositories & UseCase
-	repo := repository.NewBackupRepository(db.DB)
-	backupUseCase := usecase.NewBackupUseCase(repo, storageProvider)
+        log.Info(fmt.Sprintf(
+                "Development Notice: storage provider initialization returned: %v. Falling back to local storage.",
+                err,
+        ))
 
-	// HTTP Delivery
-	backupHandler := delivery.NewBackupHandler(backupUseCase)
+        sProvider = storage.NewLocalStorageProvider(cfg.Storage.LocalPath)
+}
+
+// Repository + UseCase + Provider.
+repo := repository.NewBackupRepository(db.DB)
+
+backupUseCase := usecase.NewBackupUseCase(
+        repo,
+        sProvider,
+        cfg.Storage.S3Bucket,
+)
+
+	bakProv := backupProvider.NewControlPlaneBackupProviderWithUseCase(
+        	backupUseCase,
+        	sProvider,
+	)
+
+	// Activity stream.
+	actStream := activity.NewStream()
+
+	// HTTP Delivery.
+	backupHandler := delivery.NewBackupHandlerWithUseCase(
+        	bakProv,
+        	backupUseCase,
+        	actStream,
+	)
 	mux := http.NewServeMux()
 	backupHandler.RegisterRoutes(mux)
 

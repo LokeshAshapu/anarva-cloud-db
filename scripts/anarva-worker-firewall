@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+METADATA_IP="169.254.169.254/32"
+
+if [ "${EUID}" -ne 0 ]; then
+    echo "FATAL: ANARVA firewall helper must run as root." >&2
+    exit 1
+fi
+
+if ! command -v iptables >/dev/null 2>&1; then
+    echo "FATAL: iptables is required for ANARVA metadata protection." >&2
+    exit 1
+fi
+
+if ! iptables -L DOCKER-USER -n >/dev/null 2>&1; then
+    echo "FATAL: Docker DOCKER-USER chain is unavailable." >&2
+    exit 1
+fi
+
+if ! iptables -C DOCKER-USER -d "${METADATA_IP}" -j DROP 2>/dev/null; then
+    iptables -I DOCKER-USER 1 -d "${METADATA_IP}" -j DROP
+fi
+
+if ! iptables -C DOCKER-USER -d "${METADATA_IP}" -j DROP 2>/dev/null; then
+    echo "FATAL: Failed to establish ANARVA metadata protection." >&2
+    exit 1
+fi
+
+echo "[ANARVA Firewall] Metadata protection verified."
