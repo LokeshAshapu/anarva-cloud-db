@@ -6,11 +6,12 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"time"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/domain"
 )
@@ -42,8 +43,11 @@ type PostgresDataPlaneProvider interface {
 	CreateDatabase(ctx context.Context, inst *domain.PostgresInstance) (*domain.PostgresInstance, string, error)
 	DeleteDatabase(ctx context.Context, inst *domain.PostgresInstance) error
 	GetInstanceHealth(ctx context.Context, inst *domain.PostgresInstance) (bool, error)
-}
 
+	StartDatabase(ctx context.Context, inst *domain.PostgresInstance) error
+	StopDatabase(ctx context.Context, inst *domain.PostgresInstance) error
+	RestartDatabase(ctx context.Context, inst *domain.PostgresInstance) error
+}
 type RealPostgresDataPlaneProvider struct {
 	adminDSN string
 }
@@ -89,11 +93,33 @@ func (p *RealPostgresDataPlaneProvider) CreateDatabase(ctx context.Context, inst
 	}
 
 	// 4. Provision Role
-	createRoleQuery := fmt.Sprintf("CREATE ROLE %s WITH LOGIN PASSWORD '%s';", roleName, password)
+	createRoleQuery := fmt.Sprintf(
+		"CREATE ROLE %s WITH LOGIN PASSWORD '%s';",
+		roleName,
+		password,
+	)
+
 	if _, err := adminDB.ExecContext(ctx, createRoleQuery); err != nil {
-		// Ignore if role already exists, otherwise fail
 		if !strings.Contains(err.Error(), "already exists") {
-			return nil, "", fmt.Errorf("failed to create postgres role '%s': %w", roleName, err)
+			return nil, "", fmt.Errorf(
+				"failed to create postgres role '%s': %w",
+				roleName,
+				err,
+			)
+		}
+
+		alterRoleQuery := fmt.Sprintf(
+			"ALTER ROLE %s WITH LOGIN PASSWORD '%s';",
+			roleName,
+			password,
+		)
+
+		if _, err := adminDB.ExecContext(ctx, alterRoleQuery); err != nil {
+			return nil, "", fmt.Errorf(
+				"failed to reset password for existing postgres role '%s': %w",
+				roleName,
+				err,
+			)
 		}
 	}
 
@@ -117,7 +143,7 @@ func (p *RealPostgresDataPlaneProvider) CreateDatabase(ctx context.Context, inst
 	// 7. Update Instance Record
 	inst.ProviderResourceId = dbName
 	inst.Host = extractHostFromDSN(p.adminDSN)
-	inst.Port = 5432
+	inst.Port = extractPortFromDSN(p.adminDSN)
 	inst.Status = domain.StatusAvailable
 	inst.RealityLabel = "REAL_POSTGRES (DATA_PLANE_PROVISIONED)"
 
@@ -160,7 +186,139 @@ func (p *RealPostgresDataPlaneProvider) DeleteDatabase(ctx context.Context, inst
 
 	return nil
 }
+func (p *RealPostgresDataPlaneProvider) CreateUser(
+	ctx context.Context,
+	instanceID, username string,
+	role domain.UserRole,
+	password string,
+) (*domain.PostgresUser, error) {
+	if p.adminDSN == "" {
+		return nil, fmt.Errorf("missing CUSTOMER_DATABASE_ADMIN_URL")
+	}
 
+	username, err := SanitizeIdentifier(username)
+	if err != nil {
+		return nil, err
+	}
+
+	if password == "" {
+		password, err = GenerateStrongPassword()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate secure password: %w", err)
+		}
+	}
+
+	adminDB, err := sql.Open("pgx", p.adminDSN)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open data-plane admin connection: %w", err)
+	}
+	defer adminDB.Close()
+
+	if err := adminDB.PingContext(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ping data-plane PostgreSQL: %w", err)
+	}
+
+	escapedPassword := strings.ReplaceAll(password, "'", "''")
+
+	query := fmt.Sprintf(
+		"CREATE ROLE %s WITH LOGIN PASSWORD '%s';",
+		username,
+		escapedPassword,
+	)
+
+	if _, err := adminDB.ExecContext(ctx, query); err != nil {
+		return nil, fmt.Errorf("failed to create postgres user '%s': %w", username, err)
+	}
+
+	return &domain.PostgresUser{
+		ID:                  fmt.Sprintf("usr-%s-%s", instanceID, username),
+		InstanceID:          instanceID,
+		Username:            username,
+		Role:                role,
+		Status:              "ACTIVE",
+		CredentialReference: fmt.Sprintf("secret-ref-%s", instanceID),
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
+	}, nil
+}
+func (p *RealPostgresDataPlaneProvider) DeleteUser(
+	ctx context.Context,
+	instanceID, username string,
+) error {
+	if p.adminDSN == "" {
+		return fmt.Errorf("missing CUSTOMER_DATABASE_ADMIN_URL")
+	}
+
+	username, err := SanitizeIdentifier(username)
+	if err != nil {
+		return err
+	}
+
+	adminDB, err := sql.Open("pgx", p.adminDSN)
+	if err != nil {
+		return fmt.Errorf("failed to open data-plane admin connection: %w", err)
+	}
+	defer adminDB.Close()
+
+	if err := adminDB.PingContext(ctx); err != nil {
+		return fmt.Errorf("failed to ping data-plane PostgreSQL: %w", err)
+	}
+
+	query := fmt.Sprintf(
+		"DROP ROLE IF EXISTS %s;",
+		username,
+	)
+
+	if _, err := adminDB.ExecContext(ctx, query); err != nil {
+		return fmt.Errorf("failed to delete postgres user '%s': %w", username, err)
+	}
+
+	return nil
+}
+func (p *RealPostgresDataPlaneProvider) RotateCredentials(
+	ctx context.Context,
+	instanceID, username, newPassword string,
+) error {
+	if p.adminDSN == "" {
+		return fmt.Errorf("missing CUSTOMER_DATABASE_ADMIN_URL")
+	}
+
+	username, err := SanitizeIdentifier(username)
+	if err != nil {
+		return err
+	}
+
+	if newPassword == "" {
+		newPassword, err = GenerateStrongPassword()
+		if err != nil {
+			return fmt.Errorf("failed to generate secure password: %w", err)
+		}
+	}
+
+	adminDB, err := sql.Open("pgx", p.adminDSN)
+	if err != nil {
+		return fmt.Errorf("failed to open data-plane admin connection: %w", err)
+	}
+	defer adminDB.Close()
+
+	if err := adminDB.PingContext(ctx); err != nil {
+		return fmt.Errorf("failed to ping data-plane PostgreSQL: %w", err)
+	}
+
+	escapedPassword := strings.ReplaceAll(newPassword, "'", "''")
+
+	query := fmt.Sprintf(
+		"ALTER ROLE %s WITH PASSWORD '%s';",
+		username,
+		escapedPassword,
+	)
+
+	if _, err := adminDB.ExecContext(ctx, query); err != nil {
+		return fmt.Errorf("failed to rotate credentials for postgres user '%s': %w", username, err)
+	}
+
+	return nil
+}
 func (p *RealPostgresDataPlaneProvider) GetInstanceHealth(ctx context.Context, inst *domain.PostgresInstance) (bool, error) {
 	if p.adminDSN == "" {
 		return true, nil
@@ -176,6 +334,48 @@ func (p *RealPostgresDataPlaneProvider) GetInstanceHealth(ctx context.Context, i
 		return false, err
 	}
 	return true, nil
+}
+func (p *RealPostgresDataPlaneProvider) StartDatabase(ctx context.Context, inst *domain.PostgresInstance) error {
+	if p.adminDSN == "" {
+		return fmt.Errorf("missing CUSTOMER_DATABASE_ADMIN_URL")
+	}
+
+	healthy, err := p.GetInstanceHealth(ctx, inst)
+	if err != nil {
+		return fmt.Errorf("data-plane PostgreSQL is unavailable: %w", err)
+	}
+	if !healthy {
+		return fmt.Errorf("data-plane PostgreSQL is unavailable")
+	}
+
+	return nil
+}
+
+func (p *RealPostgresDataPlaneProvider) StopDatabase(ctx context.Context, inst *domain.PostgresInstance) error {
+	if p.adminDSN == "" {
+		return fmt.Errorf("missing CUSTOMER_DATABASE_ADMIN_URL")
+	}
+
+	// The current real data plane is a shared PostgreSQL server.
+	// A single customer database cannot be physically stopped independently.
+	// Lifecycle state is therefore enforced at the control plane.
+	return nil
+}
+
+func (p *RealPostgresDataPlaneProvider) RestartDatabase(ctx context.Context, inst *domain.PostgresInstance) error {
+	if p.adminDSN == "" {
+		return fmt.Errorf("missing CUSTOMER_DATABASE_ADMIN_URL")
+	}
+
+	healthy, err := p.GetInstanceHealth(ctx, inst)
+	if err != nil {
+		return fmt.Errorf("data-plane PostgreSQL is unavailable after restart: %w", err)
+	}
+	if !healthy {
+		return fmt.Errorf("data-plane PostgreSQL is unavailable after restart")
+	}
+
+	return nil
 }
 
 type SimulatedDataPlaneProvider struct {
@@ -240,4 +440,54 @@ func extractHostFromDSN(dsn string) string {
 		}
 	}
 	return "localhost"
+}
+func extractPortFromDSN(dsn string) int {
+	if idx := strings.Index(dsn, "@"); idx != -1 {
+		rest := dsn[idx+1:]
+		if slashIdx := strings.Index(rest, "/"); slashIdx != -1 {
+			hostPort := rest[:slashIdx]
+			if colonIdx := strings.LastIndex(hostPort, ":"); colonIdx != -1 {
+				if port, err := strconv.Atoi(hostPort[colonIdx+1:]); err == nil && port > 0 {
+					return port
+				}
+			}
+		}
+	}
+	return 5432
+}
+func (p *SimulatedDataPlaneProvider) RestartDatabase(ctx context.Context, inst *domain.PostgresInstance) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	existing, ok := p.instances[inst.ID]
+	if !ok {
+		return fmt.Errorf("database instance '%s' not found", inst.ID)
+	}
+
+	existing.Status = domain.StatusAvailable
+	return nil
+}
+func (p *SimulatedDataPlaneProvider) StartDatabase(ctx context.Context, inst *domain.PostgresInstance) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	existing, ok := p.instances[inst.ID]
+	if !ok {
+		return fmt.Errorf("database instance '%s' not found", inst.ID)
+	}
+
+	existing.Status = domain.StatusAvailable
+	return nil
+}
+func (p *SimulatedDataPlaneProvider) StopDatabase(ctx context.Context, inst *domain.PostgresInstance) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	existing, ok := p.instances[inst.ID]
+	if !ok {
+		return fmt.Errorf("database instance '%s' not found", inst.ID)
+	}
+
+	existing.Status = domain.StatusStopped
+	return nil
 }

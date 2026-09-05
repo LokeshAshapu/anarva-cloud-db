@@ -123,6 +123,7 @@ type PostgresUser struct {
 	Role                UserRole  `gorm:"column:role;type:varchar(50);default:'READ_WRITE'" json:"role"`
 	Status              string    `gorm:"column:status;type:varchar(50);default:'ACTIVE'" json:"status"`
 	CredentialReference string    `gorm:"column:credential_reference;type:varchar(255)" json:"credentialReference"`
+	PasswordEncrypted   string    `gorm:"column:password_encrypted;type:text;json:"-"`
 	CreatedAt           time.Time `gorm:"column:created_at" json:"createdAt"`
 	UpdatedAt           time.Time `gorm:"column:updated_at" json:"updatedAt"`
 }
@@ -154,19 +155,19 @@ type StorageAutoscalingPolicy struct {
 
 // DatabaseHealth
 type DatabaseHealth struct {
-	InstanceID           string    `json:"instanceId"`
-	ConnectionAvailable  bool      `json:"connectionAvailable"`
-	ReplicationStatus    string    `json:"replicationStatus"` // SINGLE, STREAMING, LAGGING, PITR_NOT_CONFIGURED
-	CPUPct               float64   `json:"cpuPct"`
-	MemoryPct            float64   `json:"memoryPct"`
-	StorageUsedGB        float64   `json:"storageUsedGb"`
-	StorageAllocatedGB   float64   `json:"storageAllocatedGb"`
-	ActiveConnections    int       `json:"activeConnections"`
-	MaxConnections       int       `json:"maxConnections"`
-	QueryLatencyMs       float64   `json:"queryLatencyMs"`
-	CacheHitRatio        float64   `json:"cacheHitRatio"`
-	SourceQuality        string    `json:"sourceQuality"` // ACTUAL, ESTIMATED, UNKNOWN
-	Timestamp            time.Time `json:"timestamp"`
+	InstanceID          string    `json:"instanceId"`
+	ConnectionAvailable bool      `json:"connectionAvailable"`
+	ReplicationStatus   string    `json:"replicationStatus"` // SINGLE, STREAMING, LAGGING, PITR_NOT_CONFIGURED
+	CPUPct              float64   `json:"cpuPct"`
+	MemoryPct           float64   `json:"memoryPct"`
+	StorageUsedGB       float64   `json:"storageUsedGb"`
+	StorageAllocatedGB  float64   `json:"storageAllocatedGb"`
+	ActiveConnections   int       `json:"activeConnections"`
+	MaxConnections      int       `json:"maxConnections"`
+	QueryLatencyMs      float64   `json:"queryLatencyMs"`
+	CacheHitRatio       float64   `json:"cacheHitRatio"`
+	SourceQuality       string    `json:"sourceQuality"` // ACTUAL, ESTIMATED, UNKNOWN
+	Timestamp           time.Time `json:"timestamp"`
 }
 
 // PostgresLogEntry
@@ -194,21 +195,21 @@ type PostgresReplica struct {
 
 // MaintenanceWindow
 type MaintenanceWindow struct {
-	Day              string    `json:"day"` // Sun, Mon, Tue...
-	StartTime        string    `json:"startTime"` // 03:00
-	DurationMinutes  int       `json:"durationMinutes"`
-	Timezone         string    `json:"timezone"`
-	Status           string    `json:"status"` // SCHEDULED, IDLE, IN_PROGRESS
-	NextScheduledAt  time.Time `json:"nextScheduledAt"`
+	Day             string    `json:"day"`       // Sun, Mon, Tue...
+	StartTime       string    `json:"startTime"` // 03:00
+	DurationMinutes int       `json:"durationMinutes"`
+	Timezone        string    `json:"timezone"`
+	Status          string    `json:"status"` // SCHEDULED, IDLE, IN_PROGRESS
+	NextScheduledAt time.Time `json:"nextScheduledAt"`
 }
 
 // Custom Errors
 var (
-	ErrInstanceNotFound    = errors.New("postgres instance not found")
-	ErrInvalidVersion      = errors.New("unsupported postgresql version")
-	ErrQuotaExceeded       = errors.New("database quota limit exceeded")
-	ErrPublicAccessDenied  = errors.New("public postgresql access requires explicit security confirmation")
-	ErrInvalidCredentials  = errors.New("invalid postgresql credentials or secret reference")
+	ErrInstanceNotFound   = errors.New("postgres instance not found")
+	ErrInvalidVersion     = errors.New("unsupported postgresql version")
+	ErrQuotaExceeded      = errors.New("database quota limit exceeded")
+	ErrPublicAccessDenied = errors.New("public postgresql access requires explicit security confirmation")
+	ErrInvalidCredentials = errors.New("invalid postgresql credentials or secret reference")
 )
 
 func NewPostgresInstance(orgID, projectID, name, version, regionID, networkID string, cpu float64, memoryMB, storageGB int) *PostgresInstance {
@@ -226,29 +227,29 @@ func NewPostgresInstance(orgID, projectID, name, version, regionID, networkID st
 	}
 
 	return &PostgresInstance{
-		ID:               uuid.New().String(),
-		OrganizationID:   orgID,
-		ProjectID:        projectID,
-		Name:             name,
-		Provider:         "LOCAL_POSTGRES",
-		Version:          version,
-		Status:           StatusCreating,
-		RegionID:         regionID,
-		ZoneId:           regionID + "-a",
-		CPU:              cpu,
-		MemoryMB:         memoryMB,
-		StorageGB:        storageGB,
-		StorageType:      "SSD",
-		NetworkID:        networkID,
-		SubnetID:         networkID + "-sub-1",
-		AvailabilityMode: AvailabilitySingle,
-		BackupMode:       "DAILY_SNAPSHOT",
+		ID:                uuid.New().String(),
+		OrganizationID:    orgID,
+		ProjectID:         projectID,
+		Name:              name,
+		Provider:          "LOCAL_POSTGRES",
+		Version:           version,
+		Status:            StatusCreating,
+		RegionID:          regionID,
+		ZoneId:            regionID + "-a",
+		CPU:               cpu,
+		MemoryMB:          memoryMB,
+		StorageGB:         storageGB,
+		StorageType:       "SSD",
+		NetworkID:         networkID,
+		SubnetID:          networkID + "-sub-1",
+		AvailabilityMode:  AvailabilitySingle,
+		BackupMode:        "DAILY_SNAPSHOT",
 		MaintenanceWindow: "Sun:03:00",
-		Host:             "localhost",
-		Port:             5432,
-		PublicAccess:     false,
-		RealityLabel:     "LOCAL_POSTGRES",
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
+		Host:              "localhost",
+		Port:              5432,
+		PublicAccess:      false,
+		RealityLabel:      "LOCAL_POSTGRES",
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	}
 }

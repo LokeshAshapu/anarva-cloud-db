@@ -39,7 +39,17 @@ func TestPhase68G_EndToEndDatabaseWorkflow_Integration(t *testing.T) {
 
 	dpProv := postgresProvider.NewRealPostgresDataPlaneProvider(adminDSN)
 	pgProv := postgresProvider.NewLocalDockerPostgresProvider()
-	svc := postgresService.NewPostgresServiceFull(nil, pgProv, dpProv)
+	instanceRepo := newTestPostgresInstanceRepository()
+	userRepo := &testPostgresUserRepository{}
+	encryptionKey := []byte("01234567890123456789012345678901")
+
+	svc := postgresService.NewPostgresServiceFull(
+		instanceRepo,
+		userRepo,
+		pgProv,
+		dpProv,
+		encryptionKey,
+	)
 	sqlSvc := postgresService.NewSQLService()
 	sqlExecutor := postgresService.NewPostgresSQLExecutor(sqlSvc)
 
@@ -51,6 +61,11 @@ func TestPhase68G_EndToEndDatabaseWorkflow_Integration(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, domain.StatusAvailable, instA.Status)
 		assert.Contains(t, instA.RealityLabel, "REAL_POSTGRES")
+		customerDSN, err := svc.GetCustomerConnectionDSN(ctx, instA.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, customerDSN)
+		require.NotContains(t, customerDSN, "anarva_admin")
+		require.NotContains(t, customerDSN, "anarva_dev_password")
 
 		// Register instA in pgProv for handler lookup during tenant isolation tests
 		_, _ = pgProv.CreateInstance(ctx, instA, "secret")
@@ -83,7 +98,7 @@ func TestPhase68G_EndToEndDatabaseWorkflow_Integration(t *testing.T) {
 				email TEXT NOT NULL
 			);
 		`
-		resCreate, err := sqlExecutor.Execute(ctx, instA, adminDSN, createTableSQL)
+		resCreate, err := sqlExecutor.Execute(ctx, instA, customerDSN, createTableSQL)
 		require.NoError(t, err)
 		assert.False(t, resCreate.Truncated)
 
@@ -92,55 +107,55 @@ func TestPhase68G_EndToEndDatabaseWorkflow_Integration(t *testing.T) {
 			INSERT INTO phase68g_users (name, email)
 			VALUES ('Lokesh', 'lokesh@example.test'), ('Anarva', 'anarva@example.test');
 		`
-		resInsert, err := sqlExecutor.Execute(ctx, instA, adminDSN, insertSQL)
+		resInsert, err := sqlExecutor.Execute(ctx, instA, customerDSN, insertSQL)
 		require.NoError(t, err)
 		assert.Equal(t, 1, resInsert.RowCount)
 		assert.Contains(t, fmt.Sprintf("%v", resInsert.Rows[0][0]), "Affected rows: 2")
 
 		// 5. Execute Native DML: SELECT rows
 		selectSQL := `SELECT id, name, email FROM phase68g_users ORDER BY id ASC;`
-		resSelect, err := sqlExecutor.Execute(ctx, instA, adminDSN, selectSQL)
+		resSelect, err := sqlExecutor.Execute(ctx, instA, customerDSN, selectSQL)
 		require.NoError(t, err)
 		assert.Equal(t, 2, resSelect.RowCount)
 		assert.Equal(t, []string{"id", "name", "email"}, resSelect.Columns)
 
 		// 6. Execute Native DML: UPDATE row
 		updateSQL := `UPDATE phase68g_users SET email = 'lokesh_updated@example.test' WHERE name = 'Lokesh';`
-		resUpdate, err := sqlExecutor.Execute(ctx, instA, adminDSN, updateSQL)
+		resUpdate, err := sqlExecutor.Execute(ctx, instA, customerDSN, updateSQL)
 		require.NoError(t, err)
 		assert.Equal(t, 1, resUpdate.RowCount)
 		assert.Contains(t, fmt.Sprintf("%v", resUpdate.Rows[0][0]), "Affected rows: 1")
 
 		// 7. Execute Native DML: DELETE row
 		deleteSQL := `DELETE FROM phase68g_users WHERE name = 'Anarva';`
-		resDelete, err := sqlExecutor.Execute(ctx, instA, adminDSN, deleteSQL)
+		resDelete, err := sqlExecutor.Execute(ctx, instA, customerDSN, deleteSQL)
 		require.NoError(t, err)
 		assert.Equal(t, 1, resDelete.RowCount)
 		assert.Contains(t, fmt.Sprintf("%v", resDelete.Rows[0][0]), "Affected rows: 1")
 
 		// 8. Re-insert Anarva to establish final durable test dataset
 		reinsertSQL := `INSERT INTO phase68g_users (name, email) VALUES ('Anarva', 'anarva@example.test');`
-		_, err = sqlExecutor.Execute(ctx, instA, adminDSN, reinsertSQL)
+		_, err = sqlExecutor.Execute(ctx, instA, customerDSN, reinsertSQL)
 		require.NoError(t, err)
 
 		// 9. Verify final pre-restart dataset (Lokesh & Anarva)
-		resPreRestart, err := sqlExecutor.Execute(ctx, instA, adminDSN, selectSQL)
+		resPreRestart, err := sqlExecutor.Execute(ctx, instA, customerDSN, selectSQL)
 		require.NoError(t, err)
 		assert.Equal(t, 2, resPreRestart.RowCount)
 
 		// 10. Gateway Process Restart Simulation (Recreate Executor)
 		gatewayRestartExecutor := postgresService.NewPostgresSQLExecutor(sqlSvc)
-		resPostGatewayRestart, err := gatewayRestartExecutor.Execute(ctx, instA, adminDSN, selectSQL)
+		resPostGatewayRestart, err := gatewayRestartExecutor.Execute(ctx, instA, customerDSN, selectSQL)
 		require.NoError(t, err)
 		assert.Equal(t, 2, resPostGatewayRestart.RowCount, "Rows must persist across gateway executor recreation")
 
 		// 11. Real PostgreSQL Docker Container Restart
-		cmd := exec.Command("docker", "restart", "anarva-customer-postgres-dataplane")
+		cmd := exec.Command("docker", "restart", "anarva-postgres-dataplane")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Logf("Docker container restart notice: %s (%v)", string(output), err)
 		} else {
-			t.Logf("Docker container 'anarva-customer-postgres-dataplane' restarted successfully")
+			t.Logf("Docker container 'anarva-postgres-dataplane' restarted successfully")
 		}
 
 		// Wait for PostgreSQL readiness on localhost:5433
@@ -160,7 +175,7 @@ func TestPhase68G_EndToEndDatabaseWorkflow_Integration(t *testing.T) {
 		require.True(t, reconnectSuccess, "PostgreSQL container must regain readiness on localhost:5433 within timeout")
 
 		// 12. Verify Data Durability Post Container Restart (Persistent Named Volume Verification)
-		resPostContainerRestart, err := gatewayRestartExecutor.Execute(ctx, instA, adminDSN, selectSQL)
+		resPostContainerRestart, err := gatewayRestartExecutor.Execute(ctx, instA, customerDSN, selectSQL)
 		require.NoError(t, err)
 		assert.Equal(t, 2, resPostContainerRestart.RowCount, "Rows must persist across PostgreSQL container restart via named Docker volume")
 

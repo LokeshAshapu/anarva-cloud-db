@@ -61,7 +61,7 @@ func TestPhase68E_IdentifierSanitizationAndSecurity(t *testing.T) {
 func TestPhase68E_SimulatedProvisioningAndTenantIsolation(t *testing.T) {
 	dpProv := postgresProvider.NewSimulatedDataPlaneProvider()
 	pgProv := postgresProvider.NewLocalDockerPostgresProvider()
-	svc := postgresService.NewPostgresServiceFull(nil, pgProv, dpProv)
+	svc := postgresService.NewPostgresServiceFull(nil, nil, pgProv, dpProv, nil)
 	sqlSvc := postgresService.NewSQLService()
 
 	ctx := context.Background()
@@ -118,7 +118,7 @@ func TestPhase68E_RealPostgresDataPlaneProvisioning_Integration(t *testing.T) {
 
 	dpProv := postgresProvider.NewRealPostgresDataPlaneProvider(adminDSN)
 	pgProv := postgresProvider.NewLocalDockerPostgresProvider()
-	svc := postgresService.NewPostgresServiceFull(nil, pgProv, dpProv)
+	svc := postgresService.NewPostgresServiceFull(nil, nil, pgProv, dpProv, nil)
 
 	ctx := context.Background()
 

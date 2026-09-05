@@ -55,9 +55,22 @@ func TestPhase68F_SQLErrorSanitizationAndCredentialProtection(t *testing.T) {
 }
 
 func TestPhase68F_TenantAuthorizationOrderAndIsolation(t *testing.T) {
-	dpProv := postgresProvider.NewSimulatedDataPlaneProvider()
+	adminDSN := os.Getenv("CUSTOMER_DATABASE_ADMIN_URL")
+	require.NotEmpty(t, adminDSN, "CUSTOMER_DATABASE_ADMIN_URL must be configured for this integration test")
+
+	dpProv := postgresProvider.NewRealPostgresDataPlaneProvider(adminDSN)
 	pgProv := postgresProvider.NewLocalDockerPostgresProvider()
-	svc := postgresService.NewPostgresServiceFull(nil, pgProv, dpProv)
+	instanceRepo := newTestPostgresInstanceRepository()
+	userRepo := &testPostgresUserRepository{}
+	encryptionKey := []byte("01234567890123456789012345678901")
+
+	svc := postgresService.NewPostgresServiceFull(
+		instanceRepo,
+		userRepo,
+		pgProv,
+		dpProv,
+		encryptionKey,
+	)
 	sqlSvc := postgresService.NewSQLService()
 	exec := postgresService.NewPostgresSQLExecutor(sqlSvc)
 
@@ -112,7 +125,7 @@ func TestPhase68F_TenantAuthorizationOrderAndIsolation(t *testing.T) {
 func TestPhase68F_ExecutorRestartPersistenceBoundary(t *testing.T) {
 	dpProv := postgresProvider.NewSimulatedDataPlaneProvider()
 	pgProv := postgresProvider.NewLocalDockerPostgresProvider()
-	svc := postgresService.NewPostgresServiceFull(nil, pgProv, dpProv)
+	svc := postgresService.NewPostgresServiceFull(nil, nil, pgProv, dpProv, nil)
 	sqlSvc := postgresService.NewSQLService()
 
 	ctx := context.Background()
@@ -154,7 +167,7 @@ func TestPhase68F_RealPostgresSQLExecution_Integration(t *testing.T) {
 
 	dpProv := postgresProvider.NewRealPostgresDataPlaneProvider(adminDSN)
 	pgProv := postgresProvider.NewLocalDockerPostgresProvider()
-	svc := postgresService.NewPostgresServiceFull(nil, pgProv, dpProv)
+	svc := postgresService.NewPostgresServiceFull(nil, nil, pgProv, dpProv, nil)
 	exec := postgresService.NewPostgresSQLExecutor(nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/domain"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/service"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/security"
 )
@@ -248,12 +249,52 @@ func (h *PostgresHandler) handleDatabaseSubroutes(w http.ResponseWriter, r *http
 			return
 		}
 
-		res, err := h.sqlExecutor.Execute(r.Context(), inst, h.adminDSN, sqlText)
-		if err != nil {
-			respondStructuredError(w, http.StatusBadRequest, "SQL_EXECUTION_ERROR", err.Error(), r.Header.Get("X-Request-ID"))
+		if inst.Status == domain.StatusStopped {
+			respondStructuredError(
+				w,
+				http.StatusConflict,
+				"DATABASE_STOPPED",
+				"database instance is stopped",
+				r.Header.Get("X-Request-ID"),
+			)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{"data": res})
+
+		customerDSN, err := h.postgresService.GetCustomerConnectionDSN(
+			r.Context(),
+			instanceID,
+		)
+		if err != nil {
+			respondStructuredError(
+				w,
+				http.StatusInternalServerError,
+				"CREDENTIAL_RESOLUTION_ERROR",
+				err.Error(),
+				r.Header.Get("X-Request-ID"),
+			)
+			return
+		}
+
+		res, err := h.sqlExecutor.Execute(
+			r.Context(),
+			inst,
+			customerDSN,
+			sqlText,
+		)
+		if err != nil {
+			respondStructuredError(
+				w,
+				http.StatusBadRequest,
+				"SQL_EXECUTION_ERROR",
+				err.Error(),
+				r.Header.Get("X-Request-ID"),
+			)
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": res,
+		})
 
 	default:
 		respondStructuredError(w, http.StatusNotFound, "NOT_FOUND", "Subroute not found", r.Header.Get("X-Request-ID"))

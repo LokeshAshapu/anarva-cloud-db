@@ -11,7 +11,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/domain"
-	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/provider"
 )
 
 var dsnSanitizerRegex = regexp.MustCompile(`postgres://[^@]+@`)
@@ -39,45 +38,25 @@ func NewPostgresSQLExecutor(fallback *SQLService) *PostgresSQLExecutor {
 	}
 }
 
-func (e *PostgresSQLExecutor) Execute(ctx context.Context, inst *domain.PostgresInstance, adminDSN string, sqlText string) (*SQLQueryResult, error) {
+func (e *PostgresSQLExecutor) Execute(ctx context.Context, inst *domain.PostgresInstance, customerDSN string, sqlText string) (*SQLQueryResult, error) {
 	sqlText = strings.TrimSpace(sqlText)
 	if sqlText == "" {
 		return nil, fmt.Errorf("SQL query cannot be empty")
 	}
 
 	// 1. Fallback to SQLService simulation if no data-plane admin DSN is configured
-	if adminDSN == "" {
+	if customerDSN == "" {
 		if e.fallbackSQLService != nil {
 			return e.fallbackSQLService.ExecuteQuery(ctx, inst.ID, sqlText)
 		}
 		return nil, fmt.Errorf("missing CUSTOMER_DATABASE_ADMIN_URL and fallback SQLService is unconfigured")
 	}
 
-	// 2. Resolve Target Database Name
-	rawSuffix := strings.ReplaceAll(inst.ID, "-", "_")
-	rawSuffix = strings.ReplaceAll(rawSuffix, ":", "_")
-	dbName, err := provider.SanitizeIdentifier(fmt.Sprintf("db_%s", rawSuffix))
-	if err != nil {
-		return nil, fmt.Errorf("invalid database name: %w", err)
-	}
-
-	// 3. Construct Target Database DSN (Connect to specific db_<instance_id>)
-	targetDSN := adminDSN
-	if idx := strings.LastIndex(targetDSN, "/"); idx != -1 {
-		// Check for query parameters (e.g. ?sslmode=disable)
-		base := targetDSN[:idx]
-		params := ""
-		if paramIdx := strings.Index(targetDSN[idx:], "?"); paramIdx != -1 {
-			params = targetDSN[idx+paramIdx:]
-		}
-		targetDSN = fmt.Sprintf("%s/%s%s", base, dbName, params)
-	}
-
 	// 4. Open Real Database Connection to Customer Database
 	execCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	db, err := sql.Open("pgx", targetDSN)
+	db, err := sql.Open("pgx", customerDSN)
 	if err != nil {
 		return nil, SanitizeSQLError(err)
 	}

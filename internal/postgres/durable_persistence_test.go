@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -48,7 +49,7 @@ func TestPhase55_ProductionDurablePersistence_IntegrationChain(t *testing.T) {
 	// 1. User Persistence Test across Process / Repo Recreation
 	t.Run("1. User Persistence across Repo Recreation", func(t *testing.T) {
 		uRepo1 := authRepo.NewUserRepository(dbPool.DB)
-		userID := fmt.Sprintf("usr-p55-%d", ts)
+		userID := uuid.New().String()
 		userEmail := fmt.Sprintf("user-p55-%d@anarva.io", ts)
 
 		u1 := &authDomain.User{
@@ -76,17 +77,17 @@ func TestPhase55_ProductionDurablePersistence_IntegrationChain(t *testing.T) {
 		pRepo := projRepo.NewProjectRepository(dbPool.DB)
 		dRepo := databaseRepo.NewInstanceRepository(dbPool.DB)
 		sqlSvc := pgService.NewSQLService()
-
-		orgID := fmt.Sprintf("org-p55-%d", ts)
-		projID := fmt.Sprintf("proj-p55-%d", ts)
-		dbID := fmt.Sprintf("db-p55-%d", ts)
+		orgID := uuid.New().String()
+		projID := uuid.New().String()
+		dbID := uuid.New().String()
+		ownerID := uuid.New().String()
 
 		// Create Org
 		org := &projDomain.Organization{
 			ID:        orgID,
 			Name:      "Phase 55 Org",
 			Slug:      orgID,
-			OwnerID:   "usr-default",
+			OwnerID:   ownerID,
 			CreatedAt: time.Now(),
 		}
 		require.NoError(t, oRepo.Create(ctx, org))

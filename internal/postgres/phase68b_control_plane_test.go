@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -48,24 +49,24 @@ func TestPostgresInstanceRepository_LiveDBOrSkip(t *testing.T) {
 		repo1 := postgresRepo.NewGormPostgresInstanceRepository(db)
 
 		inst := &domain.PostgresInstance{
-			ID:                 "postgresql-prod-alpha-101",
-			OrganizationID:     "org-alpha",
-			ProjectID:          "proj-alpha",
-			Name:               "Production DB Alpha",
-			Provider:           "LOCAL_POSTGRES",
-			Version:            "17",
-			Status:             domain.StatusAvailable,
-			RegionID:           "ap-hyderabad-1",
-			ZoneId:             "ap-hyderabad-1a",
-			CPU:                2.0,
-			MemoryMB:           2048,
-			StorageGB:          25,
-			StorageType:        "SSD",
-			NetworkID:          "vpc-alpha",
-			Host:               "localhost",
-			Port:               15433,
-			PublicAccess:       false,
-			RealityLabel:       "LOCAL_POSTGRES (STATEFUL_STORAGE)",
+			ID:             "postgresql-prod-alpha-101",
+			OrganizationID: "org-alpha",
+			ProjectID:      "proj-alpha",
+			Name:           "Production DB Alpha",
+			Provider:       "LOCAL_POSTGRES",
+			Version:        "17",
+			Status:         domain.StatusAvailable,
+			RegionID:       "ap-hyderabad-1",
+			ZoneId:         "ap-hyderabad-1a",
+			CPU:            2.0,
+			MemoryMB:       2048,
+			StorageGB:      25,
+			StorageType:    "SSD",
+			NetworkID:      "vpc-alpha",
+			Host:           "localhost",
+			Port:           15433,
+			PublicAccess:   false,
+			RealityLabel:   "LOCAL_POSTGRES (STATEFUL_STORAGE)",
 		}
 
 		_ = repo1.Delete(ctx, inst.ID)
@@ -108,10 +109,23 @@ func TestPostgresInstanceRepository_LiveDBOrSkip(t *testing.T) {
 }
 
 func TestPostgresQueryEndpoint_TenantAuthorization(t *testing.T) {
-	prov := postgresProvider.NewLocalDockerPostgresProvider()
-	svc := postgresService.NewPostgresService(prov)
-	sqlSvc := postgresService.NewSQLService()
+	adminDSN := os.Getenv("CUSTOMER_DATABASE_ADMIN_URL")
+	require.NotEmpty(t, adminDSN, "CUSTOMER_DATABASE_ADMIN_URL must be configured for this integration test")
 
+	pgProv := postgresProvider.NewLocalDockerPostgresProvider()
+	dpProv := postgresProvider.NewRealPostgresDataPlaneProvider(adminDSN)
+	instanceRepo := newTestPostgresInstanceRepository()
+	userRepo := &testPostgresUserRepository{}
+	encryptionKey := []byte("01234567890123456789012345678901")
+
+	svc := postgresService.NewPostgresServiceFull(
+		instanceRepo,
+		userRepo,
+		pgProv,
+		dpProv,
+		encryptionKey,
+	)
+	sqlSvc := postgresService.NewSQLService()
 	ctx := context.Background()
 
 	// Create database instance for Tenant A (org-tenant-a / proj-tenant-a)
@@ -136,7 +150,7 @@ func TestPostgresQueryEndpoint_TenantAuthorization(t *testing.T) {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
-		assert.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, http.StatusOK, rec.Code, "response body: %s", rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "data")
 	})
 
@@ -163,4 +177,143 @@ func TestPostgresQueryEndpoint_TenantAuthorization(t *testing.T) {
 		_ = json.Unmarshal(rec.Body.Bytes(), &res)
 		assert.Equal(t, "TENANT_ISOLATION_VIOLATION", res.Code)
 	})
+}
+
+type testPostgresUserRepository struct {
+	user *domain.PostgresUser
+}
+type testPostgresInstanceRepository struct {
+	instances map[string]*domain.PostgresInstance
+}
+
+func newTestPostgresInstanceRepository() *testPostgresInstanceRepository {
+	return &testPostgresInstanceRepository{
+		instances: make(map[string]*domain.PostgresInstance),
+	}
+}
+
+func (r *testPostgresInstanceRepository) Create(
+	ctx context.Context,
+	inst *domain.PostgresInstance,
+) error {
+	if inst == nil || inst.ID == "" {
+		return errors.New("invalid postgres instance")
+	}
+	r.instances[inst.ID] = inst
+	return nil
+}
+
+func (r *testPostgresInstanceRepository) GetByID(
+	ctx context.Context,
+	id string,
+) (*domain.PostgresInstance, error) {
+	inst, ok := r.instances[id]
+	if !ok {
+		return nil, errors.New("postgres instance not found")
+	}
+	return inst, nil
+}
+
+func (r *testPostgresInstanceRepository) GetByIDForTenant(
+	ctx context.Context,
+	orgID, projID, id string,
+) (*domain.PostgresInstance, error) {
+	inst, err := r.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if orgID != "" && inst.OrganizationID != orgID {
+		return nil, errors.New("TENANT_ISOLATION_VIOLATION")
+	}
+
+	if projID != "" && inst.ProjectID != projID {
+		return nil, errors.New("TENANT_ISOLATION_VIOLATION")
+	}
+
+	return inst, nil
+}
+
+func (r *testPostgresInstanceRepository) ListByProject(
+	ctx context.Context,
+	orgID, projectID string,
+) ([]*domain.PostgresInstance, error) {
+	var result []*domain.PostgresInstance
+
+	for _, inst := range r.instances {
+		if inst.OrganizationID == orgID && inst.ProjectID == projectID {
+			result = append(result, inst)
+		}
+	}
+
+	return result, nil
+}
+
+func (r *testPostgresInstanceRepository) ListByOrganization(
+	ctx context.Context,
+	orgID string,
+) ([]*domain.PostgresInstance, error) {
+	var result []*domain.PostgresInstance
+
+	for _, inst := range r.instances {
+		if inst.OrganizationID == orgID {
+			result = append(result, inst)
+		}
+	}
+
+	return result, nil
+}
+
+func (r *testPostgresInstanceRepository) Update(
+	ctx context.Context,
+	inst *domain.PostgresInstance,
+) error {
+	if inst == nil || inst.ID == "" {
+		return errors.New("invalid postgres instance")
+	}
+
+	r.instances[inst.ID] = inst
+	return nil
+}
+
+func (r *testPostgresInstanceRepository) Delete(
+	ctx context.Context,
+	id string,
+) error {
+	delete(r.instances, id)
+	return nil
+}
+func (r *testPostgresUserRepository) Create(ctx context.Context, user *domain.PostgresUser) error {
+	r.user = user
+	return nil
+}
+
+func (r *testPostgresUserRepository) GetByInstanceAndUsername(
+	ctx context.Context,
+	instanceID, username string,
+) (*domain.PostgresUser, error) {
+	if r.user == nil {
+		return nil, errors.New("postgres user not found")
+	}
+
+	if r.user.InstanceID != instanceID || r.user.Username != username {
+		return nil, errors.New("postgres user not found")
+	}
+
+	return r.user, nil
+}
+
+func (r *testPostgresUserRepository) Delete(
+	ctx context.Context,
+	instanceID, username string,
+) error {
+	return nil
+}
+
+func (r *testPostgresUserRepository) Update(
+	ctx context.Context,
+	user *domain.PostgresUser,
+) error {
+	r.user = user
+	return nil
 }

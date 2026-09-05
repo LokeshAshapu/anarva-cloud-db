@@ -3,18 +3,22 @@ package service
 import (
 	"context"
 	"fmt"
-	"time"
-
 	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/domain"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/provider"
 	"github.com/anarva-cloud/anarva-cloud-db/internal/postgres/repository"
+	"github.com/anarva-cloud/anarva-cloud-db/pkg/security"
 	"github.com/google/uuid"
+	"net/url"
+	"strings"
+	"time"
 )
 
 type PostgresService struct {
 	repo              repository.PostgresInstanceRepository
+	userRepo          repository.PostgresUserRepository
 	provider          provider.PostgresProvider
 	dataPlaneProvider provider.PostgresDataPlaneProvider
+	encryptionKey     []byte
 }
 
 func NewPostgresService(p provider.PostgresProvider) *PostgresService {
@@ -25,11 +29,19 @@ func NewPostgresServiceWithRepo(repo repository.PostgresInstanceRepository, p pr
 	return &PostgresService{repo: repo, provider: p}
 }
 
-func NewPostgresServiceFull(repo repository.PostgresInstanceRepository, p provider.PostgresProvider, dp provider.PostgresDataPlaneProvider) *PostgresService {
+func NewPostgresServiceFull(
+	repo repository.PostgresInstanceRepository,
+	userRepo repository.PostgresUserRepository,
+	p provider.PostgresProvider,
+	dp provider.PostgresDataPlaneProvider,
+	encryptionKey []byte,
+) *PostgresService {
 	return &PostgresService{
 		repo:              repo,
+		userRepo:          userRepo,
 		provider:          p,
 		dataPlaneProvider: dp,
+		encryptionKey:     encryptionKey,
 	}
 }
 
@@ -76,7 +88,47 @@ func (s *PostgresService) CreateInstance(ctx context.Context, orgID, projectID, 
 		password = adminPassword
 	}
 
-	_ = password // Password handled securely; NOT exposed in json response or plain DB columns
+	if password != "" && s.userRepo != nil {
+		if len(s.encryptionKey) != 32 {
+			inst.Status = domain.StatusFailed
+			if s.repo != nil {
+				_ = s.repo.Update(ctx, inst)
+			}
+			return nil, fmt.Errorf("postgres credential encryption key must be exactly 32 bytes")
+		}
+
+		encryptedPassword, err := security.Encrypt([]byte(password), s.encryptionKey)
+		if err != nil {
+			inst.Status = domain.StatusFailed
+			if s.repo != nil {
+				_ = s.repo.Update(ctx, inst)
+			}
+			return nil, fmt.Errorf("failed to encrypt postgres credential: %w", err)
+		}
+
+		rawSuffix := strings.ReplaceAll(inst.ID, "-", "_")
+		rawSuffix = strings.ReplaceAll(rawSuffix, ":", "_")
+
+		username := fmt.Sprintf("usr_%s", rawSuffix)
+
+		user := &domain.PostgresUser{
+			ID:                  uuid.New().String(),
+			InstanceID:          inst.ID,
+			Username:            username,
+			Role:                domain.RoleOwner,
+			Status:              "ACTIVE",
+			CredentialReference: fmt.Sprintf("postgres-user-%s", inst.ID),
+			PasswordEncrypted:   encryptedPassword,
+		}
+
+		if err := s.userRepo.Create(ctx, user); err != nil {
+			inst.Status = domain.StatusFailed
+			if s.repo != nil {
+				_ = s.repo.Update(ctx, inst)
+			}
+			return nil, fmt.Errorf("failed to persist postgres credential: %w", err)
+		}
+	}
 
 	inst.Status = domain.StatusAvailable
 	if s.repo != nil {
@@ -120,6 +172,66 @@ func (s *PostgresService) GetInstanceForTenant(ctx context.Context, orgID, projI
 	return inst, nil
 }
 
+// GetCustomerConnectionDSN returns a DSN using the customer-specific
+// PostgreSQL role and decrypted password.
+func (s *PostgresService) GetCustomerConnectionDSN(ctx context.Context, instanceID string) (string, error) {
+	if s.userRepo == nil {
+		return "", fmt.Errorf("postgres user repository is not configured")
+	}
+
+	if len(s.encryptionKey) != 32 {
+		return "", fmt.Errorf("postgres credential encryption key is not configured correctly")
+	}
+
+	inst, err := s.GetInstance(ctx, instanceID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get postgres instance: %w", err)
+	}
+
+	rawSuffix := strings.ReplaceAll(instanceID, "-", "_")
+	rawSuffix = strings.ReplaceAll(rawSuffix, ":", "_")
+	username := fmt.Sprintf("usr_%s", rawSuffix)
+
+	user, err := s.userRepo.GetByInstanceAndUsername(
+		ctx,
+		instanceID,
+		username,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to get postgres credential: %w", err)
+	}
+
+	if user == nil || user.PasswordEncrypted == "" {
+		return "", fmt.Errorf("postgres credential is not available")
+	}
+
+	password, err := security.Decrypt(user.PasswordEncrypted, s.encryptionKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt postgres credential: %w", err)
+	}
+
+	host := inst.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+
+	port := inst.Port
+	if port == 0 {
+		port = 5432
+	}
+
+	dbName := fmt.Sprintf("db_%s", strings.ReplaceAll(instanceID, "-", "_"))
+
+	return fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d/%s?sslmode=disable",
+		user.Username,
+		url.QueryEscape(string(password)),
+		host,
+		port,
+		dbName,
+	), nil
+}
+
 func (s *PostgresService) ListInstances(ctx context.Context, orgID, projectID string) ([]*domain.PostgresInstance, error) {
 	if s.repo != nil {
 		if list, err := s.repo.ListByProject(ctx, orgID, projectID); err == nil && len(list) > 0 {
@@ -158,38 +270,67 @@ func (s *PostgresService) DeleteInstance(ctx context.Context, instanceID string)
 }
 
 func (s *PostgresService) StartInstance(ctx context.Context, instanceID string) error {
-	err := s.provider.StartInstance(ctx, instanceID)
-	if err == nil && s.repo != nil {
-		if inst, getErr := s.repo.GetByID(ctx, instanceID); getErr == nil && inst != nil {
-			inst.Status = domain.StatusAvailable
-			_ = s.repo.Update(ctx, inst)
-		}
+	if s.repo == nil {
+		return fmt.Errorf("postgres repository is not configured")
 	}
-	return err
+	if s.dataPlaneProvider == nil {
+		return fmt.Errorf("postgres data-plane provider is not configured")
+	}
+
+	inst, err := s.repo.GetByID(ctx, instanceID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.dataPlaneProvider.StartDatabase(ctx, inst); err != nil {
+		return err
+	}
+
+	inst.Status = domain.StatusAvailable
+	return s.repo.Update(ctx, inst)
 }
 
 func (s *PostgresService) StopInstance(ctx context.Context, instanceID string) error {
-	err := s.provider.StopInstance(ctx, instanceID)
-	if err == nil && s.repo != nil {
-		if inst, getErr := s.repo.GetByID(ctx, instanceID); getErr == nil && inst != nil {
-			inst.Status = domain.StatusStopped
-			_ = s.repo.Update(ctx, inst)
-		}
+	if s.repo == nil {
+		return fmt.Errorf("postgres repository is not configured")
 	}
-	return err
+	if s.dataPlaneProvider == nil {
+		return fmt.Errorf("postgres data-plane provider is not configured")
+	}
+
+	inst, err := s.repo.GetByID(ctx, instanceID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.dataPlaneProvider.StopDatabase(ctx, inst); err != nil {
+		return err
+	}
+
+	inst.Status = domain.StatusStopped
+	return s.repo.Update(ctx, inst)
 }
 
 func (s *PostgresService) RestartInstance(ctx context.Context, instanceID string) error {
-	err := s.provider.RestartInstance(ctx, instanceID)
-	if err == nil && s.repo != nil {
-		if inst, getErr := s.repo.GetByID(ctx, instanceID); getErr == nil && inst != nil {
-			inst.Status = domain.StatusAvailable
-			_ = s.repo.Update(ctx, inst)
-		}
+	if s.repo == nil {
+		return fmt.Errorf("postgres repository is not configured")
 	}
-	return err
-}
+	if s.dataPlaneProvider == nil {
+		return fmt.Errorf("postgres data-plane provider is not configured")
+	}
 
+	inst, err := s.repo.GetByID(ctx, instanceID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.dataPlaneProvider.RestartDatabase(ctx, inst); err != nil {
+		return err
+	}
+
+	inst.Status = domain.StatusAvailable
+	return s.repo.Update(ctx, inst)
+}
 func (s *PostgresService) ScaleInstance(ctx context.Context, instanceID string, cpu float64, memoryMB, storageGB int) (*domain.PostgresInstance, error) {
 	return s.provider.ScaleInstance(ctx, instanceID, cpu, memoryMB, storageGB)
 }
